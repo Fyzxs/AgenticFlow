@@ -23,6 +23,7 @@ description: Turns the run's findings, PR comments and owner corrections into im
 End of every run, and when new PR feedback arrives.
 
 ## Rules
+- `human-edit` findings are the strongest signal there is: diff each edited file against its checkpointed version (`git log -p -- <file>`), work out what the agent should have produced, and route that like any other miss. Two edits of the same kind to the same agent's output count as a recurrence.
 - Route by kind: `instance` is logged only; `agent-gap` patches that agent's Learned section; `context-gap` and `docs-drift` patch the doc; a rule with 2 or more hits is proposed as a hook, lint or test, and its prose shrinks.
 - Every patch cites the findings that justify it. No evidence, no patch.
 - Merge with an existing entry instead of adding a near-duplicate; increment its hits.

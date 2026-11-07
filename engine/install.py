@@ -84,6 +84,21 @@ def install_package(source: pathlib.Path, target: pathlib.Path, written: list):
             new = preserve_learned(new, dest.read_text(encoding="utf-8"))
         write(dest, new, written)
     write(af / "INSTALLED.json", json.dumps({"agentflow": VERSION}, indent=2) + "\n", written)
+    ensure_gitignore(target, written)
+
+
+def ensure_gitignore(target: pathlib.Path, written: list):
+    """Ad-hoc Runner/gate invocations outside a run are scratch; runs themselves are kept (profile Runs: commit)."""
+    gi = target / ".gitignore"
+    text = gi.read_text(encoding="utf-8") if gi.exists() else ""
+    lines = [l.strip() for l in text.splitlines()]
+    if ".agentflow/runs/_adhoc/" not in lines:
+        text = text.rstrip("\n") + ("\n\n" if text else "") + "# agentflow: ad-hoc runner/gate output outside a run\n.agentflow/runs/_adhoc/\n"
+        gi.write_text(text, encoding="utf-8", newline="\n")
+        written.append(gi)
+    if any(l in (".agentflow/runs/", ".agentflow/runs", ".agentflow/runs/*") for l in lines):
+        print("warning: .gitignore ignores .agentflow/runs/, so runs are not kept; remove that line unless the "
+              "profile says Runs: local")
 
 
 def sync_hosts(target: pathlib.Path, hosts: list, written: list):

@@ -79,7 +79,8 @@ def check(run: pathlib.Path, require_evidence: bool, root: pathlib.Path = None):
         return ["brief.md is missing"], {}
     raw_brief = brief_path.read_text(encoding="utf-8")
     brief = strip_comments(raw_brief)
-    root = root or run.parent.parent.parent  # <root>/.agentflow/runs/<id>
+    if root is None:  # the folder containing .agentflow/, wherever the run sits under runs/
+        root = next((p.parent for p in run.resolve().parents if p.name == ".agentflow"), run.parent)
     m = BRIEF_FLAGS.match(raw_brief)
     brief_flags = m.group(1).lower() if m else "project-policy"
     allowed_not_required = brief_flags == "not-required" or (
@@ -132,7 +133,7 @@ def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--run", required=True)
     p.add_argument("--require-evidence", action="store_true")
-    p.add_argument("--root", help="repo root (default: three levels above the run folder)")
+    p.add_argument("--root", help="repo root (default: the folder containing .agentflow/)")
     args = p.parse_args(argv)
     run = pathlib.Path(args.run).resolve()
     if not run.is_dir():

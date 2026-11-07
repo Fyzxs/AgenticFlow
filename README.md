@@ -34,7 +34,10 @@ Design: https://claude.ai/artifact/SzJwCgeAbqtwCeWJLSAGhd (private to the owner)
    records its choice and revert path, and `ac_trace.py` checks it.
 8. **Every miss is a signal.** Validators, reviewers, the Runner, PR comments and chat corrections all
    write findings. The Curator routes each to the agent file, a repo doc, or a hook or test.
-9. **Bounded everything.** Review-fix loops stop after 2 rounds, context packs and agent files have size
+9. **Runs are kept and editable.** Each run is committed at every stage checkpoint (`runs/active/` →
+   `runs/completed/` or `runs/abandoned/`). Edit any artifact between stages and the next stage reads it;
+   your edits become the Curator's strongest signal.
+10. **Bounded everything.** Review-fix loops stop after 2 rounds, context packs and agent files have size
    budgets, and the Curator's patches are validated before they land.
 
 ## Layout

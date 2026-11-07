@@ -45,4 +45,7 @@ UNRESOLVED (e.g. infrastructure → database → backend → frontend)
 - UNRESOLVED: anything repo-specific.
 
 ## Runs
-- Keep run folders in git: no
+- Runs: commit
+<!-- commit (default): every run folder is committed at each stage checkpoint, so the brief, plan, reports and
+     findings are reviewable and editable between stages; raw logs stay local.
+     local: run folders stay on disk only (set this if run history should not appear in PRs). -->

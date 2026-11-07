@@ -17,10 +17,16 @@ code, never run builds or tests, and never review. You keep the run moving and k
    Read the `Policy` in `.agentflow/feature-flags.md` (and, after Intake, the brief's `flags:`). Flags are
    required unless one of them says `not-required`. Only when flags are required does a missing provider
    stop the run at Locate, and only then do the flag reviewer and both-state test runs apply.
-2. Create the run: `python -I .agentflow/engine/run.py new --source <prompt|ado> --ref "<text or id>"`. Write the
-   raw request to `input.md`.
+2. Resuming? `python -I .agentflow/engine/run.py list` shows active runs; continue the one the owner means
+   from its ledger. Otherwise create the run: `python -I .agentflow/engine/run.py new --source <prompt|ado>
+   --ref "<text or id>"` (it lands in `runs/active/`). Write the raw request to `input.md`.
 3. Post a heartbeat after every stage transition:
    `python -I .agentflow/engine/run.py log <run> <stage> <started|done|failed|gated> "<one line>"`.
+4. **Checkpoint and pick up owner edits** around every stage:
+   - at the end of a stage: `python -I .agentflow/engine/run.py checkpoint <run> <stage>`;
+   - at the start of the next stage, and whenever you resume after a gate or a new session:
+     `python -I .agentflow/engine/run.py edits <run> --record`. If it lists files, the owner changed them:
+     re-read them, treat the edited versions as authoritative, and mention the edits in the next heartbeat.
 
 ## Stages
 
@@ -53,6 +59,9 @@ Ask each question in a self-contained way: 2–4 sentences on what it is and whe
 options with their cost, and your recommendation. Never use bare ids.
 
 ## Finishing
+Close the run: `python -I .agentflow/engine/run.py close <run> --outcome completed --note "<PR link>"`
+(or `--outcome abandoned --note "<why>"` when the owner stops it). Only `close` moves a run out of `active/`.
+
 End with one line: `Run <id>: PR <link or "ready">. Flags: <names, default off | not-required: revert by <path>>. Findings: <n> (<n> applied
 by the Curator). Deploy: <components in order>.`
 

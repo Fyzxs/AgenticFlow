@@ -62,6 +62,16 @@ class InstallTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("learned entry", (self.root / ".claude/agents/validator.md").read_text(encoding="utf-8"))
 
+    def test_gitignore_gets_adhoc_line_once_and_warns_on_ignored_runs(self):
+        (self.root / ".gitignore").write_text("bin/\n.agentflow/runs/\n", encoding="utf-8")
+        code, out = self.install("--host", "claude")
+        self.assertEqual(code, 0, out)
+        self.assertIn("warning: .gitignore ignores .agentflow/runs/", out)
+        self.install("--host", "claude")
+        text = (self.root / ".gitignore").read_text(encoding="utf-8")
+        self.assertEqual(text.count(".agentflow/runs/_adhoc/"), 1)
+        self.assertTrue(text.startswith("bin/\n"))
+
     def test_sync_without_install_fails(self):
         code, _ = self.install("--sync", "--host", "claude")
         self.assertEqual(code, 2)

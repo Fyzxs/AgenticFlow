@@ -55,6 +55,89 @@ class RunTests(TempRepo):
         self.assertEqual(run("run.py", "log", str(r), "intake", "finished", "x")[0], 2)
 
 
+class CheckpointTests(TempRepo):
+    def setUp(self):
+        super().setUp()
+        for args in (["init", "-q", "-b", "main"], ["config", "user.name", "Test"], ["config", "user.email", "t@example.com"],
+                     ["config", "core.autocrlf", "false"]):
+            subprocess.run(["git", *args], cwd=self.root, check=True)
+        (self.root / "app.txt").write_text("v1", encoding="utf-8")
+        subprocess.run(["git", "add", "app.txt"], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=self.root, check=True)
+
+    def git(self, *args):
+        return subprocess.run(["git", *args], cwd=self.root, capture_output=True, text=True).stdout
+
+    def test_checkpoint_commits_only_the_run_folder_and_not_raw_logs(self):
+        r = self.new_run()
+        (r / "brief.md").write_text("# brief", encoding="utf-8")
+        (r / "runner" / "ci-1").mkdir()
+        (r / "runner" / "ci-1" / "01-build.log").write_text("huge log", encoding="utf-8")
+        (r / "runner" / "ci-1.json").write_text("{}", encoding="utf-8")
+        (self.root / "app.txt").write_text("v2 work in progress", encoding="utf-8")
+        subprocess.run(["git", "add", "app.txt"], cwd=self.root, check=True)
+        code, out = run("run.py", "checkpoint", str(r), "intake")
+        self.assertEqual(code, 0, out)
+        committed = self.git("show", "--name-only", "--format=%s", "HEAD").split()
+        self.assertIn(f"agentflow({r.name}):", committed[0])
+        self.assertTrue(any(p.endswith("brief.md") for p in committed))
+        self.assertTrue(any(p.endswith("runner/ci-1.json") for p in committed))
+        self.assertFalse(any(p.endswith(".log") for p in committed))
+        self.assertNotIn("app.txt", committed)
+        self.assertIn("M  app.txt", self.git("status", "--porcelain"))  # still staged, not committed
+
+    def test_edits_detects_and_records_owner_changes(self):
+        r = self.new_run()
+        (r / "brief.md").write_text("# brief", encoding="utf-8")
+        run("run.py", "checkpoint", str(r), "intake")
+        self.assertIn("no edits", run("run.py", "edits", str(r))[1])
+        (r / "brief.md").write_text("# brief\n- **AC-3** (stated): added by the owner", encoding="utf-8")
+        code, out = run("run.py", "edits", str(r), "--record")
+        self.assertEqual(code, 0, out)
+        self.assertIn("brief.md", out)
+        found = [json.loads(l) for l in (r / "findings.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([f["kind"] for f in found], ["human-edit"])
+        self.assertIn("owner edits", self.git("log", "-1", "--format=%s"))
+        self.assertEqual(self.git("status", "--porcelain", "--", ".agentflow"), "")
+
+    def test_close_moves_active_to_completed_with_a_recorded_rename(self):
+        r = self.new_run()
+        (r / "brief.md").write_text("# brief", encoding="utf-8")
+        run("run.py", "checkpoint", str(r), "intake")
+        code, out = run("run.py", "list", "--root", str(self.root))
+        self.assertIn("active: 1", out)
+        code, out = run("run.py", "close", str(r), "--outcome", "completed", "--note", "PR #12")
+        self.assertEqual(code, 0, out)
+        dest = self.root / ".agentflow" / "runs" / "completed" / r.name
+        self.assertTrue((dest / "brief.md").exists())
+        self.assertFalse(r.exists())
+        self.assertIn("completed: PR #12", (dest / "ledger.md").read_text(encoding="utf-8"))
+        self.assertIn("completed", self.git("log", "-1", "--format=%s"))
+        self.assertIn("R", self.git("show", "--name-status", "--format=", "HEAD").split()[0])
+        self.assertEqual(self.git("status", "--porcelain", "--", ".agentflow"), "")
+        code, out = run("run.py", "list", "--root", str(self.root))
+        self.assertIn("active: 0", out)
+        self.assertIn("completed: 1", out)
+        self.assertEqual(run("run.py", "close", str(dest), "--outcome", "completed")[0], 2)
+
+    def test_close_abandoned_before_any_checkpoint(self):
+        r = self.new_run()
+        code, out = run("run.py", "close", str(r), "--outcome", "abandoned", "--note", "owner stopped it")
+        self.assertEqual(code, 0, out)
+        dest = self.root / ".agentflow" / "runs" / "abandoned" / r.name
+        self.assertIn("abandoned: owner stopped it", (dest / "ledger.md").read_text(encoding="utf-8"))
+        self.assertEqual(self.git("status", "--porcelain", "--", ".agentflow"), "")
+
+    def test_local_mode_commits_nothing(self):
+        (self.root / ".agentflow").mkdir(exist_ok=True)
+        (self.root / ".agentflow" / "profile.md").write_text("## Runs\n- Runs: local\n", encoding="utf-8")
+        r = self.new_run()
+        code, out = run("run.py", "checkpoint", str(r), "intake")
+        self.assertEqual(code, 0)
+        self.assertIn("runs are local", out)
+        self.assertEqual(self.git("log", "--format=%s").split("\n")[0], "base")
+
+
 class FindingsTests(TempRepo):
     def add(self, r, *extra):
         return run("findings.py", "add", "--run", str(r), "--source", "validator", "--target", "implementer",
