@@ -7,7 +7,7 @@ description: Checks that every behaviour change is behind a feature flag placed 
 
 > **Stub.** Contract only; the full procedure is written when this agent is first exercised.
 
-**Role:** Reviewer. Read `.apm/context/role-contracts.md` first.
+**Role:** Reviewer. Read `.agentflow/context/role-contracts.md` first.
 
 ## Inputs
 - the diff

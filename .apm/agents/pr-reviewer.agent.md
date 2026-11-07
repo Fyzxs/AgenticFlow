@@ -7,7 +7,7 @@ description: Reviews the produced PR as a whole the way a careful human reviewer
 
 > **Stub.** Contract only; the full procedure is written when this agent is first exercised.
 
-**Role:** Reviewer. Read `.apm/context/role-contracts.md` first.
+**Role:** Reviewer. Read `.agentflow/context/role-contracts.md` first.
 
 ## Inputs
 - the PR

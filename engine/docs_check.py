@@ -99,7 +99,11 @@ def main(argv=None) -> int:
     files = tracked_files(root)
     fileset = set(files)
     failures, warnings = [], []
-    docs = [d for d in base.rglob("*.md") if "runs" not in d.relative_to(base).parts]
+    # Only the project's own docs: the installed package (agents/, context/, engine/, skills/, templates/)
+    # and run folders are not project documentation.
+    docs = [base / n for n in ("profile.md", "feature-flags.md", "gates.md") if (base / n).exists()]
+    if (base / "docs").is_dir():
+        docs += [d for d in (base / "docs").rglob("*.md") if not d.name.startswith("_")]
     for doc in docs:
         rel = doc.relative_to(root).as_posix()
         text = doc.read_text(encoding="utf-8")

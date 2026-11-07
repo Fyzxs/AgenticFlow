@@ -1,7 +1,7 @@
 # Deterministic gates
 
 Every linter, scanner or custom check that can say pass or fail without judgment is declared in
-`gates.json` and run by `engine/gates.py`. The Gate Analyst reads the results and recommends kick back,
+`gates.json` and run by `.agentflow/engine/gates.py`. The Gate Analyst reads the results and recommends kick back,
 correct, or move on; it never runs a tool directly and never edits this registry.
 
 ## Stages
@@ -30,7 +30,7 @@ Run gates as often as their cost allows. A gate that runs only at `extreme` find
 ## Baselines
 Results already present when a gate is added go into `.agentflow/baselines/<gate>.json`, so only **new**
 results can block. Accepting a baseline is an owner action:
-`python -I engine/gates.py --stage extreme --update-baseline <gate>`.
+`python -I .agentflow/engine/gates.py --stage extreme --update-baseline <gate>`.
 
 ## Gates in this repo
 <!-- One line per enabled gate: what it checks and why it is at its stage. -->

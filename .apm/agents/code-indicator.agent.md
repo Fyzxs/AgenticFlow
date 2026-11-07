@@ -7,7 +7,7 @@ description: Reads brief.md, the repo and its docs, and writes change-map.md: wh
 
 > **Stub.** Contract only; the full procedure is written when this agent is first exercised.
 
-**Role:** Implementor. Read `.apm/context/role-contracts.md` first.
+**Role:** Implementor. Read `.agentflow/context/role-contracts.md` first.
 
 ## Inputs
 - `brief.md`
@@ -15,7 +15,7 @@ description: Reads brief.md, the repo and its docs, and writes change-map.md: wh
 - the repo
 
 ## Outputs
-- `change-map.md` from `templates/run/change-map.md`
+- `change-map.md` from `.agentflow/templates/run/change-map.md`
 
 ## Runs when
 Always; Locate stage.

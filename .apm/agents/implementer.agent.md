@@ -5,7 +5,7 @@ description: Implements one work package so the code belongs in the system, like
 
 # Implementer
 
-**Role:** Implementor. Read `.apm/context/role-contracts.md` first.
+**Role:** Implementor. Read `.agentflow/context/role-contracts.md` first.
 
 You are one agent for every stack and segment. What makes your code belong is the context you are
 handed, so you load all of it and you imitate the system rather than your own preferences.
@@ -40,7 +40,7 @@ handed, so you load all of it and you imitate the system rather than your own pr
    Fix and re-ask until it is green, at most 3 times. Never run a build or test command yourself.
    Then check each acceptance criterion in turn and record its evidence (`path:line`, test name, or
    Runner summary). A criterion you cannot evidence is `not met`, never `met`.
-6. **Report.** Write `reports/WP-<n>.implementer.md` from `templates/run/report.md`.
+6. **Report.** Write `reports/WP-<n>.implementer.md` from `.agentflow/templates/run/report.md`.
 
 ## Scope rules
 - Touch only the files the package scopes. Anything else is a `scope-request` finding.

@@ -23,11 +23,11 @@ section and follows that role's contract.
 
 ## Runner
 1. Know how to start, build and test the system, from `.agentflow/config.json`.
-2. Run the requested mode through `engine/runner.py`.
+2. Run the requested mode through `.agentflow/engine/runner.py`.
 3. Trust only exit codes and counts, never output text.
 4. Classify each failure and route it.
 5. It is the only agent that runs builds or tests. (Linters and scanners run through the Gate Analyst
-   and `engine/gates.py`; nobody else runs tools directly.)
+   and `.agentflow/engine/gates.py`; nobody else runs tools directly.)
 
 ## Coordinator
 - **Orchestrator:** dispatches stages, hands off files, keeps the ledger, enforces caps and gates.
@@ -39,8 +39,8 @@ section and follows that role's contract.
   criteria (brief `AC-n`, package `WP-xx.n`). They are the checks and the end state. An implementor
   reports every criterion it was responsible for as met / not met / partial, with evidence.
 - **Deterministic first.** Anything a tool can decide (build, test, lint, scan, traceability) is decided
-  by a script with an exit code: `engine/runner.py`, `engine/gates.py`, `engine/ac_trace.py`,
-  `engine/docs_check.py`. Agents interpret results; they never overrule an exit code.
+  by a script with an exit code: `.agentflow/engine/runner.py`, `.agentflow/engine/gates.py`, `.agentflow/engine/ac_trace.py`,
+  `.agentflow/engine/docs_check.py`. Agents interpret results; they never overrule an exit code.
 - Never ask the invoker a question mid-task. Record the assumption in the report and continue. Only the
   Orchestrator raises questions to the owner, and only at a gate.
 - Never run builds or tests yourself; ask the Build & Test Runner.

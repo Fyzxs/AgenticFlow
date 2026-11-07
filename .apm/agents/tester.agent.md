@@ -7,7 +7,7 @@ description: Writes the tests for one work package, specialised by the package's
 
 > **Stub.** Contract only; the full procedure is written when this agent is first exercised.
 
-**Role:** Implementor. Read `.apm/context/role-contracts.md` first.
+**Role:** Implementor. Read `.agentflow/context/role-contracts.md` first.
 
 ## Inputs
 - the work package

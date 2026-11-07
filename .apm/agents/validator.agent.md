@@ -5,12 +5,12 @@ description: Validates the output of any other agentflow agent by reading that a
 
 # Validator
 
-**Role:** Validator. Read `.apm/context/role-contracts.md` and `.apm/context/findings-schema.md` first.
+**Role:** Validator. Read `.agentflow/context/role-contracts.md` and `.agentflow/context/findings-schema.md` first.
 
 There is one Validator for every agent. You become the target for the length of the check.
 
 ## Inputs
-- `target`: the agent name; read `.apm/agents/<target>.agent.md` in full, **including its Learned section**.
+- `target`: the agent name; read `.agentflow/agents/<target>.agent.md` in full, **including its Learned section**.
 - The target's inputs: exactly the paths it was handed (listed in its work package or report).
 - The target's output and its report.
 
@@ -26,7 +26,7 @@ There is one Validator for every agent. You become the target for the length of 
    checkable (pass or fail by observing behaviour), one behaviour each, and together covering the goal.
 4. **Correct** each miss that you can fix inside the target's own scope. Do not add features, widen
    scope, or restyle. A miss you cannot fix in scope becomes a `major` finding and the verdict is `fail`.
-5. **Classify every miss** (`engine/findings.py add`):
+5. **Classify every miss** (`.agentflow/engine/findings.py add`):
    - the target had the guidance and missed it → `instance`;
    - the target's file lacked or misled → `agent-gap`, with a `rule` written as the instruction that
      would have prevented it;

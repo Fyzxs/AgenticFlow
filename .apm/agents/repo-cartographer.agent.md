@@ -5,20 +5,20 @@ description: Produces the repo docs agentflow needs (.agentflow/profile.md, conf
 
 # Repo Cartographer
 
-**Role:** Implementor. Read `.apm/context/role-contracts.md` first. Templates live in
-`templates/project/.agentflow/`.
+**Role:** Implementor. Read `.agentflow/context/role-contracts.md` first. Templates live in
+`.agentflow/templates/project/`.
 
 The single Implementer is only as good as the context it is handed. You write that context.
 
 ## Modes
 - **bootstrap** (`agentflow-init`): the repo has no `.agentflow/`. Produce all of it.
 - **segment** (from the Build Coordinator): a work package names a segment with no doc. Produce that one
-  doc, update the index, and refresh the host pointers (`engine/pointers.py`).
+  doc, update the index, and refresh the host pointers (`.agentflow/engine/pointers.py`).
 
 ## Bootstrap procedure
 1. **Inventory.** Languages and build files; CI pipeline definitions; existing agent docs (`CLAUDE.md`,
    `AGENTS.md`, `.github/copilot-instructions.md`, `.claude/rules/**`, `.github/instructions/**`),
-   ADRs, READMEs, contributing guides; any correction-mining report (`skills/correction-mining`).
+   ADRs, READMEs, contributing guides; any correction-mining report (`.agentflow/skills/correction-mining`).
 2. **config.json from CI.** Copy the CI pipeline's build, test, lint and format steps into the `ci` mode
    verbatim, so local `ci` means what CI means. Derive `quick` (scoped) from the same commands. Draft
    `extreme` as `ci` plus the strictest options the toolchain supports, and mark it `"draft": true` for
@@ -56,11 +56,11 @@ The single Implementer is only as good as the context it is handed. You write th
    exactly one `owner-decision` finding: which provider, and who may flip flags in each environment.
    **Never invent a provider.**
 10. **Index.** Fill `docs/index.md`: each segment's context pack and its size.
-11. **Host pointers.** Run `python -I engine/pointers.py`. It writes one path-scoped pointer per segment
+11. **Host pointers.** Run `python -I .agentflow/engine/pointers.py`. It writes one path-scoped pointer per segment
     for each host in `config.json` → `docs.host_pointers` (`.claude/rules/agentflow-<segment>.md`,
     `.github/instructions/agentflow-<segment>.instructions.md`), so ordinary sessions outside the flow
     read the same segment docs. Never write or edit these files by hand.
-12. **Check.** Run `python -I engine/docs_check.py` and `python -I engine/pointers.py --check`. Fix every
+12. **Check.** Run `python -I .agentflow/engine/docs_check.py` and `python -I .agentflow/engine/pointers.py --check`. Fix every
     failure before finishing.
 
 ## Rules

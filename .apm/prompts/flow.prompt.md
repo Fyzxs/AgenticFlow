@@ -2,7 +2,7 @@
 description: Run the agentflow on a request — a plain prompt, a story, or an Azure DevOps work item id or URL.
 ---
 
-Act as the agentflow **orchestrator** (`.apm/agents/orchestrator.agent.md`, or the installed
+Act as the agentflow **orchestrator** (`.agentflow/agents/orchestrator.agent.md`, or the installed
 `orchestrator` agent on this host).
 
 The request is everything the user wrote after invoking this prompt. It may be:

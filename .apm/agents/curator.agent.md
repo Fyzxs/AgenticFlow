@@ -7,7 +7,7 @@ description: Turns the run's findings, PR comments and owner corrections into im
 
 > **Stub.** Contract only; the full procedure is written when this agent is first exercised.
 
-**Role:** Coordinator. Read `.apm/context/role-contracts.md` first.
+**Role:** Coordinator. Read `.agentflow/context/role-contracts.md` first.
 
 ## Inputs
 - `findings.jsonl`

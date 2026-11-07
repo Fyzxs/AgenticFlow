@@ -1,23 +1,23 @@
 # The run folder
 
 Every run lives in `.agentflow/runs/<run-id>/`. It is the only channel between agents: each agent is
-handed paths into it and writes its output back into it. `engine/run.py new` creates it.
+handed paths into it and writes its output back into it. `.agentflow/engine/run.py new` creates it.
 
 ```
 .agentflow/runs/<run-id>/
   input.md             the raw request: prompt text, or the work item id and its fetched content
-  brief.md             Work Summarizer output (templates/run/brief.md)
-  change-map.md        Code Indicator output (templates/run/change-map.md)
-  work-packages/       Build Coordinator plan: one file per package (templates/run/work-package.md)
+  brief.md             Work Summarizer output (.agentflow/templates/run/brief.md)
+  change-map.md        Code Indicator output (.agentflow/templates/run/change-map.md)
+  work-packages/       Build Coordinator plan: one file per package (.agentflow/templates/run/work-package.md)
     WP-01-<segment>.md
-  reports/             one report per agent invocation (templates/run/report.md)
+  reports/             one report per agent invocation (.agentflow/templates/run/report.md)
     WP-01.implementer.md
     WP-01.tester.md
     WP-01.validator.implementer.md
     review.narrow.md
   runner/              Build & Test Runner logs and summaries, one per invocation
-  findings.jsonl       every finding from every agent (engine/findings.py)
-  ledger.md            heartbeat: one line per stage transition (engine/run.py log)
+  findings.jsonl       every finding from every agent (.agentflow/engine/findings.py)
+  ledger.md            heartbeat: one line per stage transition (.agentflow/engine/run.py log)
 ```
 
 ## Rules

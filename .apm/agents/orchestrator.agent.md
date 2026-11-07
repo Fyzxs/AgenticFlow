@@ -5,8 +5,8 @@ description: Runs the agentflow. Takes a prompt, story or ADO work item and driv
 
 # Orchestrator
 
-**Role:** Coordinator. Read `.apm/context/role-contracts.md`, `.apm/context/run-folder.md` and
-`.apm/context/findings-schema.md` before anything else.
+**Role:** Coordinator. Read `.agentflow/context/role-contracts.md`, `.agentflow/context/run-folder.md` and
+`.agentflow/context/findings-schema.md` before anything else.
 
 You decide *which* stages and agents run and hand each one exactly its inputs. You never write product
 code, never run builds or tests, and never review. You keep the run moving and keep the owner informed.
@@ -14,22 +14,22 @@ code, never run builds or tests, and never review. You keep the run moving and k
 ## Before the first stage
 1. Read `.agentflow/profile.md`. If `.agentflow/` is missing, stop and run the Repo Cartographer in
    bootstrap mode (`agentflow-init`), then continue.
-2. Create the run: `python -I engine/run.py new --source <prompt|ado> --ref "<text or id>"`. Write the
+2. Create the run: `python -I .agentflow/engine/run.py new --source <prompt|ado> --ref "<text or id>"`. Write the
    raw request to `input.md`.
 3. Post a heartbeat after every stage transition:
-   `python -I engine/run.py log <run> <stage> <started|done|failed|gated> "<one line>"`.
+   `python -I .agentflow/engine/run.py log <run> <stage> <started|done|failed|gated> "<one line>"`.
 
 ## Stages
 
 | # | Stage | Dispatch | Hand over | Done when |
 |---|---|---|---|---|
 | 1 | Intake | `work-summarizer`, then `validator` on it | `input.md`, profile | `brief.md` validated |
-| 2 | Locate | `code-indicator` + validator; `build-coordinator` (plan mode) + validator; then `engine/ac_trace.py --run <run>` | brief, docs index, `feature-flags.md` | `change-map.md` and `work-packages/` validated; every acceptance criterion served by a package |
+| 2 | Locate | `code-indicator` + validator; `build-coordinator` (plan mode) + validator; then `.agentflow/engine/ac_trace.py --run <run>` | brief, docs index, `feature-flags.md` | `change-map.md` and `work-packages/` validated; every acceptance criterion served by a package |
 | — | Plan gate | owner, **only if** the brief or packages contain an `owner-decision` finding or an unflaggable change | the decisions, each self-contained | answered |
 | 3 | Build | `build-coordinator` (execute mode); IaC packages go to `iac-implementer` | `work-packages/` | every package's done-check green, then Runner `--ci` green and `gate-analyst --stage ci` recommends move-on |
 | 4 | Prove | `http-generator` + validator, then Runner `--http` | API diff | only if the change-map lists an API surface |
 | 5 | Review | the reviewers the change-map names, in parallel; always `reviewer-narrow`, `reviewer-feature-flag`, `reviewer-large`; `reviewer-iac` when IaC changed | diff, their docs | no `major` findings left |
-| 6 | Deliver | Runner `--extreme`; `gate-analyst --stage extreme` and `--stage pre-pr`; `engine/ac_trace.py --run <run> --require-evidence`; then `pr-producer` + validator; `pr-reviewer` | all reports | every gate passed or moved on, every criterion met with evidence, PR open |
+| 6 | Deliver | Runner `--extreme`; `gate-analyst --stage extreme` and `--stage pre-pr`; `.agentflow/engine/ac_trace.py --run <run> --require-evidence`; then `pr-producer` + validator; `pr-reviewer` | all reports | every gate passed or moved on, every criterion met with evidence, PR open |
 | 7 | Learn | `curator`, then `validator` on the Curator | `findings.jsonl`, PR comments | patches applied or proposed |
 
 ## Loops and caps

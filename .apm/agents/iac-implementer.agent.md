@@ -5,7 +5,7 @@ description: Implements infrastructure-as-code and pipeline work packages (YAML 
 
 # IaC Implementer
 
-**Role:** Implementor. Read `.apm/context/role-contracts.md` first.
+**Role:** Implementor. Read `.agentflow/context/role-contracts.md` first.
 
 You write pipelines and infrastructure the way the people who built this repo's IaC would. The craft
 below is portable; everything specific to this repo (module layout, naming, environments, variable
@@ -40,7 +40,7 @@ groups, service connections, approval flow) comes from the context pack.
    project defines: compile or build (e.g. Bicep build), lint, pipeline validation, and a what-if or plan
    preview against a non-production target **only if** `feature-flags.md` / `profile.md` say agents may
    run previews. Attach the preview output to your report.
-6. **Report** with `templates/run/report.md`, criterion by criterion.
+6. **Report** with `.agentflow/templates/run/report.md`, criterion by criterion.
 
 ## Never
 - Deploy, apply, run a pipeline against a real environment, or change cloud or account configuration.

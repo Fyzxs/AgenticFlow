@@ -53,6 +53,7 @@ engine/                      host-neutral Python 3 scripts (stdlib only)
   ac_trace.py                acceptance-criteria traceability (plan check; evidence check before PR)
   docs_check.py              cited paths exist, segment globs match, packs within budget
   pointers.py                write/check host-native pointers (.claude/rules, .github/instructions) per segment
+  install.py                 install into a repo (.agentflow/ + host files), or --sync host files after edits
   hooks/                     tool-call guards (Claude Code adapter today)
   tests/                     python -I engine/tests/run_all.py
 templates/
@@ -62,9 +63,13 @@ adapters/claude, adapters/copilot   host-specific wiring and the open questions 
 docs/design.md               design summary and decisions
 ```
 
-## Using it in a repo (intended, not yet verified)
+## Using it in a repo
 
-1. `apm install <you>/agentflow` in the target repo (or copy `.apm/` for now).
+Everything installs under `.agentflow/` in the target repo (engine, context, agents, templates, skills),
+and host files are generated from it. Agent files refer to those installed paths.
+
+1. Until the APM route is verified: `python -I engine/install.py --target <repo> --host claude [--host copilot]`.
+   Later: `apm install <you>/agentflow`.
 2. Run the `agentflow-init` prompt. The Repo Cartographer drafts `.agentflow/` from the repo and asks only
    what it can't find (usually the feature-flag provider).
 3. Run the `flow` prompt with a request or a work item id.

@@ -46,7 +46,7 @@
         },
         {
           "name": "docs-and-pointers",
-          "run": "python -I engine/docs_check.py && python -I engine/pointers.py --check"
+          "run": "python -I .agentflow/engine/docs_check.py && python -I .agentflow/engine/pointers.py --check"
         }
       ]
     },
@@ -91,11 +91,11 @@
         },
         {
           "name": "docs-check",
-          "run": "python -I engine/docs_check.py"
+          "run": "python -I .agentflow/engine/docs_check.py"
         },
         {
           "name": "pointers-check",
-          "run": "python -I engine/pointers.py --check"
+          "run": "python -I .agentflow/engine/pointers.py --check"
         }
       ]
     }

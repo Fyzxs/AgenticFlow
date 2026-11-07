@@ -7,7 +7,7 @@ description: Turns a plain prompt or an Azure DevOps work item (with its Story, 
 
 > **Stub.** Contract only; the full procedure is written when this agent is first exercised.
 
-**Role:** Implementor. Read `.apm/context/role-contracts.md` first.
+**Role:** Implementor. Read `.agentflow/context/role-contracts.md` first.
 
 ## Inputs
 - `input.md` (prompt text, or a work item id)
@@ -15,7 +15,7 @@ description: Turns a plain prompt or an Azure DevOps work item (with its Story, 
 - `.agentflow/docs/glossary.md`
 
 ## Outputs
-- `brief.md` from `templates/run/brief.md`, with `source: prompt` or `source: ado:<id>`
+- `brief.md` from `.agentflow/templates/run/brief.md`, with `source: prompt` or `source: ado:<id>`
 
 ## Runs when
 Always; first stage.

@@ -14,7 +14,7 @@ Transcripts are large (mostly tool output). Reduce them to the owner's messages,
 agent message before it and its last few tool calls:
 
 ```
-python -I .apm/skills/correction-mining/scripts/extract_claude.py --projects "<glob of ~/.claude/projects dirs>" --out <dir>
+python -I .agentflow/skills/correction-mining/scripts/extract_claude.py --projects "<glob of ~/.claude/projects dirs>" --out <dir>
 ```
 
 This writes `turns.jsonl` and one `digest_<project>.md` per project. It flags likely corrections with a
@@ -33,7 +33,7 @@ it, and the count. Also list repeated workflows and things the owner approved (b
 ## 3. Audit the existing docs
 For the repo's CLAUDE.md / AGENTS.md / instructions / rules / agent files / lessons registers, record:
 load mode and size (what loads every session), stale references (cited paths that no longer exist,
-globs that match nothing — `engine/docs_check.py` does the mechanical part), contradictions between
+globs that match nothing — `.agentflow/engine/docs_check.py` does the mechanical part), contradictions between
 files, and whether each correction theme was **already documented**. A theme that was documented and
 still recurred is the most valuable result: prose did not work, so it needs a hook, test or a different
 home.
