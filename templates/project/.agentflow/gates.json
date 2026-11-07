@@ -1,0 +1,60 @@
+{
+  "gates": [
+    {
+      "name": "example-sarif-scanner",
+      "enabled": false,
+      "stages": [
+        "extreme",
+        "pre-pr"
+      ],
+      "run": "your-scanner --format sarif --output {out} .",
+      "format": "sarif",
+      "fail_on": "error",
+      "ok_exit_codes": [
+        0,
+        1
+      ],
+      "timeout_s": 1800
+    },
+    {
+      "name": "example-exit-code-check",
+      "enabled": false,
+      "stages": [
+        "ci",
+        "extreme"
+      ],
+      "run": "your-check-command",
+      "format": "exit",
+      "paths": [
+        "src/**"
+      ]
+    },
+    {
+      "name": "example-bicep-lint",
+      "enabled": false,
+      "stages": [
+        "ci",
+        "extreme"
+      ],
+      "run": "az bicep lint --file UNRESOLVED.bicep",
+      "format": "exit",
+      "paths": [
+        "**/*.bicep"
+      ]
+    },
+    {
+      "name": "example-pipeline-validate",
+      "enabled": false,
+      "stages": [
+        "ci",
+        "extreme"
+      ],
+      "run": "UNRESOLVED: validate pipeline YAML",
+      "format": "exit",
+      "paths": [
+        "**/*.yml",
+        "**/*.yaml"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+name: agentflow
+version: "0.1.0"
+description: Self-correcting agentic development flow. A prompt or work item goes in, a feature-flagged, reviewed PR comes out, and every finding sharpens the agents and the repo docs.
+author: Quinn Gil
+type: hybrid
+targets:
+  - copilot
+  - claude
+includes: auto
+scripts:
+  engine-tests: python -I engine/tests/run_all.py

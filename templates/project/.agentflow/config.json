@@ -1,0 +1,103 @@
+{
+  "docs": {
+    "pack_budget_kb": 24,
+    "host_pointers": [
+      "claude",
+      "copilot"
+    ]
+  },
+  "gates_policy": {
+    "inferred_acceptance_criteria_need_owner": false
+  },
+  "services": {
+    "api": {
+      "start": "UNRESOLVED: command that starts the API",
+      "port": 5000,
+      "ready_timeout_s": 90
+    }
+  },
+  "modes": {
+    "quick": {
+      "default_scope": "UNRESOLVED: default project or path",
+      "steps": [
+        {
+          "name": "build",
+          "run": "UNRESOLVED: build {scope}"
+        },
+        {
+          "name": "test",
+          "run": "UNRESOLVED: test {scope}"
+        }
+      ]
+    },
+    "ci": {
+      "steps": [
+        {
+          "name": "build",
+          "run": "UNRESOLVED: copied verbatim from the CI pipeline"
+        },
+        {
+          "name": "test",
+          "run": "UNRESOLVED: copied verbatim from the CI pipeline"
+        },
+        {
+          "name": "lint-format",
+          "run": "UNRESOLVED: copied verbatim from the CI pipeline"
+        },
+        {
+          "name": "docs-and-pointers",
+          "run": "python -I engine/docs_check.py && python -I engine/pointers.py --check"
+        }
+      ]
+    },
+    "http": {
+      "services": [
+        "api"
+      ],
+      "steps": [
+        {
+          "name": "http-proofs",
+          "run": "UNRESOLVED: run every API proof file"
+        }
+      ]
+    },
+    "extreme": {
+      "draft": true,
+      "continue_on_failure": true,
+      "steps": [
+        {
+          "name": "clean",
+          "run": "UNRESOLVED: remove all build output"
+        },
+        {
+          "name": "build-strict",
+          "run": "UNRESOLVED: build with warnings as errors and strictest analyzers"
+        },
+        {
+          "name": "test-full-flags-off",
+          "run": "UNRESOLVED: full suite incl. integration, new flags off"
+        },
+        {
+          "name": "test-full-flags-on",
+          "run": "UNRESOLVED: full suite incl. integration, new flags on"
+        },
+        {
+          "name": "test-shuffled",
+          "run": "UNRESOLVED: full suite again in randomized order"
+        },
+        {
+          "name": "db-from-empty",
+          "run": "UNRESOLVED: rebuild the database from empty and run every verify script"
+        },
+        {
+          "name": "docs-check",
+          "run": "python -I engine/docs_check.py"
+        },
+        {
+          "name": "pointers-check",
+          "run": "python -I engine/pointers.py --check"
+        }
+      ]
+    }
+  }
+}
