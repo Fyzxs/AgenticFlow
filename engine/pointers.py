@@ -25,6 +25,9 @@ TARGETS = {
     "claude": (pathlib.Path(".claude/rules"), "agentflow-{seg}.md"),
     "copilot": (pathlib.Path(".github/instructions"), "agentflow-{seg}.instructions.md"),
 }
+# Written by engine/install.py into the same agentflow-* namespace; not segment pointers, never managed here.
+# (Found in the TcgHoard PoC: the Cartographer's first pointers run deleted them as "stale".)
+INSTALLER_OWNED = {"agentflow-working-agreement.md", "agentflow-working-agreement.instructions.md"}
 
 
 def title_of(text: str, seg: str) -> str:
@@ -72,7 +75,7 @@ def managed(root: pathlib.Path, hosts: list) -> set:
         folder, pattern = TARGETS[host]
         glob = pattern.format(seg="*")
         if (root / folder).is_dir():
-            found |= {p.relative_to(root) for p in (root / folder).glob(glob)}
+            found |= {p.relative_to(root) for p in (root / folder).glob(glob) if p.name not in INSTALLER_OWNED}
     return found
 
 

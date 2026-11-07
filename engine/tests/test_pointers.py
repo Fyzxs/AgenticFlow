@@ -56,6 +56,17 @@ class PointerTests(unittest.TestCase):
         self.assertFalse((self.root / ".claude/rules/agentflow-_template.md").exists())
         self.assertEqual((self.root / ".claude/rules/hand-written.md").read_text(encoding="utf-8"), "mine")
 
+    def test_installer_owned_files_are_never_treated_as_stale(self):
+        wa_claude = self.root / ".claude/rules/agentflow-working-agreement.md"
+        wa_copilot = self.root / ".github/instructions/agentflow-working-agreement.instructions.md"
+        wa_copilot.parent.mkdir(parents=True)
+        for f in (wa_claude, wa_copilot):
+            f.write_text("working agreement", encoding="utf-8")
+        self.assertEqual(self.pointers()[0], 0)
+        self.assertEqual(self.pointers("--check")[0], 0)
+        for f in (wa_claude, wa_copilot):
+            self.assertEqual(f.read_text(encoding="utf-8"), "working agreement")
+
     def test_check_detects_missing_edited_and_stale(self):
         self.assertEqual(self.pointers("--check")[0], 1)
         self.pointers()
