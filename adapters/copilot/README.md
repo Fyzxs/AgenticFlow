@@ -30,5 +30,7 @@ session history, and write an extractor that emits the same `turns.jsonl` shape 
 - [ ] Where session transcripts live.
 - [ ] Whether custom agents honour a `model:` frontmatter line, and the model names to put in
       `config.json` → `models.copilot` (empty means inherit, which is the safe default until verified).
+- [ ] The keyword for Copilot's Auto model selection in agent frontmatter, for `models.copilot.auto`.
+- [ ] How to run a shadow dispatch in isolation on Copilot (a separate worktree or branch), for model compare.
 - [ ] That `.github/instructions/*.instructions.md` with `applyTo: "glob1,glob2"` (comma-separated, as
       `engine/pointers.py` writes it) scopes correctly, and doesn't collide with what `apm install` writes there.

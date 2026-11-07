@@ -10,13 +10,23 @@
     "claude": {
       "deep": "opus",
       "standard": "sonnet",
-      "fast": "haiku"
+      "fast": "haiku",
+      "auto": ""
     },
     "copilot": {
       "deep": "",
       "standard": "",
-      "fast": ""
+      "fast": "",
+      "auto": ""
     }
+  },
+  "compare": {
+    "enabled": false,
+    "agents": [],
+    "sample_rate": 1.0,
+    "max_per_run": 3,
+    "min_samples": 5,
+    "reduce_when_ok_rate": 0.9
   },
   "gates_policy": {
     "inferred_acceptance_criteria_need_owner": false

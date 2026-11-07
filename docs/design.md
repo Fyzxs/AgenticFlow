@@ -37,6 +37,8 @@ loop"; agentflow is the same loop, generalised and portable across Claude Code a
 | Deterministic gates declared in `gates.json`, SARIF normalised, baselines for known results | Any linter or scanner can be added without touching agents; only new results block |
 | Acceptance criteria required, traced by script | They are the checks and the end state; traceability is mechanical, so a script owns it |
 | Everything feature-flagged, provider from `feature-flags.md`; `Policy: required` by default, `not-required` per project or per run by the owner | Revert faster than a deploy, never assume the project's flag system, and let the owner opt out explicitly, never silently |
+| Optional model compare: shadow one tier below, validate both independently, reduce only after min_samples at the ok rate | Escalation alone can only ever move tiers up; the cheaper tier needs a way to prove itself. Toggleable because it doubles shadowed tokens |
+| `tier: auto` maps to the harness's own model selection where the host has it | Lets Copilot's Auto (or similar) decide, without agent files naming a host |
 | Agents declare a model tier (deep, standard, fast); projects map tiers to host models; escalation on repeated Validator failures | Agent files stay host-neutral; cost follows the work; model choice joins the findings loop instead of being guessed |
 | Runs committed at each stage checkpoint, in `active/` → `completed/` or `abandoned/` | Human review and mid-run edits; owner edits are recorded as `human-edit` findings for the Curator; raw logs stay local |
 | Run folder is the API between agents | Host- and model-independent hand-offs; the ledger is the heartbeat and resume point |

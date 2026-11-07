@@ -51,6 +51,18 @@ code, never run builds or tests, and never review. You keep the run moving and k
   `escalation` finding naming the agent and both tiers. If it is already `deep` (`capped=yes`), gate to
   the owner instead of retrying.
 - **Owner overrides** ("use Fable for the reviews") apply to this run only; note them in the ledger.
+- **Model compare** (only when `config.json` → `compare.enabled`). Before dispatching an agent, run
+  `python -I .agentflow/engine/compare.py should --run <run> --agent <agent>`. On `shadow=yes`:
+  1. Dispatch the primary as normal. Its output is the run's output; the shadow never changes the run.
+  2. Dispatch the same agent with the same inputs on the shadow model it printed, writing only under
+     `reports/shadow/<id>/`. Agents that write code run in their own throwaway worktree (on Claude Code,
+     `isolation: "worktree"`); nothing from it is merged, committed or used.
+  3. Validate each output in a **separate** Validator invocation, telling each one it must not read the
+     other's output. For reviewers, also count the primary's major findings the shadow missed.
+  4. Record it: `compare.py record --run <run> --agent <agent> --primary-tier ... --primary-model ...
+     --shadow-tier ... --shadow-model ... --primary-verdict <v> --shadow-verdict <v> --shadow-majors <n>
+     --missed-majors <n>`, and add a ledger line.
+  `tier: auto` and `fast` agents are never shadowed (`no-lower-tier`).
 
 ## Loops and caps
 - Review or Prove `major` findings, Runner failures classified `code`, and Gate Analyst `kick-back`

@@ -52,6 +52,13 @@ UNRESOLVED (e.g. infrastructure → database → backend → frontend)
 - Escalation: when a Validator fails the same agent's output twice in a run, the Orchestrator re-runs that
   agent one tier up (fast -> standard -> deep) and records it.
 - Owner overrides per run ("use Fable for the reviews") are honoured for that run only.
+- `tier: auto` means "the harness decides" (e.g. Copilot's Auto). Map `models.<host>.auto` to the host's
+  keyword where it exists; leave it empty (inherit) where it doesn't.
+- **Model compare** (`config.json` → `compare.enabled`, off by default): eligible dispatches also run one
+  tier below as a shadow, both outputs are validated independently, and `engine/compare.py summary`
+  recommends reducing a tier only after `min_samples` conclusive comparisons at `reduce_when_ok_rate`.
+  **It roughly doubles the tokens of every shadowed dispatch**; narrow it with `agents`, `sample_rate`
+  and `max_per_run`.
 
 ## Runs
 - Runs: commit

@@ -37,9 +37,10 @@ Design: https://claude.ai/artifact/SzJwCgeAbqtwCeWJLSAGhd (private to the owner)
 9. **Runs are kept and editable.** Each run is committed at every stage checkpoint (`runs/active/` →
    `runs/completed/` or `runs/abandoned/`). Edit any artifact between stages and the next stage reads it;
    your edits become the Curator's strongest signal.
-10. **Models by tier, escalated on evidence.** Agents declare `deep`, `standard` or `fast`; each project maps
-    tiers to its host's models. Repeated Validator failures move an agent up a tier for that run, and the
-    Curator proposes default changes from the record.
+10. **Models by tier, moved on evidence.** Agents declare `deep`, `standard`, `fast` or `auto` (the harness
+    decides); each project maps tiers to its host's models. Repeated Validator failures move an agent up for
+    that run. Optional model compare (off by default; it doubles shadowed tokens) runs a tier below as a
+    shadow, so the Curator can propose moving down only when the cheaper tier has proven itself.
 11. **Bounded everything.** Review-fix loops stop after 2 rounds, context packs and agent files have size
    budgets, and the Curator's patches are validated before they land.
 
@@ -62,7 +63,8 @@ engine/                      host-neutral Python 3 scripts (stdlib only)
   docs_check.py              cited paths exist, segment globs match, packs within budget
   pointers.py                write/check host-native pointers (.claude/rules, .github/instructions) per segment
   install.py                 install into a repo (.agentflow/ + host files), or --sync host files after edits
-  models.py                  agent tier -> model per host (config.json models), and escalation (--up)
+  models.py                  agent tier -> model per host (config.json models), escalation (--up), shadow (--down)
+  compare.py                 model compare: whether to shadow a dispatch, record and score it, summarise
   hooks/                     tool-call guards (Claude Code adapter today)
   tests/                     python -I engine/tests/run_all.py
 templates/

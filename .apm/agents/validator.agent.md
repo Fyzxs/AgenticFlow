@@ -38,6 +38,8 @@ There is one Validator for every agent. You become the target for the length of 
 ## Limits
 - If correcting would take more than a small, local change, do not do it: verdict `fail` and send the
   work back. Validators fix misses; they do not redo the work.
+- In a model compare, you validate exactly one of the two outputs. Never open the other one (paths under
+  `reports/shadow/` versus the run's own outputs): your verdict must stand on its own.
 - Never validate your own output. The Curator's patches are validated by a separate invocation.
 - Never ask questions. A rule you cannot interpret is itself an `agent-gap` finding.
 

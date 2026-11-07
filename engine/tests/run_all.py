@@ -8,7 +8,7 @@ import unittest
 here = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(here))
 
-suite = unittest.defaultTestLoader.discover(str(here), pattern="test_[egpim]*.py")
+suite = unittest.defaultTestLoader.discover(str(here), pattern="test_[egpimc]*.py")
 result = unittest.TextTestRunner(verbosity=1).run(suite)
 
 hook = subprocess.run([sys.executable, "-I", str(here / "test_block_kill_by_name.py")], capture_output=True, text=True)
