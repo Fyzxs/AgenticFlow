@@ -28,9 +28,11 @@ blocks: []
 - produces | consumes: <shape>
 
 ## Flag plan
-- flag: `<name>` · default: off · owner: <owner> · expiry: <date>
-- read at: <the one seam, per feature-flags.md>
-- or: `unflaggable` — reason: <why>; goes to the plan gate
+<!-- Exactly one of these three lines, filled in (ac_trace.py checks it). `not-required` only when the
+     project Policy or the brief's `flags:` allows it. -->
+- flag: `<name>` · default: off · owner: <owner> · expiry: <date> · read at: <the one seam, per feature-flags.md>
+- unflaggable — reason: <why>; revert: <how>; goes to the plan gate
+- not-required (<project policy | owner, this run>) — revert: <how, e.g. revert the commit and redeploy>
 
 ## Done check
 - Runner: `--quick --scope <project | test filter>`

@@ -22,7 +22,7 @@ description: Plan mode (Locate) -- splits change-map.md into work packages, one 
 Locate (plan), then Build (execute).
 
 ## Rules
-- Every package names its flag (default off, owner, expiry, the one seam it is read at) or says `unflaggable` with a reason. A missing `feature-flags.md` stops the plan with an `owner-decision` finding.
+- Every package's `## Flag plan` states exactly one of: its flag (default off, owner, expiry, the one seam it is read at); `unflaggable` with a reason and a revert path; or `not-required` with a revert path. Use `not-required` only when the project `Policy` or the brief's `flags:` allows it; `ac_trace.py` rejects it otherwise. When flags are required and `feature-flags.md` has no provider, stop the plan with an `owner-decision` finding.
 - Every package has an `## Acceptance criteria` section: the brief criteria it serves (`Serves: AC-1, AC-3`) and its own checkable package criteria (`WP-01.1`…). Together the packages serve every brief criterion; `.agentflow/engine/ac_trace.py` checks this before Build.
 - Package size: 30 to 120 minutes of work. Split anything larger.
 - Packages that change pipelines or infrastructure are dispatched to `iac-implementer` with the IaC context pack; everything else to `implementer`.

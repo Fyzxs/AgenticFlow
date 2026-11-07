@@ -51,10 +51,12 @@ The single Implementer is only as good as the context it is handed. You write th
    owner adds their extra scanners.
 8. **Glossary.** Domain terms from type names, schemas and any mined corrections where the owner had to
    re-explain something.
-9. **Feature flags.** Search for existing flag usage. If you find a provider, fill `feature-flags.md`
-   from the code that uses it. If you find none, leave the Provider section `UNRESOLVED` and raise
-   exactly one `owner-decision` finding: which provider, and who may flip flags in each environment.
-   **Never invent a provider.**
+9. **Feature flags.** If `feature-flags.md` already exists, keep its `Policy` exactly as the owner set it.
+   Search for existing flag usage. If you find a provider, fill `feature-flags.md` from the code that uses
+   it. If you find none and the Policy is `required`, leave Provider `UNRESOLVED` and raise exactly one
+   `owner-decision` finding: which provider and who may flip flags in each environment, or switch the
+   project to `Policy: not-required`. If the Policy is `not-required`, raise nothing about flags.
+   **Never invent a provider, and never change the Policy.**
 10. **Index.** Fill `docs/index.md`: each segment's context pack and its size.
 11. **Host pointers.** Run `python -I .agentflow/engine/pointers.py`. It writes one path-scoped pointer per segment
     for each host in `config.json` → `docs.host_pointers` (`.claude/rules/agentflow-<segment>.md`,

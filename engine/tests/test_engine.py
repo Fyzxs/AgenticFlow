@@ -98,7 +98,13 @@ id: WP-01
 
 ## Context pack
 - x
+
+## Flag plan
+{flag}
 """
+
+FLAG_ON = "- flag: `cards.variant-sort` · default: off · owner: quinn · expiry: 2026-12-31 · read at: sort dispatcher"
+NOT_REQ = "- not-required (project policy) — revert: revert the commit and redeploy"
 
 REPORT = """# report
 
@@ -110,11 +116,45 @@ REPORT = """# report
 
 
 class AcTraceTests(TempRepo):
-    def setup_run(self, brief=BRIEF_OK, serves="AC-1, AC-2"):
-        r = self.new_run()
+    def setup_run(self, brief=BRIEF_OK, serves="AC-1, AC-2", flag=FLAG_ON):
+        self.runs = getattr(self, "runs", 0) + 1
+        r = self.new_run(ref=f"case {self.runs}")
         (r / "brief.md").write_text(brief, encoding="utf-8")
-        (r / "work-packages" / "WP-01-mapper.md").write_text(WP.format(serves=serves), encoding="utf-8")
+        (r / "work-packages" / "WP-01-mapper.md").write_text(WP.format(serves=serves, flag=flag), encoding="utf-8")
         return r
+
+    def set_policy(self, policy):
+        (self.root / ".agentflow").mkdir(exist_ok=True)
+        (self.root / ".agentflow" / "feature-flags.md").write_text(f"# Feature-flag source\n\n## Policy\nPolicy: {policy}\n", encoding="utf-8")
+
+    def test_not_required_rejected_under_default_policy(self):
+        code, out = run("ac_trace.py", "--run", str(self.setup_run(flag=NOT_REQ)))
+        self.assertEqual(code, 1)
+        self.assertIn("neither the project policy nor the brief allows", out)
+
+    def test_not_required_allowed_by_project_policy(self):
+        self.set_policy("not-required")
+        code, out = run("ac_trace.py", "--run", str(self.setup_run(flag=NOT_REQ)))
+        self.assertEqual(code, 0, out)
+
+    def test_not_required_allowed_by_owner_in_brief(self):
+        brief = "---\nsource: prompt\nflags: not-required (owner)\n---\n" + BRIEF_OK
+        code, out = run("ac_trace.py", "--run", str(self.setup_run(brief=brief, flag=NOT_REQ)))
+        self.assertEqual(code, 0, out)
+
+    def test_brief_can_require_flags_despite_policy(self):
+        self.set_policy("not-required")
+        brief = "---\nsource: prompt\nflags: required\n---\n" + BRIEF_OK
+        self.assertEqual(run("ac_trace.py", "--run", str(self.setup_run(brief=brief, flag=NOT_REQ)))[0], 1)
+
+    def test_flag_plan_must_be_exactly_one_and_exceptions_need_revert(self):
+        for flag, msg in (("", "found none"),
+                          (FLAG_ON + "\n" + NOT_REQ, "exactly one"),
+                          ("- unflaggable — reason: dependency upgrade", "must state its revert path"),
+                          ("- flag: `<name>` · default: off", "found none")):
+            code, out = run("ac_trace.py", "--run", str(self.setup_run(flag=flag)))
+            self.assertEqual(code, 1, flag)
+            self.assertIn(msg, out, flag)
 
     def test_plan_passes(self):
         code, out = run("ac_trace.py", "--run", str(self.setup_run()))

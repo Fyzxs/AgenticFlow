@@ -28,8 +28,10 @@ Design: https://claude.ai/artifact/SzJwCgeAbqtwCeWJLSAGhd (private to the owner)
 6. **Deterministic gates are declared, not prompted.** Linters, scanners and custom checks live in
    `.agentflow/gates.json`; `engine/gates.py` runs them and normalises SARIF; baselines keep known results
    from blocking.
-7. **Everything is feature-flagged.** Runtime flags, default off, revert without a deploy. The project's
-   `feature-flags.md` says how; nothing is assumed.
+7. **Everything is feature-flagged, unless the owner says otherwise.** Runtime flags, default off, revert
+   without a deploy. The project's `feature-flags.md` says how, and its `Policy` (`required` or
+   `not-required`) or the owner's per-run instruction decides whether. Either way every work package
+   records its choice and revert path, and `ac_trace.py` checks it.
 8. **Every miss is a signal.** Validators, reviewers, the Runner, PR comments and chat corrections all
    write findings. The Curator routes each to the agent file, a repo doc, or a hook or test.
 9. **Bounded everything.** Review-fix loops stop after 2 rounds, context packs and agent files have size

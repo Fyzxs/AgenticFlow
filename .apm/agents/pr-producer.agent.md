@@ -24,7 +24,7 @@ Deliver, after `--extreme` is green.
 
 ## Rules
 - Include the acceptance criteria as a checklist, each with its evidence (from the reports; `.agentflow/engine/ac_trace.py --require-evidence` must pass first).
-- List every flag added (name, default off, how to flip it, how to retire it).
+- List every flag added (name, default off, how to flip it, how to retire it). When the run's flags were `not-required`, say so and give the revert path instead.
 - Link the work item when the brief's source is ADO.
 - Opening the PR is an external write: only when the profile pre-authorises it, otherwise hand the description to the Orchestrator's gate.
 

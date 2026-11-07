@@ -18,7 +18,7 @@ description: Checks that every behaviour change is behind a feature flag placed 
 - `reports/review.feature-flag.md`; findings of kind `flag`
 
 ## Runs when
-Always when behaviour changes.
+When behaviour changes and flags are required (project `Policy: required`, unless the brief's `flags:` says `not-required`). Not dispatched when flags are not required.
 
 ## Rules
 - Coverage: no changed behaviour runs with the flag off.

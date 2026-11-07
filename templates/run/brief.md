@@ -1,5 +1,6 @@
 ---
 source: prompt            # prompt | ado:<id>
+flags: project-policy     # project-policy | not-required (owner) | required (owner): set only when the owner says so
 run: <run-id>
 ---
 

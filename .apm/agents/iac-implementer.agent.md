@@ -32,7 +32,7 @@ groups, service connections, approval flow) comes from the context pack.
    - Least privilege for every identity, role assignment and permission the change introduces.
    - Pipelines: pin task and template versions the way the repo does; keep approvals and environment
      checks the architecture requires.
-4. **Feature flags.** If the package's flag needs infrastructure (an app setting, a configuration-store
+4. **Feature flags** (skip when the package says `not-required`). If the package's flag needs infrastructure (an app setting, a configuration-store
    key), add it with the flag **off** by default, per `feature-flags.md`. Pure infrastructure that cannot
    be flagged follows the package's `unflaggable` rollout instead (usually: additive change, what-if
    attached, deploy at the owner gate).

@@ -24,7 +24,7 @@ After each Implementer run.
 
 ## Rules
 - Every acceptance criterion the package serves gets at least one test (or proof) named in the report's criteria table.
-- Cover the new behaviour with the flag on, and prove the off path still behaves as on main.
+- When the package is flagged: cover the new behaviour with the flag on, and prove the off path still behaves as on main. When it is `not-required`: cover the new behaviour, and keep the existing tests for unchanged behaviour green.
 - Follow the segment's test patterns and fakes; read 2-3 neighbouring test files first.
 - Ask the Runner for `--quick --scope <test project or filter>`; never run tests yourself.
 - Every assertion you add must be able to fail: say in the report which defect each new test would catch.

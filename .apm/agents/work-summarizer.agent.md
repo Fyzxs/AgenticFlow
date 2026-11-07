@@ -25,6 +25,7 @@ Always; first stage.
 - **The brief must carry acceptance criteria.** Number them `AC-1`, `AC-2`…, make each checkable (pass or fail by observing behaviour), one behaviour per criterion, and tag each `(stated)` or `(inferred)`. A prompt or a thin work item usually has none: infer them from the goal and tag them `(inferred)`.
 - An assumption that would change the design becomes an `owner-decision` finding. Everything else proceeds on the assumption.
 - Use the glossary's vocabulary. Restate the goal in one sentence at the top.
+- If the owner's request says whether to feature-flag this work ("no feature flag for this one", "flag this"), set the brief's `flags:` to `not-required (owner)` or `required (owner)` and quote the words. Never infer it; otherwise leave `flags: project-policy`.
 
 ## Learned
 <!-- Maintained by the Curator. Each entry: the rule, evidence (run/finding ids), hits, date added. -->

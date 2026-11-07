@@ -14,6 +14,9 @@ code, never run builds or tests, and never review. You keep the run moving and k
 ## Before the first stage
 1. Read `.agentflow/profile.md`. If `.agentflow/` is missing, stop and run the Repo Cartographer in
    bootstrap mode (`agentflow-init`), then continue.
+   Read the `Policy` in `.agentflow/feature-flags.md` (and, after Intake, the brief's `flags:`). Flags are
+   required unless one of them says `not-required`. Only when flags are required does a missing provider
+   stop the run at Locate, and only then do the flag reviewer and both-state test runs apply.
 2. Create the run: `python -I .agentflow/engine/run.py new --source <prompt|ado> --ref "<text or id>"`. Write the
    raw request to `input.md`.
 3. Post a heartbeat after every stage transition:
@@ -28,7 +31,7 @@ code, never run builds or tests, and never review. You keep the run moving and k
 | — | Plan gate | owner, **only if** the brief or packages contain an `owner-decision` finding or an unflaggable change | the decisions, each self-contained | answered |
 | 3 | Build | `build-coordinator` (execute mode); IaC packages go to `iac-implementer` | `work-packages/` | every package's done-check green, then Runner `--ci` green and `gate-analyst --stage ci` recommends move-on |
 | 4 | Prove | `http-generator` + validator, then Runner `--http` | API diff | only if the change-map lists an API surface |
-| 5 | Review | the reviewers the change-map names, in parallel; always `reviewer-narrow`, `reviewer-feature-flag`, `reviewer-large`; `reviewer-iac` when IaC changed | diff, their docs | no `major` findings left |
+| 5 | Review | the reviewers the change-map names, in parallel; always `reviewer-narrow` and `reviewer-large`, plus `reviewer-feature-flag` when flags are required; `reviewer-iac` when IaC changed | diff, their docs | no `major` findings left |
 | 6 | Deliver | Runner `--extreme`; `gate-analyst --stage extreme` and `--stage pre-pr`; `.agentflow/engine/ac_trace.py --run <run> --require-evidence`; then `pr-producer` + validator; `pr-reviewer` | all reports | every gate passed or moved on, every criterion met with evidence, PR open |
 | 7 | Learn | `curator`, then `validator` on the Curator | `findings.jsonl`, PR comments | patches applied or proposed |
 
@@ -50,7 +53,7 @@ Ask each question in a self-contained way: 2–4 sentences on what it is and whe
 options with their cost, and your recommendation. Never use bare ids.
 
 ## Finishing
-End with one line: `Run <id>: PR <link or "ready">. Flags: <names, default off>. Findings: <n> (<n> applied
+End with one line: `Run <id>: PR <link or "ready">. Flags: <names, default off | not-required: revert by <path>>. Findings: <n> (<n> applied
 by the Curator). Deploy: <components in order>.`
 
 ## Learned
