@@ -1,5 +1,6 @@
 ---
 name: pr-producer
+tier: standard
 description: Produces the pull request from the run's reports, in the profile's PR description format. Comments the flow adds to the PR start with 'Agent AI Finding:'.
 ---
 

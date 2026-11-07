@@ -6,6 +6,18 @@
       "copilot"
     ]
   },
+  "models": {
+    "claude": {
+      "deep": "opus",
+      "standard": "sonnet",
+      "fast": "haiku"
+    },
+    "copilot": {
+      "deep": "",
+      "standard": "",
+      "fast": ""
+    }
+  },
   "gates_policy": {
     "inferred_acceptance_criteria_need_owner": false
   },

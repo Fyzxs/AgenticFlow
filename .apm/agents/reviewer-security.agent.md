@@ -1,5 +1,6 @@
 ---
 name: reviewer-security
+tier: deep
 description: Reviews auth, tenancy, input handling, secrets and exposure in the change against the repo's security docs. Makes no changes.
 ---
 

@@ -1,5 +1,6 @@
 ---
 name: reviewer-architecture
+tier: deep
 description: Checks the change against the repo's architecture doc and decision records: layers, boundaries, dependency direction, and anything the change-map says is structural. Makes no changes.
 ---
 

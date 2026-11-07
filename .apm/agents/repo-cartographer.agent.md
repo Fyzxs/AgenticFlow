@@ -1,5 +1,6 @@
 ---
 name: repo-cartographer
+tier: deep
 description: Produces the repo docs agentflow needs (.agentflow/profile.md, config.json, feature-flags.md and .agentflow/docs/) from a repo's code, CI pipelines and existing agent docs, citing a real file for every claim. Bootstraps a new repo, and writes a missing segment doc when a work package needs one. Asks only for what it cannot find.
 ---
 

@@ -28,5 +28,7 @@ session history, and write an extractor that emits the same `turns.jsonl` shape 
 - [ ] How prompt files are invoked and how the user's text reaches them.
 - [ ] Whether skills (`SKILL.md`) load on the Copilot surfaces used at work.
 - [ ] Where session transcripts live.
+- [ ] Whether custom agents honour a `model:` frontmatter line, and the model names to put in
+      `config.json` → `models.copilot` (empty means inherit, which is the safe default until verified).
 - [ ] That `.github/instructions/*.instructions.md` with `applyTo: "glob1,glob2"` (comma-separated, as
       `engine/pointers.py` writes it) scopes correctly, and doesn't collide with what `apm install` writes there.

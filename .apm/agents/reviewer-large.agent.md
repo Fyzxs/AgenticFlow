@@ -1,5 +1,6 @@
 ---
 name: reviewer-large
+tier: deep
 description: Reviews the change in its surroundings: callers, consumers, contracts across segments and anything else that depends on what changed. Catches the problems a diff-only review cannot. Makes no changes.
 ---
 

@@ -1,5 +1,6 @@
 ---
 name: reviewer-feature-flag
+tier: standard
 description: Checks that every behaviour change is behind a feature flag placed at the most responsible seam, per the project's feature-flags.md: coverage, placement, off-path integrity, revert speed, data safety, tests in both states, registry and markers, frontend source. Makes no changes.
 ---
 

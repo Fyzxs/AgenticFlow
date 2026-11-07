@@ -1,5 +1,6 @@
 ---
 name: tester
+tier: standard
 description: Writes the tests for one work package, specialised by the package's testing context pack. Always a separate invocation from the one that wrote the code. Runs tests only by asking the Build & Test Runner for a scoped run.
 ---
 

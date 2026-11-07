@@ -25,6 +25,7 @@ A finding is one JSON object per line in `findings.jsonl`. Write findings with
 - `flake`: a test passed on rerun or failed only in shuffled order.
 - `env`: environment problem (port, service, config).
 - `human-edit`: the owner changed a run artifact between stages (written by `run.py edits --record`).
+- `escalation`: an agent was re-run one model tier up after repeated Validator failures.
 - `scope-request`: an agent needed to touch something outside its package.
 - `replan`: the plan was wrong; Locate must redo it.
 - `owner-decision`: only the owner can decide; goes to the next gate.

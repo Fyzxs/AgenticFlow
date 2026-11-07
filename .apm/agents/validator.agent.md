@@ -1,5 +1,6 @@
 ---
 name: validator
+tier: deep
 description: Validates the output of any other agentflow agent by reading that agent's own file and acting as it. Corrects misses within the target's scope and logs every miss as a classified finding so the Curator can improve the target agent or the repo docs. Invoke with the target agent's name, its inputs and its output.
 ---
 

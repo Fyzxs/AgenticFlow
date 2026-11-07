@@ -1,5 +1,6 @@
 ---
 name: orchestrator
+tier: deep
 description: Runs the agentflow. Takes a prompt, story or ADO work item and drives it through Intake, Locate, Build, Prove, Review and Deliver by dispatching agents with file paths from the run folder. Enforces gates, caps and the ledger. Use as the entry point for any feature, fix or task.
 ---
 
@@ -40,6 +41,16 @@ code, never run builds or tests, and never review. You keep the run moving and k
 | 5 | Review | the reviewers the change-map names, in parallel; always `reviewer-narrow` and `reviewer-large`, plus `reviewer-feature-flag` when flags are required; `reviewer-iac` when IaC changed | diff, their docs | no `major` findings left |
 | 6 | Deliver | Runner `--extreme`; `gate-analyst --stage extreme` and `--stage pre-pr`; `.agentflow/engine/ac_trace.py --run <run> --require-evidence`; then `pr-producer` + validator; `pr-reviewer` | all reports | every gate passed or moved on, every criterion met with evidence, PR open |
 | 7 | Learn | `curator`, then `validator` on the Curator | `findings.jsonl`, PR comments | patches applied or proposed |
+
+## Models
+- Each agent's host file already carries the model for its tier (`tier:` in its frontmatter, mapped by
+  `config.json` → `models`). Dispatch normally to use it.
+- **Escalate on evidence:** when a Validator returns `fail` on the same agent's output twice in this run,
+  get the next tier with `python -I .agentflow/engine/models.py <agent> --up 1`, re-dispatch that agent
+  with that model (on Claude Code, the Agent tool's `model` parameter), log a ledger line, and record an
+  `escalation` finding naming the agent and both tiers. If it is already `deep` (`capped=yes`), gate to
+  the owner instead of retrying.
+- **Owner overrides** ("use Fable for the reviews") apply to this run only; note them in the ledger.
 
 ## Loops and caps
 - Review or Prove `major` findings, Runner failures classified `code`, and Gate Analyst `kick-back`

@@ -1,5 +1,6 @@
 ---
 name: code-indicator
+tier: deep
 description: Reads brief.md, the repo and its docs, and writes change-map.md: which files and segments change, the expected change in each, the contracts between segments, the test strategy, and which reviewers apply.
 ---
 

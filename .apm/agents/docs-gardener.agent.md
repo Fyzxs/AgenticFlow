@@ -1,5 +1,6 @@
 ---
 name: docs-gardener
+tier: standard
 description: After a run that changed code, updates the repo docs for the segments it touched so examples, paths and patterns match the code, within each doc's size budget.
 ---
 

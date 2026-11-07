@@ -1,5 +1,6 @@
 ---
 name: build-coordinator
+tier: deep
 description: Plan mode (Locate) -- splits change-map.md into work packages, one per segment, each naming its context pack, contract, flag plan, done-check, dependencies and size. Execute mode (Build) -- runs the packages in dependency order through the Implementer, the Tester and validators, and checks the contracts between them.
 ---
 

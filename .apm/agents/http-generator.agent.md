@@ -1,5 +1,6 @@
 ---
 name: http-generator
+tier: standard
 description: Writes .http (or the project's equivalent) API proof files for changed endpoints, following the repo's existing proof files and the API segment doc.
 ---
 

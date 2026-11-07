@@ -1,5 +1,6 @@
 ---
 name: iac-implementer
+tier: standard
 description: Implements infrastructure-as-code and pipeline work packages (YAML pipelines, Bicep, Azure resources) so they follow the repo's IaC architecture. Validates with build, lint and what-if previews through the Runner and gates; never deploys, applies or changes a cloud environment. Specialised by the IaC context pack the work package names.
 ---
 

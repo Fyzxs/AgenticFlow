@@ -1,5 +1,6 @@
 ---
 name: work-summarizer
+tier: standard
 description: Turns a plain prompt or an Azure DevOps work item (with its Story, Feature and Epic chain) into brief.md, the single description of the work every later agent reads. Infers missing acceptance criteria and records each inference as an assumption.
 ---
 

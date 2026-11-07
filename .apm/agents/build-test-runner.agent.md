@@ -1,5 +1,6 @@
 ---
 name: build-test-runner
+tier: fast
 description: The only agentflow agent that builds, tests or starts the system. Runs a mode defined in .agentflow/config.json (quick, quick with --scope, ci, http, extreme) through .agentflow/engine/runner.py, judges only by exit codes and counts, classifies failures and returns a compact result. Every other agent asks it instead of running commands.
 ---
 

@@ -1,5 +1,6 @@
 ---
 name: reviewer-narrow
+tier: standard
 description: Reviews exactly the changed lines for correctness, clarity and adherence to the segment docs. Makes no changes.
 ---
 

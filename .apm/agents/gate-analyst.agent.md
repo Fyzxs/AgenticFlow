@@ -1,5 +1,6 @@
 ---
 name: gate-analyst
+tier: standard
 description: Runs the project's deterministic gates (linters, scanners, custom scripts declared in .agentflow/gates.json) through .agentflow/engine/gates.py, then analyses the normalised results and tells the Orchestrator, per result, to kick it back to Build, accept a correction, or move on. Runs at ci for fast gates and at extreme/pre-pr for the full scanner set.
 ---
 

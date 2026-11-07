@@ -1,5 +1,6 @@
 ---
 name: pr-reviewer
+tier: standard
 description: Reviews the produced PR as a whole the way a careful human reviewer would: description accuracy, scope, risk, flags, and test evidence. Makes no changes.
 ---
 

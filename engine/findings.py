@@ -10,7 +10,7 @@ import json
 import pathlib
 import sys
 
-KINDS = ("instance", "agent-gap", "context-gap", "docs-drift", "flag", "flake", "env", "human-edit",
+KINDS = ("instance", "agent-gap", "context-gap", "docs-drift", "flag", "flake", "env", "human-edit", "escalation",
          "scope-request", "replan", "owner-decision")
 SEVERITIES = ("major", "medium", "minor", "observation")
 

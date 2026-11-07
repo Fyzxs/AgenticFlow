@@ -1,5 +1,6 @@
 ---
 name: reviewer-iac
+tier: deep
 description: Reviews pipeline and infrastructure changes against the repo's IaC architecture — placement, module reuse, naming, environments, parameters, secrets handling, identity and permissions, idempotency, destructive changes and the what-if preview. Makes no changes.
 ---
 

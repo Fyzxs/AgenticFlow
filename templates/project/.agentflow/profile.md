@@ -44,6 +44,15 @@ UNRESOLVED (e.g. infrastructure → database → backend → frontend)
 - Hosted data, cloud and account configuration, flag flips outside local, pushes and deploys.
 - UNRESOLVED: anything repo-specific.
 
+## Models
+<!-- Agents declare a tier (deep | standard | fast), never a model. config.json -> models.<host> maps tiers to
+     this host's model names; an empty value means "inherit the session's model". After changing the map,
+     regenerate host files: python -I .agentflow/engine/install.py --sync --target . --host <host>.
+     See every agent's tier and model: python -I .agentflow/engine/models.py --list --host <host>. -->
+- Escalation: when a Validator fails the same agent's output twice in a run, the Orchestrator re-runs that
+  agent one tier up (fast -> standard -> deep) and records it.
+- Owner overrides per run ("use Fable for the reviews") are honoured for that run only.
+
 ## Runs
 - Runs: commit
 <!-- commit (default): every run folder is committed at each stage checkpoint, so the brief, plan, reports and
