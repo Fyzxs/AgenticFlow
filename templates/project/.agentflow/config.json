@@ -92,6 +92,39 @@
         }
       ]
     },
+    "db-migrate": {
+      "steps": [
+        {
+          "name": "migrate",
+          "run": "UNRESOLVED: apply pending migrations to the LOCAL database in place, keeping its data"
+        }
+      ]
+    },
+    "db-verify": {
+      "steps": [
+        {
+          "name": "verify",
+          "run": "UNRESOLVED: run the database verify scripts"
+        }
+      ]
+    },
+    "db-reset": {
+      "destructive": true,
+      "steps": [
+        {
+          "name": "reset",
+          "run": "UNRESOLVED: rebuild the LOCAL database from empty (wipes its data)"
+        }
+      ]
+    },
+    "seed": {
+      "steps": [
+        {
+          "name": "seed",
+          "run": "UNRESOLVED: load the data the proofs need (fixtures or ingestion), or set not_applicable"
+        }
+      ]
+    },
     "extreme": {
       "draft": true,
       "continue_on_failure": true,
@@ -118,7 +151,12 @@
         },
         {
           "name": "db-from-empty",
-          "run": "UNRESOLVED: rebuild the database from empty and run every verify script"
+          "run": "UNRESOLVED: rebuild the database from empty and run every verify script",
+          "destructive": true
+        },
+        {
+          "name": "seed-after-reset",
+          "run": "UNRESOLVED: same command as the seed mode, so later proofs have their data back"
         },
         {
           "name": "docs-check",

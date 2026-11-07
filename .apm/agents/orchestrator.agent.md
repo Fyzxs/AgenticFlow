@@ -98,6 +98,9 @@ Before handing any agent's output to the next agent (after its Validator), ask:
 ## Gates (the only times you stop)
 - The plan gate above, when it is triggered. When `config.json` → `gates_policy.inferred_acceptance_criteria_need_owner`
   is `true`, any `(inferred)` acceptance criterion also triggers it.
+- A Runner mode refused for destructive steps (exit 3): ask the owner, naming the steps and what they
+  wipe; on approval re-run with `--allow-destructive` for that one invocation, and log it. Prefer a
+  non-destructive capability (`db-migrate` rather than `db-reset`) whenever one exists.
 - Any external or irreversible write: pushing, opening the PR (unless the profile pre-authorises it),
   creating or flipping a feature flag outside the local environment, touching hosted data.
 - The caps above.

@@ -60,7 +60,7 @@ apm.yml                      APM manifest (targets: copilot, claude)
 engine/                      host-neutral Python 3 scripts (stdlib only)
   run.py                     create a run folder, append to the ledger, print status
   findings.py                append and validate findings
-  runner.py                  execute a Build & Test Runner mode from .agentflow/config.json
+  runner.py                  execute a Build & Test Runner mode from .agentflow/config.json (destructive steps refused without approval)
   gates.py                   run declared linters/scanners, normalise SARIF, apply baselines
   ac_trace.py                acceptance-criteria traceability (plan check; evidence check before PR)
   docs_check.py              cited paths exist, segment globs match, packs within budget

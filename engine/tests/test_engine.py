@@ -280,7 +280,46 @@ class DocsCheckTests(TempRepo):
         (self.root / "src" / "Mappers").mkdir(parents=True)
         (self.root / "src" / "Mappers" / "CardMapper.cs").write_text("class CardMapper {}", encoding="utf-8")
         (self.root / ".agentflow" / "docs" / "segments").mkdir(parents=True)
-        (self.root / ".agentflow" / "config.json").write_text(json.dumps({"docs": {"pack_budget_kb": 1}}), encoding="utf-8")
+        self.modes = {m: {"steps": [{"name": "x", "run": "echo"}]} for m in ("quick", "ci", "extreme")}
+        self.write_cfg()
+
+    def write_cfg(self):
+        (self.root / ".agentflow" / "config.json").write_text(
+            json.dumps({"docs": {"pack_budget_kb": 1}, "modes": self.modes}), encoding="utf-8")
+
+    def write_profile(self, database="yes (Postgres)", api="no"):
+        (self.root / ".agentflow" / "profile.md").write_text(
+            f"## Surfaces\n| Surface | Present | Docs |\n|---|---|---|\n| API | {api} | |\n| Database | {database} | |\n",
+            encoding="utf-8")
+
+    def test_capabilities_required_by_surfaces(self):
+        self.write_segment("ok")
+        self.write_profile()
+        code, out = run("docs_check.py", "--root", str(self.root))
+        self.assertEqual(code, 1)
+        for mode in ("db-migrate", "db-verify", "db-reset", "seed"):
+            self.assertIn(f"no '{mode}' mode", out)
+        self.modes.update({"db-migrate": {"steps": [{"name": "m", "run": "echo"}]},
+                           "db-verify": {"steps": [{"name": "v", "run": "echo"}]},
+                           "db-reset": {"steps": [{"name": "r", "run": "echo"}]},
+                           "seed": {"not_applicable": "proofs use fixtures only"}})
+        self.write_cfg()
+        code, out = run("docs_check.py", "--root", str(self.root))
+        self.assertIn("'db-reset' must be marked", out)
+        self.modes["db-reset"]["destructive"] = True
+        self.write_cfg()
+        self.assertEqual(run("docs_check.py", "--root", str(self.root))[0], 0)
+
+    def test_unlabelled_destructive_step_warns_and_unresolved_fails_strict(self):
+        self.write_segment("ok")
+        self.modes["extreme"]["steps"].append({"name": "db-from-empty", "run": "reset-database.ps1"})
+        self.modes["ci"]["steps"].append({"name": "lint", "run": "UNRESOLVED: lint command"})
+        self.write_cfg()
+        code, out = run("docs_check.py", "--root", str(self.root))
+        self.assertEqual(code, 0, out)
+        self.assertIn("step 'db-from-empty' looks destructive", out)
+        self.assertIn("step 'lint' is UNRESOLVED", out)
+        self.assertEqual(run("docs_check.py", "--root", str(self.root), "--strict")[0], 1)
 
     def write_segment(self, body, paths="src/Mappers/**", pack=None):
         fm = f'---\npaths:\n  - "{paths}"\n'
@@ -353,6 +392,26 @@ class RunnerTests(TempRepo):
         code, out = run("runner.py", "quick", "--run", str(r), "--root", str(self.root))
         self.assertEqual(code, 1)
         self.assertIn("result=fail", out)
+
+    def test_destructive_steps_refused_before_anything_runs(self):
+        marker = (self.root / "ran.txt").as_posix()
+        touch = f'"{PY}" -I -c "open(\'{marker}\', \'w\').write(\'x\')"'
+        self.write_config([{"name": "migrate", "run": touch}, dict(self.step("reset", 0), destructive=True)])
+        code, out = run("runner.py", "quick", "--root", str(self.root))
+        self.assertEqual(code, 3, out)
+        self.assertIn("destructive steps (reset)", out)
+        self.assertFalse((self.root / "ran.txt").exists())  # the safe step did not run either
+        code, out = run("runner.py", "quick", "--root", str(self.root), "--allow-destructive")
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.root / "ran.txt").exists())
+
+    def test_owner_allowed_destructive_mode_and_not_applicable(self):
+        self.write_config([dict(self.step("reset", 0), destructive=True)], allow_destructive=True)
+        self.assertEqual(run("runner.py", "quick", "--root", str(self.root))[0], 0)
+        self.write_config([self.step("x", 1)], not_applicable="no database in this repo")
+        code, out = run("runner.py", "quick", "--root", str(self.root))
+        self.assertEqual(code, 0)
+        self.assertIn("does not apply to this repo", out)
 
     def test_unknown_mode_is_config_error(self):
         self.write_config([self.step("build", 0)])

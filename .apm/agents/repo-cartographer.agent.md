@@ -20,8 +20,18 @@ The single Implementer is only as good as the context it is handed. You write th
 1. **Inventory.** Languages and build files; CI pipeline definitions; existing agent docs (`CLAUDE.md`,
    `AGENTS.md`, `.github/copilot-instructions.md`, `.claude/rules/**`, `.github/instructions/**`),
    ADRs, READMEs, contributing guides; any correction-mining report (`.agentflow/skills/correction-mining`).
-2. **config.json from CI.** Copy the CI pipeline's build, test, lint and format steps into the `ci` mode
-   verbatim, so local `ci` means what CI means. Derive `quick` (scoped) from the same commands. Draft
+2. **config.json from CI and from the dev loop.** Copy the CI pipeline's build, test, lint and format
+   steps into the `ci` mode verbatim, so local `ci` means what CI means. CI always starts from a fresh
+   environment, so it never shows how to work against a **local, stateful** one: also inventory the repo's
+   own dev-loop tooling (`scripts/`, start/setup/infra scripts, package scripts, Makefile, the README's
+   getting-started steps) and fill every Runner capability in the template from it:
+   - `db-migrate`: apply pending migrations in place, **keeping the data** (never a reset);
+   - `db-verify`: the database verify or check scripts;
+   - `db-reset`: rebuild from empty, always `"destructive": true`;
+   - `seed`: load the data proofs need (fixtures, or an ingestion command).
+   Mark every step that wipes or replaces local state `"destructive": true`, in any mode. A capability
+   the repo truly lacks gets `"not_applicable": "<why>"`; one you cannot find stays `UNRESOLVED`.
+   **Never** set `allow_destructive`: that is the owner's call. Derive `quick` (scoped) from the same commands. Draft
    `extreme` as `ci` plus the strictest options the toolchain supports, and mark it `"draft": true` for
    the owner to confirm. Define `http` only if the repo has API proof files.
 3. **Architecture.** Layers, boundaries and dependency direction, as the code shows them (project
@@ -72,7 +82,9 @@ The single Implementer is only as good as the context it is handed. You write th
   code that no longer exists are dropped and listed in your report.
 - Size budgets (from `config.json` → `docs.pack_budget_kb`): a context pack that would exceed it gets
   split, or its least-used guidance moves to a linked reference doc.
-- Ask nothing you can find in the repo.
+- Ask nothing you can find in the repo. Ask everything you cannot find **at init, in one list**: each
+  `UNRESOLVED` capability, the feature-flag provider when flags are required, and convention splits.
+  A question that waits for a run to discover it costs the owner a mid-run pause.
 - Existing hand-written host rules (`.claude/rules/*`, `.github/instructions/*` not named `agentflow-*`)
   are inputs. Once their content lives in a segment doc, list them in your report as candidates to
   retire; never delete them yourself.

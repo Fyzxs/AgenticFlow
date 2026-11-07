@@ -5,7 +5,11 @@
 For each step in the mode: run its command, write its output to a log, record its exit code. Services the
 mode lists are started first (their PIDs recorded) and stopped by PID afterwards, never by name.
 Prints a compact summary and writes runner/<invocation>.json in the run folder.
-Exit code: 0 if every step exited 0, 1 otherwise, 2 on a configuration error.
+Exit code: 0 if every step exited 0, 1 otherwise, 2 on a configuration error, 3 when the mode has destructive
+steps and neither --allow-destructive nor the mode's owner-set "allow_destructive" permits them (nothing runs).
+
+A step (or a whole mode) marked "destructive": true wipes or replaces local state: a database reset, dropping
+seeded data. A mode marked "not_applicable": "<why>" is a declared non-capability and exits 0 without running.
 
 config.json shape (see templates/project/.agentflow/config.json):
   { "modes": { "<mode>": { "steps": [ {"name": "build", "run": "dotnet build {scope}", "cwd": ".",
@@ -101,6 +105,8 @@ def main(argv=None) -> int:
     p.add_argument("--scope", help="replaces {scope} in step commands")
     p.add_argument("--config", default=".agentflow/config.json")
     p.add_argument("--root", default=".", help="repo root (default: current directory)")
+    p.add_argument("--allow-destructive", action="store_true",
+                   help="run steps marked destructive; the Orchestrator passes this only with the owner's approval")
     args = p.parse_args(argv)
 
     root = pathlib.Path(args.root).resolve()
@@ -109,6 +115,16 @@ def main(argv=None) -> int:
     if mode is None:
         print(f"unknown mode '{args.mode}'. Modes: {', '.join(sorted(config.get('modes') or {}))}", file=sys.stderr)
         return 2
+    if mode.get("not_applicable"):
+        print(f"mode '{args.mode}' does not apply to this repo: {mode['not_applicable']}")
+        return 0
+    destructive = [s["name"] for s in mode.get("steps", []) if s.get("destructive") or mode.get("destructive")]
+    if destructive and not (args.allow_destructive or mode.get("allow_destructive")):
+        # Checked before anything runs, so a refused mode never half-executes.
+        print(f"refused: mode '{args.mode}' has destructive steps ({', '.join(destructive)}) that wipe or replace "
+              "local state. Run it with --allow-destructive only after the owner approves, or the owner can set "
+              "\"allow_destructive\": true on this mode in config.json.", file=sys.stderr)
+        return 3
     if mode.get("draft"):
         print(f"note: mode '{args.mode}' is marked draft in config.json; the owner has not confirmed it")
     scope = args.scope or mode.get("default_scope", "")

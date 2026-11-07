@@ -32,7 +32,10 @@ small and two agents never run the test suite at the same time.
    | `env` | port in use, service not ready, missing config or secret | fix your own setup once and rerun; if it still fails, report it |
    | `preexisting` | the same failure on main (rerun the step against a clean main worktree if needed) | report separately; do not blame this change; log an `observation` finding |
 
-4. Services: the script starts the services a mode lists, records their PIDs, and stops only those PIDs.
+4. **Exit 3 means refused, not failed.** The mode has steps marked destructive (they wipe or replace local
+   state) and nothing ran. Report it to the Orchestrator with the steps the script named. Never add
+   `--allow-destructive` yourself; the Orchestrator passes it only with the owner's approval.
+5. Services: the script starts the services a mode lists, records their PIDs, and stops only those PIDs.
    Never stop a process you did not start. Never kill by process name.
 
 ## Result you return (keep it short)
