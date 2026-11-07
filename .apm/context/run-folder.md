@@ -26,6 +26,9 @@ it and writes its output back into it. `.agentflow/engine/run.py new` creates it
   gates/               Gate Analyst summaries (<invocation>.json); raw tool output in <invocation>/ stays local
   findings.jsonl       every finding from every agent (.agentflow/engine/findings.py)
   compare.jsonl        model-compare records, when compare is enabled (.agentflow/engine/compare.py)
+  review-requests.md   the owner's review requests for this run (editable any time)
+  reviews/             one file per human review pause (.agentflow/templates/run/review-pending.md)
+  reviews.jsonl        every review decision, with -reduce/-increase level changes (.agentflow/engine/review.py)
   reports/shadow/      shadow outputs from model compares; never used by the run
   ledger.md            heartbeat: one line per stage transition (.agentflow/engine/run.py log)
   .gitignore           keeps raw logs out of git

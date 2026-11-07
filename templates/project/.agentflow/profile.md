@@ -60,6 +60,14 @@ UNRESOLVED (e.g. infrastructure → database → backend → frontend)
   **It roughly doubles the tokens of every shadowed dispatch**; narrow it with `agents`, `sample_rate`
   and `max_per_run`.
 
+## Reviews
+<!-- Every agent's output can pause for your review before the next agent gets it. Levels per agent in
+     config.json -> review: on (pause) -> notify (summary only) -> off. Everything starts at review.default
+     ("on"). Reply to any review with -reduce or -increase to move that agent one level; only you can lower
+     a level. review.always forces reviews for risky segments or paths. Per run, ask in your request or edit
+     the run's review-requests.md. See where every agent stands: python -I .agentflow/engine/review.py summary -->
+- Always review: UNRESOLVED (e.g. segments db-migration, iac; paths **/Auth/**)
+
 ## Runs
 - Runs: commit
 <!-- commit (default): every run folder is committed at each stage checkpoint, so the brief, plan, reports and

@@ -35,6 +35,15 @@ STATUSES = ("started", "done", "failed", "gated", "resumed")
 RUN_GITIGNORE = ("# Raw logs stay local; their summaries (runner/*.json, gates/*.json) and every other\n"
                  "# artifact are kept so the run can be reviewed and edited.\n"
                  "runner/*/\ngates/*/\n")
+REVIEW_REQUESTS = """# Review requests for this run
+
+<!-- Ask for reviews beyond each agent's level, for this run only. Edit this file any time; the next stage
+     picks it up. One per line:
+       - review: package=WP-03         - review: segment=db-migration     - review: agent=implementer
+       - review: stage=deliver          - review: path=**/Auth/**          - review: all
+       - autopilot                      (skip agent-level reviews this run; config review.always still applies)
+     Replying to any review with -reduce or -increase changes that agent's level for future runs. -->
+"""
 RUNS_MODE = re.compile(r"^\s*-?\s*Runs:\s*`?(commit|local)`?", re.M | re.I)
 LEDGER_HEADER = "# Ledger\n\n| time (UTC) | stage | status | note |\n|---|---|---|---|\n"
 
@@ -59,6 +68,7 @@ def cmd_new(args) -> int:
         f"---\nsource: {args.source}\nrun: {run_id}\n---\n\n{args.ref}\n", encoding="utf-8", newline="\n")
     (run / "findings.jsonl").write_text("", encoding="utf-8")
     (run / ".gitignore").write_text(RUN_GITIGNORE, encoding="utf-8", newline="\n")
+    (run / "review-requests.md").write_text(REVIEW_REQUESTS, encoding="utf-8", newline="\n")
     (run / "ledger.md").write_text(LEDGER_HEADER, encoding="utf-8", newline="\n")
     append(run, "run", "started", f"source={args.source}")
     print(run)

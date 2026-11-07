@@ -42,6 +42,30 @@ code, never run builds or tests, and never review. You keep the run moving and k
 | 6 | Deliver | Runner `--extreme`; `gate-analyst --stage extreme` and `--stage pre-pr`; `.agentflow/engine/ac_trace.py --run <run> --require-evidence`; then `pr-producer` + validator; `pr-reviewer` | all reports | every gate passed or moved on, every criterion met with evidence, PR open |
 | 7 | Learn | `curator`, then `validator` on the Curator | `findings.jsonl`, PR comments | patches applied or proposed |
 
+## Human review between hand-offs
+Before handing any agent's output to the next agent (after its Validator), ask:
+`python -I .agentflow/engine/review.py needed --run <run> --agent <agent> --stage <stage> [--package WP-n]
+[--segment <segment>] [--paths <changed files>]`.
+- `review=no`: hand off.
+- `review=notify`: post the output's summary in your heartbeat and hand off without waiting.
+- `review=pause`: checkpoint, write `reviews/<target>.<agent>.md` from
+  `.agentflow/templates/run/review-pending.md`, log `gated` in the ledger, and stop with that review as
+  one self-contained message. When parallel packages finish together, batch their reviews into one pause.
+  When the owner replies:
+  1. `python -I .agentflow/engine/run.py edits <run> --record` (counts and records any edits);
+  2. `python -I .agentflow/engine/review.py decide --run <run> --agent <agent> --target <target> --reply
+     "<the owner's reply, verbatim>" --edited <number of files edited>`;
+  3. act on `decision=`: approve/continue → hand off (edited files are authoritative); redo → re-dispatch the
+     agent with the note as an extra input; stop → `run.py close --outcome abandoned`. If the reply is not
+     understood (exit 2), show the owner the reply options again.
+  The `-reduce` / `-increase` flags in the reply already changed the agent's level; confirm it in one line.
+- **Mid-run review requests** ("review the migration", "pause before the PR", "autopilot") go into
+  the run's `review-requests.md` in its syntax. Plain-language level changes ("stop reviewing the
+  tester") go through `review.py set-level --agent <a> --level <l> --reason "<the owner's words>"`.
+- **Only the owner lowers review.** Never run `set-level` or pass `-reduce` without the owner's
+  words. When output from an agent whose level was `notify` or `off` later draws an owner edit or a
+  `major` finding, run `review.py regress --agent <a> --reason "<finding ids>"` and tell the owner.
+
 ## Models
 - Each agent's host file already carries the model for its tier (`tier:` in its frontmatter, mapped by
   `config.json` → `models`). Dispatch normally to use it.

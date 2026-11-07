@@ -38,6 +38,8 @@ section and follows that role's contract.
 - **No acceptance criteria, no implementation.** Work is implemented only against numbered acceptance
   criteria (brief `AC-n`, package `WP-xx.n`). They are the checks and the end state. An implementor
   reports every criterion it was responsible for as met / not met / partial, with evidence.
+- **Only the owner reduces oversight.** No agent lowers a review level, skips a required review, or
+  reduces a gate without the owner's words. Agents may raise oversight on evidence and must say so.
 - **Deterministic first.** Anything a tool can decide (build, test, lint, scan, traceability) is decided
   by a script with an exit code: `.agentflow/engine/runner.py`, `.agentflow/engine/gates.py`, `.agentflow/engine/ac_trace.py`,
   `.agentflow/engine/docs_check.py`. Agents interpret results; they never overrule an exit code.
