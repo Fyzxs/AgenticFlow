@@ -338,11 +338,13 @@ class DocsCheckTests(TempRepo):
     def test_unlabelled_destructive_step_warns_and_unresolved_fails_strict(self):
         self.write_segment("ok")
         self.modes["extreme"]["steps"].append({"name": "db-from-empty", "run": "reset-database.ps1"})
+        self.modes["extreme"]["steps"].append({"name": "seed-after-reset", "run": "dotnet run --project Ingest"})
         self.modes["ci"]["steps"].append({"name": "lint", "run": "UNRESOLVED: lint command"})
         self.write_cfg()
         code, out = run("docs_check.py", "--root", str(self.root))
         self.assertEqual(code, 0, out)
         self.assertIn("step 'db-from-empty' looks destructive", out)
+        self.assertNotIn("step 'seed-after-reset' looks destructive", out)  # the name says reset; the command doesn't
         self.assertIn("step 'lint' is UNRESOLVED", out)
         self.assertEqual(run("docs_check.py", "--root", str(self.root), "--strict")[0], 1)
 

@@ -127,7 +127,8 @@ def config_problems(base: pathlib.Path):
             text = f"{step.get('name', '')} {step.get('run', '')}"
             if "UNRESOLVED" in text:
                 warnings.append(f"config.json: mode '{name}' step '{step.get('name')}' is UNRESOLVED")
-            elif LOOKS_DESTRUCTIVE.search(text) and not (step.get("destructive") or mode.get("destructive")):
+            # Judge the command, not the step name: "seed-after-reset" restores state, it doesn't wipe it.
+            elif LOOKS_DESTRUCTIVE.search(step.get("run", "")) and not (step.get("destructive") or mode.get("destructive")):
                 warnings.append(f"config.json: mode '{name}' step '{step.get('name')}' looks destructive but is not "
                                 "marked \"destructive\": true")
     return failures, warnings
