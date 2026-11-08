@@ -8,11 +8,11 @@ description: Reviews pipeline and infrastructure changes against the repo's IaC 
 
 > **Stub.** Contract only; the full procedure is written when this agent is first exercised.
 
-**Role:** Reviewer. Read `.agentflow/context/role-contracts.md` first.
+**Role:** Reviewer. Read `.fyzxsflow/package/context/role-contracts.md` first.
 
 ## Inputs
 - the IaC diff and the IaC Implementer's report, including its what-if or plan preview
-- `.agentflow/docs/iac-architecture.md` and the IaC segment docs
+- `.fyzxsflow/docs/iac-architecture.md` and the IaC segment docs
 
 ## Outputs
 - `reports/review.iac.md`; findings
@@ -27,4 +27,5 @@ When the change-map marks the IaC surface as touched.
 - Duplicated modules or templates where an existing one fits are findings.
 
 ## Learned
-<!-- Maintained by the Curator. Each entry: the rule, evidence (run/finding ids), hits, date added. -->
+<!-- This project's entries live in `.fyzxsflow/learned/reviewer-iac.md` (maintained by the Curator; each entry: the
+     rule, evidence (run/finding ids), hits, date added). install.py appends them below in the host files. -->

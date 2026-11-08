@@ -1,4 +1,4 @@
-"""Append and list agentflow findings (schema: .apm/context/findings-schema.md).
+"""Append and list fyzxsflow findings (schema: .apm/context/findings-schema.md).
 
   python -I engine/findings.py add --run <dir> --source validator --target implementer --kind agent-gap \
       --severity major --summary "..." --evidence src/a.cs:12 [--evidence ...] [--rule "..."] [--fixed] [--detail "<full text>"]

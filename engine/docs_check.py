@@ -1,4 +1,4 @@
-"""Mechanical checks on a repo's agentflow docs (.agentflow/**/*.md, excluding runs/).
+"""Mechanical checks on a repo's fyzxsflow docs (.fyzxsflow/**/*.md, excluding runs/).
 
   python -I engine/docs_check.py [--root <repo>]
 
@@ -22,6 +22,9 @@ import pathlib
 import re
 import subprocess
 import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from layout import HOME, PACKAGE  # noqa: E402
 
 BACKTICK = re.compile(r"`([^`\n]+)`")
 PATHLIKE = re.compile(r"^[A-Za-z0-9_.\-][A-Za-z0-9_.\-/\\]*/[A-Za-z0-9_.\-/\\]*$")
@@ -79,7 +82,7 @@ def cited_paths(text: str) -> list:
     body = re.sub(r"<!--.*?-->", "", body, flags=re.S)
     for token in BACKTICK.findall(body):
         token = token.strip()
-        if any(c in token for c in "<>*{}$ ") or token.startswith(("http", "-", ".agentflow/runs")):
+        if any(c in token for c in "<>*{}$ ") or token.startswith(("http", "-", f"{HOME}/runs")):
             continue
         token = re.sub(r":\d+(-\d+)?$", "", token)
         if PATHLIKE.match(token):
@@ -102,7 +105,7 @@ def config_problems(base: pathlib.Path):
     failures, warnings = [], []
     cfg_path = base / "config.json"
     if not cfg_path.exists():
-        return ["config.json is missing (run agentflow-init)"], []
+        return ["config.json is missing (run fyzxsflow-init)"], []
     modes = json.loads(cfg_path.read_text(encoding="utf-8")).get("modes") or {}
     required = list(BASE_MODES)
     profile = base / "profile.md"
@@ -140,9 +143,9 @@ def main(argv=None) -> int:
     p.add_argument("--strict", action="store_true", help="treat UNRESOLVED as a failure")
     args = p.parse_args(argv)
     root = pathlib.Path(args.root).resolve()
-    base = root / ".agentflow"
+    base = root / HOME
     if not base.is_dir():
-        print("no .agentflow/ folder (run agentflow-init)")
+        print("no .fyzxsflow/ folder (run fyzxsflow-init)")
         return 1
     config_path = base / "config.json"
     budget_kb = 24

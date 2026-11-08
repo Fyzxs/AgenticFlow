@@ -1,13 +1,13 @@
-"""The owner's feedback inbox: .agentflow/feedback/. Any file, any length, any time; the Orchestrator acts on it.
+"""The owner's feedback inbox: .fyzxsflow/feedback/. Any file, any length, any time; the Orchestrator acts on it.
 
-  python -I .agentflow/engine/feedback.py scan [--root .]
+  python -I .fyzxsflow/package/engine/feedback.py scan [--root .]
       -> every item that is new, or whose text changed since it was last handled: "new|changed <path>: <first line>"
-  python -I .agentflow/engine/feedback.py set <item> --status in-progress|waiting|applied|declined
+  python -I .fyzxsflow/package/engine/feedback.py set <item> --status in-progress|waiting|applied|declined
       --action docs|agent-input|rework|new-work|none [--action ...] --note "<what was done, or why not>" [--ref <run|F-n|sha> ...]
       -> records how the item was handled in its frontmatter; applied and declined items move to feedback/done/
-  python -I .agentflow/engine/feedback.py list [--root .] [--all]
+  python -I .fyzxsflow/package/engine/feedback.py list [--root .] [--all]
       -> open items (and with --all, done ones) with their status and note
-  python -I .agentflow/engine/feedback.py record-review <review file> [--root .]
+  python -I .fyzxsflow/package/engine/feedback.py record-review <review file> [--root .]
       -> records the file's ## Human Feedback as an owner-feedback finding in its run:
          "F-n run=<run> state=<active|completed> agent=<a> target=<WP-n|stage>"
 
@@ -32,6 +32,9 @@ import re
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from layout import HOME, PACKAGE  # noqa: E402
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 STATUSES = ("in-progress", "waiting", "applied", "declined")
 ACTIONS = ("docs", "agent-input", "rework", "new-work", "none")
@@ -40,7 +43,7 @@ KEYS = ("status", "actions", "note", "refs", "seen_hash", "updated")
 
 
 def inbox(root: pathlib.Path) -> pathlib.Path:
-    return root / ".agentflow" / "feedback"
+    return root / HOME / "feedback"
 
 
 def split(text: str):
@@ -79,7 +82,7 @@ REVIEW_STATES = ("active", "completed")  # abandoned runs are not scanned
 
 
 def review_files(root: pathlib.Path) -> list:
-    runs = root / ".agentflow" / "runs"
+    runs = root / HOME / "runs"
     return [f for state in REVIEW_STATES for f in sorted((runs / state).glob("*/reviews/*.md"))]
 
 

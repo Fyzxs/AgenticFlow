@@ -14,12 +14,12 @@ PY = sys.executable
 
 class ReviewTests(unittest.TestCase):
     def setUp(self):
-        self.root = pathlib.Path(tempfile.mkdtemp(prefix="agentflow-review-"))
+        self.root = pathlib.Path(tempfile.mkdtemp(prefix="fyzxsflow-review-"))
         for args in (["init", "-q", "-b", "main"], ["config", "user.name", "T"], ["config", "user.email", "t@x"],
                      ["config", "core.autocrlf", "false"]):
             subprocess.run(["git", *args], cwd=self.root, check=True)
-        (self.root / ".agentflow").mkdir()
-        (self.root / ".agentflow" / "config.json").write_text(json.dumps({"docs": {"pack_budget_kb": 24}}), encoding="utf-8")
+        (self.root / ".fyzxsflow").mkdir()
+        (self.root / ".fyzxsflow" / "config.json").write_text(json.dumps({"docs": {"pack_budget_kb": 24}}), encoding="utf-8")
         subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
         subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=self.root, check=True)
         out = subprocess.run([PY, "-I", str(ENGINE / "run.py"), "new", "--source", "prompt", "--ref", "x",
@@ -80,7 +80,7 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("feedback=F-1", out)
 
     def level(self, agent):
-        cfg = json.loads((self.root / ".agentflow/config.json").read_text(encoding="utf-8"))
+        cfg = json.loads((self.root / ".fyzxsflow/config.json").read_text(encoding="utf-8"))
         return cfg.get("review", {}).get("agents", {}).get(agent)
 
     def test_every_agent_pauses_by_default(self):
@@ -114,9 +114,9 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(self.needed(), "review=no reason=autopilot level=off")
         self.assertIn("run-request:package=WP-03", self.needed("implementer", "--package", "WP-03"))
         self.assertIn("run-request:path=**/Auth/**", self.needed("implementer", "--paths", "src/Api/Auth/Login.cs"))
-        cfg = json.loads((self.root / ".agentflow/config.json").read_text(encoding="utf-8"))
+        cfg = json.loads((self.root / ".fyzxsflow/config.json").read_text(encoding="utf-8"))
         cfg["review"]["always"] = {"segments": ["db-migration"], "paths": ["infra/**"]}
-        (self.root / ".agentflow/config.json").write_text(json.dumps(cfg), encoding="utf-8")
+        (self.root / ".fyzxsflow/config.json").write_text(json.dumps(cfg), encoding="utf-8")
         self.assertIn("always:segment=db-migration", self.needed("implementer", "--segment", "db-migration"))
         self.assertIn("always:path=infra/main.bicep", self.needed("implementer", "--paths", "infra/main.bicep"))
 
@@ -134,9 +134,9 @@ class ReviewTests(unittest.TestCase):
                                               "--reason", "owner: stop reviewing the tester", "--root", str(self.root))[1])
 
     def test_summary_suggests_reduce_after_clean_streak(self):
-        cfg = json.loads((self.root / ".agentflow/config.json").read_text(encoding="utf-8"))
+        cfg = json.loads((self.root / ".fyzxsflow/config.json").read_text(encoding="utf-8"))
         cfg["review"] = {"graduate_after": 3}
-        (self.root / ".agentflow/config.json").write_text(json.dumps(cfg), encoding="utf-8")
+        (self.root / ".fyzxsflow/config.json").write_text(json.dumps(cfg), encoding="utf-8")
         self.decide("approve", edited=1)  # not clean
         for _ in range(3):
             self.decide("approve")

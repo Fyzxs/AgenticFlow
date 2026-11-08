@@ -8,7 +8,7 @@ description: Reviews auth, tenancy, input handling, secrets and exposure in the 
 
 > **Stub.** Contract only; the full procedure is written when this agent is first exercised.
 
-**Role:** Reviewer. Read `.agentflow/context/role-contracts.md` first.
+**Role:** Reviewer. Read `.fyzxsflow/package/context/role-contracts.md` first.
 
 ## Inputs
 - the diff
@@ -24,4 +24,5 @@ When the change-map lists auth, tenant, anonymous or input-handling surfaces.
 - Settled decisions in the security doc are not re-raised.
 
 ## Learned
-<!-- Maintained by the Curator. Each entry: the rule, evidence (run/finding ids), hits, date added. -->
+<!-- This project's entries live in `.fyzxsflow/learned/reviewer-security.md` (maintained by the Curator; each entry: the
+     rule, evidence (run/finding ids), hits, date added). install.py appends them below in the host files. -->

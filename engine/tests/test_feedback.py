@@ -14,8 +14,8 @@ PY = sys.executable
 
 class FeedbackTests(unittest.TestCase):
     def setUp(self):
-        self.root = pathlib.Path(tempfile.mkdtemp(prefix="agentflow-feedback-"))
-        self.inbox = self.root / ".agentflow" / "feedback"
+        self.root = pathlib.Path(tempfile.mkdtemp(prefix="fyzxsflow-feedback-"))
+        self.inbox = self.root / ".fyzxsflow" / "feedback"
         self.inbox.mkdir(parents=True)
         (self.inbox / "README.md").write_text("# Feedback inbox\n", encoding="utf-8")
 
@@ -32,7 +32,7 @@ class FeedbackTests(unittest.TestCase):
         (self.inbox / "empty.md").write_text("\n", encoding="utf-8")
         code, out = self.fb("scan")
         self.assertEqual(code, 0, out)
-        self.assertIn("new .agentflow/feedback/sorting.md: Sorting", out)
+        self.assertIn("new .fyzxsflow/feedback/sorting.md: Sorting", out)
         self.assertNotIn("README", out)
         self.assertNotIn("empty.md", out)
         self.assertIn("inbox: 1 to process", out)
@@ -50,7 +50,7 @@ class FeedbackTests(unittest.TestCase):
         self.assertTrue(text.endswith("No ! in tests.\nOlder tests use it.\n"))
         self.assertIn("inbox: 0 to process", self.fb("scan")[1])
         self.assertIn("inbox: empty", self.fb("list")[1])
-        self.assertIn("[applied] .agentflow/feedback/done/nulls.md: No ! in tests. -- rule added", self.fb("list", "--all")[1])
+        self.assertIn("[applied] .fyzxsflow/feedback/done/nulls.md: No ! in tests. -- rule added", self.fb("list", "--all")[1])
 
     def test_an_edited_item_is_picked_up_again_even_from_done(self):
         item = self.inbox / "x.md"
@@ -58,14 +58,14 @@ class FeedbackTests(unittest.TestCase):
         self.fb("set", str(item), "--status", "applied", "--action", "agent-input", "--note", "given to WP-05")
         done = self.inbox / "done" / "x.md"
         done.write_text(done.read_text(encoding="utf-8") + "and a second thought\n", encoding="utf-8")
-        self.assertIn("changed .agentflow/feedback/done/x.md: first thought", self.fb("scan")[1])
+        self.assertIn("changed .fyzxsflow/feedback/done/x.md: first thought", self.fb("scan")[1])
         self.assertIn("[applied, edited since]", self.fb("list", "--all")[1])
         self.fb("set", str(done), "--status", "in-progress", "--action", "rework", "--note", "re-opened WP-05")
         self.assertTrue((self.inbox / "x.md").exists())  # reopened items leave done/
-        self.assertIn("[in-progress] .agentflow/feedback/x.md", self.fb("list")[1])
+        self.assertIn("[in-progress] .fyzxsflow/feedback/x.md", self.fb("list")[1])
 
     def review(self, feedback, state="active", name="WP-02-api-sort.tester.md"):
-        run = self.root / ".agentflow" / "runs" / state / "20261108-run"
+        run = self.root / ".fyzxsflow" / "runs" / state / "20261108-run"
         (run / "reviews").mkdir(parents=True, exist_ok=True)
         (run / "findings.jsonl").touch()
         f = run / "reviews" / name
@@ -82,7 +82,7 @@ class FeedbackTests(unittest.TestCase):
         self.assertIn("reviews: 0 with new feedback", self.fb("scan")[1])  # placeholder only: nothing to do
         run, f = self.review("No ! in these asserts.")
         out = self.fb("scan")[1]
-        self.assertIn("review .agentflow/runs/active/20261108-run/reviews/WP-02-api-sort.tester.md: No ! in these "
+        self.assertIn("review .fyzxsflow/runs/active/20261108-run/reviews/WP-02-api-sort.tester.md: No ! in these "
                       "asserts. (run=20261108-run state=active)", out)
         self.assertIn("reviews: 1 with new feedback", out)
         code, out = self.fb("record-review", str(f))
@@ -110,7 +110,7 @@ class FeedbackTests(unittest.TestCase):
         item.write_text("should the sort be per game?\n", encoding="utf-8")
         self.fb("set", str(item), "--status", "waiting", "--action", "none", "--note", "asked the owner")
         self.assertTrue(item.exists())
-        self.assertIn("[waiting] .agentflow/feedback/q.md", self.fb("list")[1])
+        self.assertIn("[waiting] .fyzxsflow/feedback/q.md", self.fb("list")[1])
         self.assertEqual(self.fb("set", str(item), "--status", "done", "--action", "docs", "--note", "x")[0], 2)
 
 

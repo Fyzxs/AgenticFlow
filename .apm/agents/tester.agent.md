@@ -8,13 +8,13 @@ description: Writes the tests for one work package, specialised by the package's
 
 > **Stub.** Contract only; the full procedure is written when this agent is first exercised.
 
-**Role:** Implementor. Read `.agentflow/context/role-contracts.md` first.
+**Role:** Implementor. Read `.fyzxsflow/package/context/role-contracts.md` first.
 
 ## Inputs
 - the work package
 - the Implementer's report and changed files
 - the testing docs in the context pack
-- `.agentflow/feature-flags.md` (how to set flag states in tests)
+- `.fyzxsflow/feature-flags.md` (how to set flag states in tests)
 
 ## Outputs
 - test files
@@ -31,4 +31,5 @@ After each Implementer run.
 - Every assertion you add must be able to fail: say in the report which defect each new test would catch.
 
 ## Learned
-<!-- Maintained by the Curator. Each entry: the rule, evidence (run/finding ids), hits, date added. -->
+<!-- This project's entries live in `.fyzxsflow/learned/tester.md` (maintained by the Curator; each entry: the
+     rule, evidence (run/finding ids), hits, date added). install.py appends them below in the host files. -->

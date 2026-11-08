@@ -10,7 +10,7 @@ Plan check fails when:
   - a package claims to serve a criterion the brief does not define.
   - a work package's "## Flag plan" does not state exactly one of: a flag (`flag: \`name\``), `unflaggable`, or
     `not-required`; or an unflaggable / not-required plan gives no `revert:` path;
-  - a package says `not-required` while neither the project policy (.agentflow/feature-flags.md
+  - a package says `not-required` while neither the project policy (.fyzxsflow/feature-flags.md
     "Policy: not-required") nor the brief (`flags: not-required`) allows it.
 Delivery check also fails when a criterion (brief AC-n or package WP-xx.n) has no report row marking it
 "met" with non-empty evidence.
@@ -21,6 +21,9 @@ import argparse
 import pathlib
 import re
 import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from layout import HOME, PACKAGE  # noqa: E402
 
 BRIEF_AC = re.compile(r"\*\*(AC-\d+)\*\*\s*\((stated|inferred)\)", re.I)
 ANY_BRIEF_AC = re.compile(r"\*\*(AC-\d+)\*\*")
@@ -40,7 +43,7 @@ REVERT = re.compile(r"revert:\s*(?!<)\S", re.I)
 
 def project_policy(root: pathlib.Path) -> str:
     """Fail closed: no file or no Policy line means flags are required."""
-    path = root / ".agentflow" / "feature-flags.md"
+    path = root / HOME / "feature-flags.md"
     if not path.exists():
         return "required"
     m = POLICY.search(path.read_text(encoding="utf-8"))
@@ -79,8 +82,8 @@ def check(run: pathlib.Path, require_evidence: bool, root: pathlib.Path = None):
         return ["brief.md is missing"], {}
     raw_brief = brief_path.read_text(encoding="utf-8")
     brief = strip_comments(raw_brief)
-    if root is None:  # the folder containing .agentflow/, wherever the run sits under runs/
-        root = next((p.parent for p in run.resolve().parents if p.name == ".agentflow"), run.parent)
+    if root is None:  # the folder containing .fyzxsflow/, wherever the run sits under runs/
+        root = next((p.parent for p in run.resolve().parents if p.name == HOME), run.parent)
     m = BRIEF_FLAGS.match(raw_brief)
     brief_flags = m.group(1).lower() if m else "project-policy"
     allowed_not_required = brief_flags == "not-required" or (
@@ -133,7 +136,7 @@ def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--run", required=True)
     p.add_argument("--require-evidence", action="store_true")
-    p.add_argument("--root", help="repo root (default: the folder containing .agentflow/)")
+    p.add_argument("--root", help="repo root (default: the folder containing .fyzxsflow/)")
     args = p.parse_args(argv)
     run = pathlib.Path(args.run).resolve()
     if not run.is_dir():

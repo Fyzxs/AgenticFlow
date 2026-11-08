@@ -1,4 +1,4 @@
-# agentflow design
+# FyzxsFlow design
 
 Full design with diagrams: https://claude.ai/artifact/SzJwCgeAbqtwCeWJLSAGhd (private to the owner).
 This file records the decisions so the repo stands on its own.
@@ -7,7 +7,7 @@ This file records the decisions so the repo stands on its own.
 Built from three months of TcgHoard sessions. The most expensive corrections were about process, not code:
 re-asking for approval (~14), unclear ship state (~15), silence on long runs (~16), handing verification
 back to the owner (~10). The MicroObjects coder and reviewer pair (Quill and Loupe) was the first "micro
-loop"; agentflow is the same loop, generalised and portable across Claude Code and GitHub Copilot.
+loop"; FyzxsFlow is the same loop, generalised and portable across Claude Code and GitHub Copilot.
 
 ## Flow
 1. **Intake** — Work Summarizer turns a prompt or an ADO item into `brief.md` with numbered acceptance
@@ -38,7 +38,8 @@ loop"; agentflow is the same loop, generalised and portable across Claude Code a
 | Acceptance criteria required, traced by script | They are the checks and the end state; traceability is mechanical, so a script owns it |
 | Everything feature-flagged, provider from `feature-flags.md`; `Policy: required` by default, `not-required` per project or per run by the owner | Revert faster than a deploy, never assume the project's flag system, and let the owner opt out explicitly, never silently |
 | Standard Runner capabilities (quick, ci, extreme; db-migrate, db-verify, db-reset, seed; http), each filled, `not_applicable` or visibly `UNRESOLVED`; destructive steps labelled and refused by the script without approval; completeness checked by `docs_check.py` | Found in the PoC: CI-derived config had no in-place migrate, only a reset that wiped the proofs' data. Capabilities are project facts, settled at init, never discovered mid-run |
-| Owner feedback is a signal, never a chore: a review's `## Human Feedback` section and the `.agentflow/feedback/` inbox are routed by the Orchestrator before the next agent (Docs Gardener for conventions, agent input, rework, queued runs) and shown in the next review for approval | The owner reviews and comments; the flow changes itself. Docs that mark existing patterns legacy outrank the code, so one comment beats fifty old examples |
+| One folder, split by owner: `.fyzxsflow/` is the project's (config, docs, feedback, runs, `learned/`), `.fyzxsflow/package/` is the installer's and is replaced whole; host files = package agent + project Learned entries | Upgrades can't clobber what the project learned, files dropped upstream don't linger, and the package half maps one-to-one onto an APM dependency later |
+| Owner feedback is a signal, never a chore: a review's `## Human Feedback` section and the `.fyzxsflow/feedback/` inbox are routed by the Orchestrator before the next agent (Docs Gardener for conventions, agent input, rework, queued runs) and shown in the next review for approval | The owner reviews and comments; the flow changes itself. Docs that mark existing patterns legacy outrank the code, so one comment beats fifty old examples |
 | Human review between hand-offs; per-agent levels on → notify → off, all on by default; `-less-review` / `-more-review` on any reply; only the owner lowers; `always` rules and per-run requests; the level decides only whether the run waits, and every hand-off writes a review file | Review where trust hasn't been earned yet, without the owner hunting for agent names or config keys; oversight only drops on the owner's word; output the owner didn't wait on can still be commented on in place, later |
 | Optional model compare: shadow one tier below, validate both independently, reduce only after min_samples at the ok rate | Escalation alone can only ever move tiers up; the cheaper tier needs a way to prove itself. Toggleable because it doubles shadowed tokens |
 | `tier: auto` maps to the harness's own model selection where the host has it | Lets Copilot's Auto (or similar) decide, without agent files naming a host |

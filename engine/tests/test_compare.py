@@ -31,7 +31,7 @@ class AutoTierTests(unittest.TestCase):
 
 class CompareTests(unittest.TestCase):
     def setUp(self):
-        self.root = pathlib.Path(tempfile.mkdtemp(prefix="agentflow-compare-"))
+        self.root = pathlib.Path(tempfile.mkdtemp(prefix="fyzxsflow-compare-"))
         subprocess.run([PY, "-I", str(ENGINE / "install.py"), "--target", str(self.root), "--host", "claude"],
                        capture_output=True, check=True)
         self.run_dir = self.new_run("one")
@@ -45,10 +45,10 @@ class CompareTests(unittest.TestCase):
         return pathlib.Path(out.strip().splitlines()[-1])
 
     def config(self, **compare):
-        (self.root / ".agentflow" / "config.json").write_text(json.dumps({"compare": compare}), encoding="utf-8")
+        (self.root / ".fyzxsflow" / "config.json").write_text(json.dumps({"compare": compare}), encoding="utf-8")
 
     def cmp(self, *args):
-        proc = subprocess.run([PY, "-I", str(self.root / ".agentflow/engine/compare.py"), *args],
+        proc = subprocess.run([PY, "-I", str(self.root / ".fyzxsflow/package/engine/compare.py"), *args],
                               capture_output=True, text=True)
         return proc.returncode, proc.stdout.strip()
 

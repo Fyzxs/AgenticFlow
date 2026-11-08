@@ -5,9 +5,9 @@
 
 | Segment | Segment doc | Context pack (in addition to the segment doc) | Size |
 |---|---|---|---|
-| UNRESOLVED | `.agentflow/docs/segments/<segment>.md` | tech doc, architecture section, canonical examples | KB |
+| UNRESOLVED | `.fyzxsflow/docs/segments/<segment>.md` | tech doc, architecture section, canonical examples | KB |
 
 ## Always available
-- `.agentflow/docs/architecture.md`
-- `.agentflow/docs/glossary.md`
-- `.agentflow/docs/iac-architecture.md` (repos with IaC)
+- `.fyzxsflow/docs/architecture.md`
+- `.fyzxsflow/docs/glossary.md`
+- `.fyzxsflow/docs/iac-architecture.md` (repos with IaC)

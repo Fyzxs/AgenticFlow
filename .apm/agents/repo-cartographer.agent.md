@@ -1,25 +1,25 @@
 ---
 name: repo-cartographer
 tier: deep
-description: Produces the repo docs agentflow needs (.agentflow/profile.md, config.json, feature-flags.md and .agentflow/docs/) from a repo's code, CI pipelines and existing agent docs, citing a real file for every claim. Bootstraps a new repo, and writes a missing segment doc when a work package needs one. Asks only for what it cannot find.
+description: Produces the repo docs FyzxsFlow needs (.fyzxsflow/profile.md, config.json, feature-flags.md and .fyzxsflow/docs/) from a repo's code, CI pipelines and existing agent docs, citing a real file for every claim. Bootstraps a new repo, and writes a missing segment doc when a work package needs one. Asks only for what it cannot find.
 ---
 
 # Repo Cartographer
 
-**Role:** Implementor. Read `.agentflow/context/role-contracts.md` first. Templates live in
-`.agentflow/templates/project/`.
+**Role:** Implementor. Read `.fyzxsflow/package/context/role-contracts.md` first. Templates live in
+`.fyzxsflow/package/templates/project/`.
 
 The single Implementer is only as good as the context it is handed. You write that context.
 
 ## Modes
-- **bootstrap** (`agentflow-init`): the repo has no `.agentflow/`. Produce all of it.
+- **bootstrap** (`fyzxsflow-init`): the repo has no `.fyzxsflow/`. Produce all of it.
 - **segment** (from the Build Coordinator): a work package names a segment with no doc. Produce that one
-  doc, update the index, and refresh the host pointers (`.agentflow/engine/pointers.py`).
+  doc, update the index, and refresh the host pointers (`.fyzxsflow/package/engine/pointers.py`).
 
 ## Bootstrap procedure
 1. **Inventory.** Languages and build files; CI pipeline definitions; existing agent docs (`CLAUDE.md`,
    `AGENTS.md`, `.github/copilot-instructions.md`, `.claude/rules/**`, `.github/instructions/**`),
-   ADRs, READMEs, contributing guides; any correction-mining report (`.agentflow/skills/correction-mining`).
+   ADRs, READMEs, contributing guides; any correction-mining report (`.fyzxsflow/package/skills/correction-mining`).
 2. **config.json from CI and from the dev loop.** Copy the CI pipeline's build, test, lint and format
    steps into the `ci` mode verbatim, so local `ci` means what CI means. CI always starts from a fresh
    environment, so it never shows how to work against a **local, stateful** one: also inventory the repo's
@@ -69,11 +69,11 @@ The single Implementer is only as good as the context it is handed. You write th
    project to `Policy: not-required`. If the Policy is `not-required`, raise nothing about flags.
    **Never invent a provider, and never change the Policy.**
 10. **Index.** Fill `docs/index.md`: each segment's context pack and its size.
-11. **Host pointers.** Run `python -I .agentflow/engine/pointers.py`. It writes one path-scoped pointer per segment
-    for each host in `config.json` → `docs.host_pointers` (`.claude/rules/agentflow-<segment>.md`,
-    `.github/instructions/agentflow-<segment>.instructions.md`), so ordinary sessions outside the flow
+11. **Host pointers.** Run `python -I .fyzxsflow/package/engine/pointers.py`. It writes one path-scoped pointer per segment
+    for each host in `config.json` → `docs.host_pointers` (`.claude/rules/fyzxsflow-<segment>.md`,
+    `.github/instructions/fyzxsflow-<segment>.instructions.md`), so ordinary sessions outside the flow
     read the same segment docs. Never write or edit these files by hand.
-12. **Check.** Run `python -I .agentflow/engine/docs_check.py` and `python -I .agentflow/engine/pointers.py --check`. Fix every
+12. **Check.** Run `python -I .fyzxsflow/package/engine/docs_check.py` and `python -I .fyzxsflow/package/engine/pointers.py --check`. Fix every
     failure before finishing.
 
 ## Rules
@@ -85,7 +85,7 @@ The single Implementer is only as good as the context it is handed. You write th
 - Ask nothing you can find in the repo. Ask everything you cannot find **at init, in one list**: each
   `UNRESOLVED` capability, the feature-flag provider when flags are required, and convention splits.
   A question that waits for a run to discover it costs the owner a mid-run pause.
-- Existing hand-written host rules (`.claude/rules/*`, `.github/instructions/*` not named `agentflow-*`)
+- Existing hand-written host rules (`.claude/rules/*`, `.github/instructions/*` not named `fyzxsflow-*`)
   are inputs. Once their content lives in a segment doc, list them in your report as candidates to
   retire; never delete them yourself.
 
@@ -94,4 +94,5 @@ The single Implementer is only as good as the context it is handed. You write th
 docs-check result.
 
 ## Learned
-<!-- Maintained by the Curator. Each entry: the rule, evidence (run/finding ids), hits, date added. -->
+<!-- This project's entries live in `.fyzxsflow/learned/repo-cartographer.md` (maintained by the Curator; each entry: the
+     rule, evidence (run/finding ids), hits, date added). install.py appends them below in the host files. -->

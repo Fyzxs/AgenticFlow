@@ -1,4 +1,4 @@
-"""Create and track agentflow run folders.
+"""Create and track fyzxsflow run folders.
 
   python -I engine/run.py new --source prompt --ref "add a pull list page"   -> prints the run folder
   python -I engine/run.py log <run-dir> <stage> <status> "<message>"          -> appends a ledger line
@@ -14,19 +14,19 @@
       -> writes tier, model (host:model or host:inherit) and escalated into the report's frontmatter
   python -I engine/run.py models <run-dir>      -> every report with its dispatched and self-reported model
 
-Runs live in .agentflow/runs/active/<id>/ while work is in flight, and move to runs/completed/<id>/ (a PR was
+Runs live in .fyzxsflow/runs/active/<id>/ while work is in flight, and move to runs/completed/<id>/ (a PR was
 delivered) or runs/abandoned/<id>/ (stopped, with the reason in the ledger) when closed. Only active runs are
 resumed.
 
 Runs are kept in git by default, so humans can review the brief, plan, reports and findings, and edit them
-between stages: the next stage reads the edited files. .agentflow/profile.md `Runs: local` turns commits
+between stages: the next stage reads the edited files. .fyzxsflow/profile.md `Runs: local` turns commits
 off. Raw step logs (runner/<invocation>/, gates/<invocation>/) are never committed; their JSON summaries are.
 
 `edits --record` treats every change since the last checkpoint as an owner edit: it writes a ledger line, a
 `human-edit` finding per file (the Curator diffs them against the checkpoint to learn what the agent got
 wrong), and checkpoints the edits. Call it only at stage boundaries, right after the previous checkpoint.
 
-The run folder layout is described in .agentflow/context/run-folder.md.
+The run folder layout is described in .fyzxsflow/package/context/run-folder.md.
 """
 
 import argparse
@@ -36,6 +36,9 @@ import pathlib
 import re
 import subprocess
 import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from layout import HOME, PACKAGE  # noqa: E402
 
 STATUSES = ("started", "done", "failed", "gated", "resumed")
 RUN_GITIGNORE = ("# Raw logs stay local; their summaries (runner/*.json, gates/*.json) and every other\n"
@@ -67,7 +70,7 @@ def cmd_new(args) -> int:
     root = pathlib.Path(args.root).resolve()
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
     run_id = f"{stamp}-{slug(args.ref)}"
-    run = root / ".agentflow" / "runs" / "active" / run_id
+    run = root / HOME / "runs" / "active" / run_id
     for sub in ("work-packages", "reports", "runner"):
         (run / sub).mkdir(parents=True, exist_ok=False)
     (run / "input.md").write_text(
@@ -183,13 +186,13 @@ def report_meta(text: str) -> dict:
 def cmd_stamp(args) -> int:
     """Record which tier and model the Orchestrator dispatched an agent on, in its report's frontmatter."""
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-    import models  # same folder: engine/ in the source repo, .agentflow/engine/ when installed
+    import models  # same folder: engine/ in the source repo, .fyzxsflow/package/engine/ when installed
     report = pathlib.Path(args.report)
     if not report.exists():
         print(f"no report {report}", file=sys.stderr)
         return 2
     root = repo_root(report.parent)
-    agent_file = root / ".agentflow" / "agents" / f"{args.agent}.agent.md"
+    agent_file = root / HOME / PACKAGE / "agents" / f"{args.agent}.agent.md"
     declared = models.tier_of(agent_file.read_text(encoding="utf-8")) if agent_file.exists() else "standard"
     if args.down:
         low = models.shadow(declared, models.model_map(root, args.host))
@@ -232,11 +235,11 @@ def cmd_models(args) -> int:
 
 
 def repo_root(run: pathlib.Path) -> pathlib.Path:
-    """The folder that contains .agentflow/, wherever the run sits (runs/active|completed|abandoned/<id>)."""
+    """The folder that contains .fyzxsflow/, wherever the run sits (runs/active|completed|abandoned/<id>)."""
     for parent in run.resolve().parents:
-        if parent.name == ".agentflow":
+        if parent.name == HOME:
             return parent.parent
-    raise SystemExit(f"{run} is not inside a .agentflow/ folder")
+    raise SystemExit(f"{run} is not inside a .fyzxsflow/ folder")
 
 
 def cmd_close(args) -> int:
@@ -264,7 +267,7 @@ def cmd_close(args) -> int:
         run.rename(dest)
     append(dest, "run", "done" if args.outcome == "completed" else "failed", note)
     git(root, "add", "--", dest_rel)
-    commit = git(root, "commit", "-q", "-m", f"agentflow({run.name}): {args.outcome}", "--", src_rel, dest_rel)
+    commit = git(root, "commit", "-q", "-m", f"fyzxsflow({run.name}): {args.outcome}", "--", src_rel, dest_rel)
     if commit.returncode != 0:
         raise SystemExit(f"git commit failed: {commit.stderr.strip() or commit.stdout.strip()}")
     print(dest)
@@ -272,7 +275,7 @@ def cmd_close(args) -> int:
 
 
 def cmd_list(args) -> int:
-    runs = pathlib.Path(args.root).resolve() / ".agentflow" / "runs"
+    runs = pathlib.Path(args.root).resolve() / HOME / "runs"
     for state in ("active", "completed", "abandoned"):
         folders = sorted(p for p in (runs / state).glob("*") if p.is_dir()) if (runs / state).is_dir() else []
         if state != "active":
@@ -286,7 +289,7 @@ def cmd_list(args) -> int:
 
 
 def runs_mode(root: pathlib.Path) -> str:
-    profile = root / ".agentflow" / "profile.md"
+    profile = root / HOME / "profile.md"
     if profile.exists():
         m = RUNS_MODE.search(profile.read_text(encoding="utf-8"))
         if m:
@@ -323,7 +326,7 @@ def checkpoint(run: pathlib.Path, stage: str) -> str:
     if add.returncode != 0:
         raise SystemExit(f"git add failed: {add.stderr.strip()}")
     # A pathspec commit records only the run folder, whatever else is staged in the repo.
-    commit = git(root, "commit", "-q", "-m", f"agentflow({run.name}): {stage}", "--", rel)
+    commit = git(root, "commit", "-q", "-m", f"fyzxsflow({run.name}): {stage}", "--", rel)
     if commit.returncode != 0:
         raise SystemExit(f"git commit failed: {commit.stderr.strip() or commit.stdout.strip()}")
     return git(root, "rev-parse", "--short", "HEAD").stdout.strip()

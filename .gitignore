@@ -1,7 +1,7 @@
 __pycache__/
 *.pyc
 # run folders are working state; projects decide whether to keep them
-.agentflow/runs/
+.fyzxsflow/runs/
 # APM-compiled output when developing against this repo itself
 .github/agents/
 .github/instructions/

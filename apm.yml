@@ -1,4 +1,4 @@
-name: agentflow
+name: fyzxsflow
 version: "0.1.0"
 description: Self-correcting agentic development flow. A prompt or work item goes in, a feature-flagged, reviewed PR comes out, and every finding sharpens the agents and the repo docs.
 author: Quinn Gil

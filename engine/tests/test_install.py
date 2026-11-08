@@ -14,7 +14,7 @@ PY = sys.executable
 
 class InstallTests(unittest.TestCase):
     def setUp(self):
-        self.root = pathlib.Path(tempfile.mkdtemp(prefix="agentflow-install-"))
+        self.root = pathlib.Path(tempfile.mkdtemp(prefix="fyzxsflow-install-"))
         (self.root / ".claude").mkdir()
         (self.root / ".claude" / "settings.json").write_text(json.dumps({"model": "keep-me"}), encoding="utf-8")
 
@@ -29,34 +29,98 @@ class InstallTests(unittest.TestCase):
     def test_installs_package_and_both_hosts(self):
         code, out = self.install("--host", "claude", "--host", "copilot")
         self.assertEqual(code, 0, out)
-        af = self.root / ".agentflow"
-        for rel in ("engine/runner.py", "engine/hooks/block_kill_by_name.py", "context/role-contracts.md",
-                    "agents/implementer.agent.md", "templates/run/brief.md", "skills/correction-mining/SKILL.md",
-                    "INSTALLED.json"):
-            self.assertTrue((af / rel).exists(), rel)
-        self.assertFalse((af / "engine" / "tests").exists())
+        pkg = self.root / ".fyzxsflow" / "package"
+        for rel in ("engine/runner.py", "engine/layout.py", "engine/hooks/block_kill_by_name.py",
+                    "context/role-contracts.md", "agents/implementer.agent.md", "templates/run/brief.md",
+                    "skills/correction-mining/SKILL.md", "INSTALLED.json"):
+            self.assertTrue((pkg / rel).exists(), rel)
+        self.assertFalse((pkg / "engine" / "tests").exists())
+        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.2.0")
         self.assertTrue((self.root / ".claude/agents/implementer.md").exists())
         self.assertIn("Request: $ARGUMENTS", (self.root / ".claude/commands/flow.md").read_text(encoding="utf-8"))
         self.assertTrue((self.root / ".github/agents/implementer.agent.md").exists())
-        wa = (self.root / ".github/instructions/agentflow-working-agreement.instructions.md").read_text(encoding="utf-8")
+        wa = (self.root / ".github/instructions/fyzxsflow-working-agreement.instructions.md").read_text(encoding="utf-8")
         self.assertTrue(wa.startswith('---\napplyTo: "**"'))
         settings = json.loads((self.root / ".claude/settings.json").read_text(encoding="utf-8"))
         self.assertEqual(settings["model"], "keep-me")
         self.assertEqual(len(settings["hooks"]["PreToolUse"]), 1)
 
-    def test_reinstall_preserves_learned_and_does_not_duplicate_hook(self):
+    def test_learned_entries_live_in_the_project_and_survive_reinstall_which_replaces_the_package(self):
         self.install("--host", "claude")
-        agent = self.root / ".agentflow/agents/implementer.agent.md"
-        agent.write_text(agent.read_text(encoding="utf-8") + "- Read the flag seam first. (F-3, hits 2)\n", encoding="utf-8")
+        learned = self.root / ".fyzxsflow/learned/implementer.md"
+        learned.parent.mkdir(parents=True)
+        learned.write_text("# Learned: implementer\n<!-- curator notes -->\n- Read the flag seam first. (F-3, hits 2)\n",
+                           encoding="utf-8")
+        stray = self.root / ".fyzxsflow/package/engine/dropped_upstream.py"
+        stray.write_text("x\n", encoding="utf-8")
         code, out = self.install("--host", "claude")
         self.assertEqual(code, 0, out)
-        self.assertIn("Read the flag seam first", agent.read_text(encoding="utf-8"))
+        self.assertFalse(stray.exists())  # the package is installer-owned: rewritten whole
+        host = (self.root / ".claude/agents/implementer.md").read_text(encoding="utf-8")
+        self.assertTrue(host.rstrip().endswith("- Read the flag seam first. (F-3, hits 2)"))
+        self.assertNotIn("curator notes", host)
+        self.assertNotIn("flag seam", (self.root / ".fyzxsflow/package/agents/implementer.agent.md").read_text(encoding="utf-8"))
         settings = json.loads((self.root / ".claude/settings.json").read_text(encoding="utf-8"))
         self.assertEqual(len(settings["hooks"]["PreToolUse"]), 1)
 
+    def test_migrates_an_agentflow_install(self):
+        old = self.root / ".agentflow"
+        (old / "agents").mkdir(parents=True)
+        (old / "engine").mkdir()
+        (old / "engine" / "run.py").write_text("old\n", encoding="utf-8")
+        (old / "agents" / "tester.agent.md").write_text(
+            "---\nname: tester\n---\n# Tester\n\n## Learned\n<!-- Maintained by the Curator. -->\n- No ! in asserts. (F-70)\n",
+            encoding="utf-8")
+        (old / "agents" / "validator.agent.md").write_text("# V\n\n## Learned\n<!-- only the comment -->\n", encoding="utf-8")
+        (old / "config.json").write_text('{"runner": {"note": "see .agentflow/engine/runner.py"}}\n', encoding="utf-8")
+        (old / "docs").mkdir()
+        (old / "docs" / "index.md").write_text("Pack: `.agentflow/docs/tech/csharp.md`, `.agentflow/context/role-contracts.md`\n",
+                                               encoding="utf-8")
+        run = old / "runs" / "completed" / "r1"
+        run.mkdir(parents=True)
+        (run / "ledger.md").write_text("ran .agentflow/engine/run.py\n", encoding="utf-8")
+        rules = self.root / ".claude" / "rules"
+        rules.mkdir()
+        (rules / "agentflow-working-agreement.md").write_text("<!-- generated by agentflow install.py -->\n", encoding="utf-8")
+        (rules / "agentflow-mine.md").write_text("hand-written, keep\n", encoding="utf-8")
+        (self.root / ".claude" / "settings.json").write_text(json.dumps({"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [
+            {"type": "command", "command": 'python -I "$CLAUDE_PROJECT_DIR/.agentflow/engine/hooks/block_kill_by_name.py"'}]}]}}),
+            encoding="utf-8")
+        (self.root / ".gitignore").write_text("bin/\n# agentflow: ad-hoc runner/gate output outside a run\n.agentflow/runs/_adhoc/\n",
+                                              encoding="utf-8")
+        code, out = self.install("--host", "claude")
+        self.assertEqual(code, 0, out)
+        self.assertIn("migrated .agentflow/ -> .fyzxsflow/", out)
+        home = self.root / ".fyzxsflow"
+        self.assertFalse(old.exists())
+        self.assertEqual((home / "learned" / "tester.md").read_text(encoding="utf-8").splitlines()[-1], "- No ! in asserts. (F-70)")
+        self.assertFalse((home / "learned" / "validator.md").exists())  # nothing learned, no file
+        self.assertIn("- No ! in asserts. (F-70)", (self.root / ".claude/agents/tester.md").read_text(encoding="utf-8"))
+        self.assertIn(".fyzxsflow/package/engine/runner.py", (home / "config.json").read_text(encoding="utf-8"))
+        self.assertEqual((home / "docs" / "index.md").read_text(encoding="utf-8"),
+                         "Pack: `.fyzxsflow/docs/tech/csharp.md`, `.fyzxsflow/package/context/role-contracts.md`\n")
+        self.assertEqual((home / "runs/completed/r1/ledger.md").read_text(encoding="utf-8"), "ran .agentflow/engine/run.py\n")
+        self.assertFalse((rules / "agentflow-working-agreement.md").exists())
+        self.assertTrue((rules / "agentflow-mine.md").exists())
+        self.assertTrue((rules / "fyzxsflow-working-agreement.md").exists())
+        hooks = json.loads((self.root / ".claude/settings.json").read_text(encoding="utf-8"))["hooks"]["PreToolUse"]
+        self.assertEqual([h["hooks"][0]["command"] for h in hooks],
+                         ['python -I "$CLAUDE_PROJECT_DIR/.fyzxsflow/package/engine/hooks/block_kill_by_name.py"'])
+        gi = (self.root / ".gitignore").read_text(encoding="utf-8")
+        self.assertNotIn(".agentflow", gi)
+        self.assertEqual(gi.count(".fyzxsflow/runs/_adhoc/"), 1)
+
+    def test_migration_refuses_while_a_run_is_active(self):
+        (self.root / ".agentflow" / "runs" / "active" / "r1").mkdir(parents=True)
+        code, out = self.install("--host", "claude")
+        self.assertEqual(code, 2)
+        self.assertIn("active run (r1)", out)
+        self.assertTrue((self.root / ".agentflow" / "runs" / "active" / "r1").exists())
+        self.assertFalse((self.root / ".fyzxsflow").exists())
+
     def test_feedback_inbox_is_created_once_and_owner_items_are_left_alone(self):
         self.install("--host", "claude")
-        inbox = self.root / ".agentflow" / "feedback"
+        inbox = self.root / ".fyzxsflow" / "feedback"
         self.assertIn("Feedback inbox", (inbox / "README.md").read_text(encoding="utf-8"))
         (inbox / "README.md").write_text("my own guide\n", encoding="utf-8")
         (inbox / "idea.md").write_text("change X in Y.cs to Z\n", encoding="utf-8")
@@ -66,20 +130,21 @@ class InstallTests(unittest.TestCase):
 
     def test_sync_regenerates_host_files_from_installed_copy(self):
         self.install("--host", "claude")
-        agent = self.root / ".agentflow/agents/validator.agent.md"
-        agent.write_text(agent.read_text(encoding="utf-8") + "- learned entry\n", encoding="utf-8")
-        code, out = self.install("--sync", "--host", "claude", script=self.root / ".agentflow/engine/install.py")
+        learned = self.root / ".fyzxsflow/learned/validator.md"
+        learned.parent.mkdir(parents=True)
+        learned.write_text("# Learned: validator\n- learned entry\n", encoding="utf-8")
+        code, out = self.install("--sync", "--host", "claude", script=self.root / ".fyzxsflow/package/engine/install.py")
         self.assertEqual(code, 0, out)
         self.assertIn("learned entry", (self.root / ".claude/agents/validator.md").read_text(encoding="utf-8"))
 
     def test_gitignore_gets_adhoc_line_once_and_warns_on_ignored_runs(self):
-        (self.root / ".gitignore").write_text("bin/\n.agentflow/runs/\n", encoding="utf-8")
+        (self.root / ".gitignore").write_text("bin/\n.fyzxsflow/runs/\n", encoding="utf-8")
         code, out = self.install("--host", "claude")
         self.assertEqual(code, 0, out)
-        self.assertIn("warning: .gitignore ignores .agentflow/runs/", out)
+        self.assertIn("warning: .gitignore ignores .fyzxsflow/runs/", out)
         self.install("--host", "claude")
         text = (self.root / ".gitignore").read_text(encoding="utf-8")
-        self.assertEqual(text.count(".agentflow/runs/_adhoc/"), 1)
+        self.assertEqual(text.count(".fyzxsflow/runs/_adhoc/"), 1)
         self.assertTrue(text.startswith("bin/\n"))
 
     def test_sync_without_install_fails(self):

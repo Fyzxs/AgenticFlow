@@ -21,8 +21,8 @@ SARIF = {"version": "2.1.0", "runs": [{"results": [
 
 class GatesTests(unittest.TestCase):
     def setUp(self):
-        self.root = pathlib.Path(tempfile.mkdtemp(prefix="agentflow-gates-"))
-        (self.root / ".agentflow").mkdir()
+        self.root = pathlib.Path(tempfile.mkdtemp(prefix="fyzxsflow-gates-"))
+        (self.root / ".fyzxsflow").mkdir()
         self.sarif_src = self.root / "fixture.sarif"
         self.sarif_src.write_text(json.dumps(SARIF), encoding="utf-8")
 
@@ -35,7 +35,7 @@ class GatesTests(unittest.TestCase):
         return f'"{PY}" -I -c "import shutil,sys; shutil.copy(\'{src}\', sys.argv[1]); sys.exit({exit_code})" "{{out}}"'
 
     def write(self, gates):
-        (self.root / ".agentflow" / "gates.json").write_text(json.dumps({"gates": gates}), encoding="utf-8")
+        (self.root / ".fyzxsflow" / "gates.json").write_text(json.dumps({"gates": gates}), encoding="utf-8")
 
     def gates(self, *args):
         proc = subprocess.run([PY, "-I", str(ENGINE / "gates.py"), "--root", str(self.root), *args],

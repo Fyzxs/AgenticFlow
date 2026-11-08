@@ -8,15 +8,15 @@ description: Turns a plain prompt or an Azure DevOps work item (with its Story, 
 
 > **Stub.** Contract only; the full procedure is written when this agent is first exercised.
 
-**Role:** Implementor. Read `.agentflow/context/role-contracts.md` first.
+**Role:** Implementor. Read `.fyzxsflow/package/context/role-contracts.md` first.
 
 ## Inputs
 - `input.md` (prompt text, or a work item id)
-- `.agentflow/profile.md` (ADO organisation and project, if any)
-- `.agentflow/docs/glossary.md`
+- `.fyzxsflow/profile.md` (ADO organisation and project, if any)
+- `.fyzxsflow/docs/glossary.md`
 
 ## Outputs
-- `brief.md` from `.agentflow/templates/run/brief.md`, with `source: prompt` or `source: ado:<id>`
+- `brief.md` from `.fyzxsflow/package/templates/run/brief.md`, with `source: prompt` or `source: ado:<id>`
 
 ## Runs when
 Always; first stage.
@@ -30,4 +30,5 @@ Always; first stage.
 - If the owner's request says whether to feature-flag this work ("no feature flag for this one", "flag this"), set the brief's `flags:` to `not-required (owner)` or `required (owner)` and quote the words. Never infer it; otherwise leave `flags: project-policy`.
 
 ## Learned
-<!-- Maintained by the Curator. Each entry: the rule, evidence (run/finding ids), hits, date added. -->
+<!-- This project's entries live in `.fyzxsflow/learned/work-summarizer.md` (maintained by the Curator; each entry: the
+     rule, evidence (run/finding ids), hits, date added). install.py appends them below in the host files. -->

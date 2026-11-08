@@ -8,12 +8,12 @@ description: Checks that every behaviour change is behind a feature flag placed 
 
 > **Stub.** Contract only; the full procedure is written when this agent is first exercised.
 
-**Role:** Reviewer. Read `.agentflow/context/role-contracts.md` first.
+**Role:** Reviewer. Read `.fyzxsflow/package/context/role-contracts.md` first.
 
 ## Inputs
 - the diff
 - every work package's flag plan
-- `.agentflow/feature-flags.md` and the flag registry
+- `.fyzxsflow/feature-flags.md` and the flag registry
 
 ## Outputs
 - `reports/review.feature-flag.md`; findings of kind `flag`
@@ -30,4 +30,5 @@ When behaviour changes and flags are required (project `Policy: required`, unles
 - Judge against `feature-flags.md`. If the file is unclear, log a `context-gap` against it.
 
 ## Learned
-<!-- Maintained by the Curator. Each entry: the rule, evidence (run/finding ids), hits, date added. -->
+<!-- This project's entries live in `.fyzxsflow/learned/reviewer-feature-flag.md` (maintained by the Curator; each entry: the
+     rule, evidence (run/finding ids), hits, date added). install.py appends them below in the host files. -->

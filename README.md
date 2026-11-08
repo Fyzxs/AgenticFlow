@@ -1,4 +1,4 @@
-# agentflow
+# FyzxsFlow
 
 A self-correcting agentic development flow that works on more than one agent host. You give it a prompt,
 a story or an Azure DevOps work item. An orchestrator splits the work, a single Implementer writes it
@@ -26,7 +26,7 @@ Design: https://claude.ai/artifact/SzJwCgeAbqtwCeWJLSAGhd (private to the owner)
 5. **No acceptance criteria, no implementation.** Every brief and work package carries numbered,
    checkable criteria, and `engine/ac_trace.py` proves each is served and evidenced before a PR.
 6. **Deterministic gates are declared, not prompted.** Linters, scanners and custom checks live in
-   `.agentflow/gates.json`; `engine/gates.py` runs them and normalises SARIF; baselines keep known results
+   `.fyzxsflow/gates.json`; `engine/gates.py` runs them and normalises SARIF; baselines keep known results
    from blocking.
 7. **Everything is feature-flagged, unless the owner says otherwise.** Runtime flags, default off, revert
    without a deploy. The project's `feature-flags.md` says how, and its `Policy` (`required` or
@@ -45,7 +45,7 @@ Design: https://claude.ai/artifact/SzJwCgeAbqtwCeWJLSAGhd (private to the owner)
     Reply `approve`, `continue`, `redo: ...` or `stop`, adding `-less-review` or `-more-review` to change that agent's
     level (on → notify → off). Only the owner lowers it; risky segments and per-run requests always pause.
     The level only decides whether the run waits: every hand-off still writes its review file.
-    Write anything in a review file's `## Human Feedback` section (now, or days later), or drop a file in `.agentflow/feedback/`
+    Write anything in a review file's `## Human Feedback` section (now, or days later), or drop a file in `.fyzxsflow/feedback/`
     at any time: the flow routes it (docs updated, agents told, rework or new work queued) and shows you what
     it did in your next review. You never edit docs or agent files to make feedback stick.
 12. **Bounded everything.** Review-fix loops stop after 2 rounds, context packs and agent files have size
@@ -65,12 +65,13 @@ engine/                      host-neutral Python 3 scripts (stdlib only)
   run.py                     create a run folder, append to the ledger, print status and package progress, record each report's model
   findings.py                append and validate findings
   feedback.py                the owner's feedback inbox: scan for new or edited items, record how each was handled
-  runner.py                  execute a Build & Test Runner mode from .agentflow/config.json (destructive steps refused without approval)
+  runner.py                  execute a Build & Test Runner mode from .fyzxsflow/config.json (destructive steps refused without approval)
   gates.py                   run declared linters/scanners, normalise SARIF, apply baselines
   ac_trace.py                acceptance-criteria traceability (plan check; evidence check before PR)
   docs_check.py              cited paths exist, segment globs match, packs within budget
   pointers.py                write/check host-native pointers (.claude/rules, .github/instructions) per segment
-  install.py                 install into a repo (.agentflow/ + host files), or --sync host files after edits
+  install.py                 install into a repo (.fyzxsflow/package/ + host files; migrates .agentflow/), or --sync
+  layout.py                  the folder names (.fyzxsflow/, package/, learned/)
   models.py                  agent tier -> model per host (config.json models), escalation (--up), shadow (--down)
   compare.py                 model compare: whether to shadow a dispatch, record and score it, summarise
   review.py                  human review between hand-offs: needed?, reply parsing (-less-review/-more-review), levels,
@@ -78,7 +79,7 @@ engine/                      host-neutral Python 3 scripts (stdlib only)
   hooks/                     tool-call guards (Claude Code adapter today)
   tests/                     python -I engine/tests/run_all.py
 templates/
-  project/.agentflow/        what the Cartographer writes into a repo
+  project/.fyzxsflow/        what the Cartographer writes into a repo
   run/                       the shapes of brief, change-map, work package, report
 adapters/claude, adapters/copilot   host-specific wiring and the open questions per host
 docs/design.md               design summary and decisions
@@ -86,12 +87,22 @@ docs/design.md               design summary and decisions
 
 ## Using it in a repo
 
-Everything installs under `.agentflow/` in the target repo (engine, context, agents, templates, skills),
-and host files are generated from it. Agent files refer to those installed paths.
+FyzxsFlow installs into one folder in the target repo, split by who owns what (`engine/layout.py`):
+
+```
+.fyzxsflow/            the project's own files; an install never overwrites them
+  config.json  profile.md  gates.json  feature-flags.md  docs/  feedback/  runs/
+  learned/<agent>.md   the Curator's Learned entries for this project
+  package/             installer-owned (engine, agents, context, templates, skills); replaced whole on
+                       every install, never edited by hand
+```
+
+Host files (`.claude/`, `.github/`) are generated from `package/` plus `learned/`. An install over an earlier
+`.agentflow/` folder migrates it (not while a run is active).
 
 1. Until the APM route is verified: `python -I engine/install.py --target <repo> --host claude [--host copilot]`.
    Later: `apm install <you>/agentflow`.
-2. Run the `agentflow-init` prompt. The Repo Cartographer drafts `.agentflow/` from the repo and asks only
+2. Run the `fyzxsflow-init` prompt. The Repo Cartographer drafts `.fyzxsflow/` from the repo and asks only
    what it can't find (usually the feature-flag provider).
 3. Run the `flow` prompt with a request or a work item id.
 

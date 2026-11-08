@@ -1,4 +1,4 @@
-"""Execute a Build & Test Runner mode from .agentflow/config.json.
+"""Execute a Build & Test Runner mode from .fyzxsflow/config.json.
 
   python -I engine/runner.py <mode> [--run <run-dir>] [--scope <scope>] [--config <path>]
 
@@ -11,7 +11,7 @@ steps and neither --allow-destructive nor the mode's owner-set "allow_destructiv
 A step (or a whole mode) marked "destructive": true wipes or replaces local state: a database reset, dropping
 seeded data. A mode marked "not_applicable": "<why>" is a declared non-capability and exits 0 without running.
 
-config.json shape (see templates/project/.agentflow/config.json):
+config.json shape (see templates/project/.fyzxsflow/config.json):
   { "modes": { "<mode>": { "steps": [ {"name": "build", "run": "dotnet build {scope}", "cwd": ".",
                                        "env": {"K": "V"}, "timeout_s": 1800} ],
                            "default_scope": "...", "services": ["api"], "continue_on_failure": false } },
@@ -26,12 +26,15 @@ import pathlib
 import socket
 import subprocess
 import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from layout import HOME, PACKAGE  # noqa: E402
 import time
 
 
 def load_config(path: pathlib.Path) -> dict:
     if not path.exists():
-        raise SystemExit(f"config not found: {path} (run the Repo Cartographer: agentflow-init)")
+        raise SystemExit(f"config not found: {path} (run the Repo Cartographer: fyzxsflow-init)")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -92,7 +95,7 @@ def run_step(step: dict, scope: str, root: pathlib.Path, logpath: pathlib.Path) 
                                   stdout=log, stderr=subprocess.STDOUT,
                                   timeout=step.get("timeout_s")).returncode
         except subprocess.TimeoutExpired:
-            log.write(f"\n[agentflow runner] timed out after {step.get('timeout_s')}s\n")
+            log.write(f"\n[fyzxsflow runner] timed out after {step.get('timeout_s')}s\n")
             code = 124
     return {"name": step["name"], "command": command, "exit": code,
             "seconds": round(time.monotonic() - started, 1), "log": str(logpath)}
@@ -101,9 +104,9 @@ def run_step(step: dict, scope: str, root: pathlib.Path, logpath: pathlib.Path) 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("mode")
-    p.add_argument("--run", help="run folder (default: .agentflow/runs/_adhoc)")
+    p.add_argument("--run", help="run folder (default: .fyzxsflow/runs/_adhoc)")
     p.add_argument("--scope", help="replaces {scope} in step commands")
-    p.add_argument("--config", default=".agentflow/config.json")
+    p.add_argument("--config", default=f"{HOME}/config.json")
     p.add_argument("--root", default=".", help="repo root (default: current directory)")
     p.add_argument("--allow-destructive", action="store_true",
                    help="run steps marked destructive; the Orchestrator passes this only with the owner's approval")
@@ -128,7 +131,7 @@ def main(argv=None) -> int:
     if mode.get("draft"):
         print(f"note: mode '{args.mode}' is marked draft in config.json; the owner has not confirmed it")
     scope = args.scope or mode.get("default_scope", "")
-    run = pathlib.Path(args.run) if args.run else root / ".agentflow" / "runs" / "_adhoc"
+    run = pathlib.Path(args.run) if args.run else root / HOME / "runs" / "_adhoc"
     invocation = f"{args.mode}-{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d-%H%M%S-%f')}"
     logdir = run / "runner" / invocation
     logdir.mkdir(parents=True, exist_ok=True)

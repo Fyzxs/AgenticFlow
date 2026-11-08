@@ -60,7 +60,7 @@ def main() -> int:
     if label is None:
         return 0
     sys.stderr.write(
-        "Blocked by agentflow engine/hooks/block_kill_by_name.py (" + label + "): killing by process NAME also kills the "
+        "Blocked by fyzxsflow engine/hooks/block_kill_by_name.py (" + label + "): killing by process NAME also kills the "
         "owner's own dev servers and other worktrees' processes. "
         "Kill only processes you started, by PID: Stop-Process -Id <pid> / taskkill /PID <pid> /T / kill <pid>. "
         "Find the PID for a port with Get-NetTCPConnection -LocalPort <port>. If a stray process you did not "

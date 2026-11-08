@@ -8,7 +8,7 @@ description: Writes .http (or the project's equivalent) API proof files for chan
 
 > **Stub.** Contract only; the full procedure is written when this agent is first exercised.
 
-**Role:** Implementor. Read `.agentflow/context/role-contracts.md` first.
+**Role:** Implementor. Read `.fyzxsflow/package/context/role-contracts.md` first.
 
 ## Inputs
 - the API diff
@@ -27,4 +27,5 @@ Prove stage, only when the change-map lists an API surface.
 - Assertions must be ones the project's runner actually evaluates (see the API segment doc).
 
 ## Learned
-<!-- Maintained by the Curator. Each entry: the rule, evidence (run/finding ids), hits, date added. -->
+<!-- This project's entries live in `.fyzxsflow/learned/http-generator.md` (maintained by the Curator; each entry: the
+     rule, evidence (run/finding ids), hits, date added). install.py appends them below in the host files. -->

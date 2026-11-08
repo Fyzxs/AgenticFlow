@@ -8,15 +8,15 @@ description: Reads brief.md, the repo and its docs, and writes change-map.md: wh
 
 > **Stub.** Contract only; the full procedure is written when this agent is first exercised.
 
-**Role:** Implementor. Read `.agentflow/context/role-contracts.md` first.
+**Role:** Implementor. Read `.fyzxsflow/package/context/role-contracts.md` first.
 
 ## Inputs
 - `brief.md`
-- `.agentflow/docs/index.md`, `architecture.md`
+- `.fyzxsflow/docs/index.md`, `architecture.md`
 - the repo
 
 ## Outputs
-- `change-map.md` from `.agentflow/templates/run/change-map.md`
+- `change-map.md` from `.fyzxsflow/package/templates/run/change-map.md`
 
 ## Runs when
 Always; Locate stage.
@@ -27,4 +27,5 @@ Always; Locate stage.
 - Cite the files you based each expectation on.
 
 ## Learned
-<!-- Maintained by the Curator. Each entry: the rule, evidence (run/finding ids), hits, date added. -->
+<!-- This project's entries live in `.fyzxsflow/learned/code-indicator.md` (maintained by the Curator; each entry: the
+     rule, evidence (run/finding ids), hits, date added). install.py appends them below in the host files. -->

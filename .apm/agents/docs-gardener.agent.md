@@ -8,20 +8,20 @@ description: Turns the owner's feedback into project-doc changes mid-run (feedba
 
 > **Stub.** Contract only; the full procedure is written when this agent is first exercised.
 
-**Role:** Implementor. Read `.agentflow/context/role-contracts.md` first.
+**Role:** Implementor. Read `.fyzxsflow/package/context/role-contracts.md` first.
 
 ## Feedback mode (the owner's feedback, mid-run)
 Dispatched by the Orchestrator with an `owner-feedback` finding or an inbox item, the owner's words verbatim.
 1. Read the feedback and the output it is about. Work out the rule it implies, in the owner's terms. If it
    only concerns that one output, say so in your report and change no doc.
-2. Put the rule where the agents that need it will read it: the doc in their context pack (`.agentflow/docs/
-   tech/*.md` for a language convention, `.agentflow/docs/segments/*.md` for one segment, `profile.md` or
+2. Put the rule where the agents that need it will read it: the doc in their context pack (`.fyzxsflow/docs/
+   tech/*.md` for a language convention, `.fyzxsflow/docs/segments/*.md` for one segment, `profile.md` or
    `architecture.md` for a project rule). One place; other docs link to it.
 3. Search the code for existing instances that contradict it. If any exist, the doc says so explicitly: the
    pattern is legacy, do not copy it, with the count and two or three example paths. Without this, the
    existing code outvotes the rule. Never edit product code yourself: rework is the Implementer's.
 4. Say what to do instead, with a correct example, and name the trap if the obvious alternative is wrong.
-5. When the rule is mechanically checkable, propose a gate for `.agentflow/gates.json` (new code only, so
+5. When the rule is mechanically checkable, propose a gate for `.fyzxsflow/gates.json` (new code only, so
    existing instances are baselined) in your report; the owner decides.
 6. When the rule is about how an agent works in any repo, not this repo's code, record an `agent-gap`
    finding with the `rule` for the Curator instead of a doc change.
@@ -32,7 +32,7 @@ Dispatched by the Orchestrator with an `owner-feedback` finding or an inbox item
 - the owner's feedback (feedback mode), verbatim
 - the run's diff
 - the docs for the touched segments
-- `.agentflow/engine/docs_check.py` output
+- `.fyzxsflow/package/engine/docs_check.py` output
 
 ## Outputs
 - doc edits on the run branch
@@ -45,7 +45,8 @@ that changed a segment.
 ## Rules
 - Update canonical examples when the run produced a better one.
 - Never add guidance the code does not bear out.
-- Leave `docs_check.py` and `pointers.py --check` passing; when a segment's `paths:` changed, run `.agentflow/engine/pointers.py` to refresh the host pointers.
+- Leave `docs_check.py` and `pointers.py --check` passing; when a segment's `paths:` changed, run `.fyzxsflow/package/engine/pointers.py` to refresh the host pointers.
 
 ## Learned
-<!-- Maintained by the Curator. Each entry: the rule, evidence (run/finding ids), hits, date added. -->
+<!-- This project's entries live in `.fyzxsflow/learned/docs-gardener.md` (maintained by the Curator; each entry: the
+     rule, evidence (run/finding ids), hits, date added). install.py appends them below in the host files. -->

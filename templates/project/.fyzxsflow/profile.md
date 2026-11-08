@@ -1,4 +1,4 @@
-# agentflow profile — <repo name>
+# FyzxsFlow profile — <repo name>
 
 <!-- Written by the Repo Cartographer. The Orchestrator reads this before every run. Machine-readable
      settings live in config.json (runner modes) and gates.json (deterministic gates). -->
@@ -9,11 +9,11 @@ UNRESOLVED: one paragraph.
 ## Surfaces
 | Surface | Present | Docs |
 |---|---|---|
-| API | UNRESOLVED | `.agentflow/docs/segments/...` |
+| API | UNRESOLVED | `.fyzxsflow/docs/segments/...` |
 | Database | | |
 | UI | | |
 | Background jobs | | |
-| IaC / pipelines | | `.agentflow/docs/iac-architecture.md` |
+| IaC / pipelines | | `.fyzxsflow/docs/iac-architecture.md` |
 
 ## Reviewers that apply here
 - always: reviewer-narrow, reviewer-feature-flag, reviewer-large
@@ -47,8 +47,8 @@ UNRESOLVED (e.g. infrastructure → database → backend → frontend)
 ## Models
 <!-- Agents declare a tier (deep | standard | fast), never a model. config.json -> models.<host> maps tiers to
      this host's model names; an empty value means "inherit the session's model". After changing the map,
-     regenerate host files: python -I .agentflow/engine/install.py --sync --target . --host <host>.
-     See every agent's tier and model: python -I .agentflow/engine/models.py --list --host <host>. -->
+     regenerate host files: python -I .fyzxsflow/package/engine/install.py --sync --target . --host <host>.
+     See every agent's tier and model: python -I .fyzxsflow/package/engine/models.py --list --host <host>. -->
 - Escalation: when a Validator fails the same agent's output twice in a run, the Orchestrator re-runs that
   agent one tier up (fast -> standard -> deep) and records it.
 - Owner overrides per run ("use Fable for the reviews") are honoured for that run only.
@@ -65,7 +65,7 @@ UNRESOLVED (e.g. infrastructure → database → backend → frontend)
      config.json -> review: on (pause) -> notify (summary only) -> off. Everything starts at review.default
      ("on"). Whatever the level, every hand-off writes a review file you can comment in later. Reply to any review with -less-review or -more-review to move that agent one level; only you can lower
      a level. review.always forces reviews for risky segments or paths. Per run, ask in your request or edit
-     the run's review-requests.md. See where every agent stands: python -I .agentflow/engine/review.py summary -->
+     the run's review-requests.md. See where every agent stands: python -I .fyzxsflow/package/engine/review.py summary -->
 - Always review: UNRESOLVED (e.g. segments db-migration, iac; paths **/Auth/**)
 
 ## Runs

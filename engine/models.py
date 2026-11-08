@@ -1,10 +1,10 @@
-"""Resolve which model an agentflow agent runs on, from its tier and the project's model map.
+"""Resolve which model an fyzxsflow agent runs on, from its tier and the project's model map.
 
-  python -I .agentflow/engine/models.py <agent> [--host claude] [--up N]   -> model=<m> tier=<t> ...
-  python -I .agentflow/engine/models.py --list [--host claude]             -> every agent, its tier and model
+  python -I .fyzxsflow/package/engine/models.py <agent> [--host claude] [--up N]   -> model=<m> tier=<t> ...
+  python -I .fyzxsflow/package/engine/models.py --list [--host claude]             -> every agent, its tier and model
 
 Agents declare `tier: deep | standard | fast` in their frontmatter, never a model name, so agent files stay
-host-neutral. .agentflow/config.json -> models.<host>.<tier> maps tiers to the host's model names; an empty
+host-neutral. .fyzxsflow/config.json -> models.<host>.<tier> maps tiers to the host's model names; an empty
 value (or no entry) means "inherit the session's model". Built-in defaults apply when the project has no map.
 
 --up N escalates N tiers (fast -> standard -> deep), capped at deep: the Orchestrator uses it when a
@@ -22,6 +22,9 @@ import pathlib
 import re
 import sys
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from layout import HOME, PACKAGE  # noqa: E402
+
 ORDER = ["fast", "standard", "deep"]
 TIERS = ORDER + ["auto"]
 DEFAULTS = {
@@ -38,7 +41,7 @@ def tier_of(text: str) -> str:
 
 def model_map(root: pathlib.Path, host: str) -> dict:
     mapping = dict(DEFAULTS.get(host, {}))
-    cfg = root / ".agentflow" / "config.json"
+    cfg = root / HOME / "config.json"
     if cfg.exists():
         project = (json.loads(cfg.read_text(encoding="utf-8")).get("models") or {}).get(host)
         if project is not None:
@@ -74,7 +77,7 @@ def main(argv=None) -> int:
     p.add_argument("--down", action="store_true", help="the shadow model one tier below (model compare)")
     p.add_argument("--list", action="store_true")
     p.add_argument("--root", default=".")
-    p.add_argument("--agents-dir", default=".agentflow/agents")
+    p.add_argument("--agents-dir", default=f"{HOME}/{PACKAGE}/agents")
     args = p.parse_args(argv)
     root = pathlib.Path(args.root).resolve()
     agents = root / args.agents_dir

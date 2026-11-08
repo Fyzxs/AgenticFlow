@@ -1,12 +1,12 @@
 """Model compare: run an agent at its tier AND one tier below (a shadow), validate both, and learn whether
 the cheaper tier is good enough. Off by default: it can double the tokens of every shadowed dispatch.
 
-  python -I .agentflow/engine/compare.py should --run <dir> --agent <name> [--host claude]
+  python -I .fyzxsflow/package/engine/compare.py should --run <dir> --agent <name> [--host claude]
       -> "shadow=yes model=<m> tier=<t>"  or  "shadow=no reason=<why>"
-  python -I .agentflow/engine/compare.py record --run <dir> --agent <name> --primary-tier deep --primary-model opus
+  python -I .fyzxsflow/package/engine/compare.py record --run <dir> --agent <name> --primary-tier deep --primary-model opus
       --shadow-tier standard --shadow-model sonnet --primary-verdict pass --shadow-verdict corrected
       [--shadow-majors 0] [--missed-majors 0] [--note "..."]
-  python -I .agentflow/engine/compare.py summary [--root .]
+  python -I .fyzxsflow/package/engine/compare.py summary [--root .]
       -> per agent and tier: comparisons, shadow-ok rate, and keep / reduce / insufficient
 
 config.json -> compare:
@@ -28,6 +28,9 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from layout import HOME, PACKAGE  # noqa: E402
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import models  # noqa: E402
 
 DEFAULTS = {"enabled": False, "agents": [], "sample_rate": 1.0, "max_per_run": 3, "min_samples": 5,
@@ -37,13 +40,13 @@ VERDICTS = ("pass", "corrected", "fail")
 
 def root_of(run: pathlib.Path) -> pathlib.Path:
     for parent in run.resolve().parents:
-        if parent.name == ".agentflow":
+        if parent.name == HOME:
             return parent.parent
-    raise SystemExit(f"{run} is not inside a .agentflow/ folder")
+    raise SystemExit(f"{run} is not inside a .fyzxsflow/ folder")
 
 
 def settings(root: pathlib.Path) -> dict:
-    cfg = root / ".agentflow" / "config.json"
+    cfg = root / HOME / "config.json"
     data = json.loads(cfg.read_text(encoding="utf-8")) if cfg.exists() else {}
     out = dict(DEFAULTS)
     out.update(data.get("compare") or {})
@@ -66,7 +69,7 @@ def cmd_should(args) -> int:
     if cfg["agents"] and args.agent not in cfg["agents"]:
         print("shadow=no reason=agent-not-selected")
         return 0
-    agent_file = root / ".agentflow" / "agents" / f"{args.agent}.agent.md"
+    agent_file = root / HOME / PACKAGE / "agents" / f"{args.agent}.agent.md"
     if not agent_file.exists():
         print(f"no agent file {agent_file}", file=sys.stderr)
         return 2
@@ -115,7 +118,7 @@ def cmd_summary(args) -> int:
     root = pathlib.Path(args.root).resolve()
     cfg = settings(root)
     groups = {}
-    for path in sorted((root / ".agentflow" / "runs").rglob("compare.jsonl")):
+    for path in sorted((root / HOME / "runs").rglob("compare.jsonl")):
         if "_adhoc" in path.parts:
             continue
         for r in records(path):

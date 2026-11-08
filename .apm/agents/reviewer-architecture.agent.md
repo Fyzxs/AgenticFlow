@@ -8,11 +8,11 @@ description: Checks the change against the repo's architecture doc and decision 
 
 > **Stub.** Contract only; the full procedure is written when this agent is first exercised.
 
-**Role:** Reviewer. Read `.agentflow/context/role-contracts.md` first.
+**Role:** Reviewer. Read `.fyzxsflow/package/context/role-contracts.md` first.
 
 ## Inputs
 - the diff
-- `.agentflow/docs/architecture.md`
+- `.fyzxsflow/docs/architecture.md`
 - the decision records it points to
 
 ## Outputs
@@ -25,4 +25,5 @@ When the change-map marks structure or layers as touched.
 - Cite the architecture rule each finding breaks.
 
 ## Learned
-<!-- Maintained by the Curator. Each entry: the rule, evidence (run/finding ids), hits, date added. -->
+<!-- This project's entries live in `.fyzxsflow/learned/reviewer-architecture.md` (maintained by the Curator; each entry: the
+     rule, evidence (run/finding ids), hits, date added). install.py appends them below in the host files. -->

@@ -15,9 +15,9 @@ blocks: []
 - **WP-01.2**: <...>
 
 ## Context pack (load exactly these)
-- `.agentflow/docs/tech/<stack>.md`
-- `.agentflow/docs/segments/<segment>.md`
-- `.agentflow/docs/architecture.md` §<section>
+- `.fyzxsflow/docs/tech/<stack>.md`
+- `.fyzxsflow/docs/segments/<segment>.md`
+- `.fyzxsflow/docs/architecture.md` §<section>
 - canonical examples: `path/...`, `path/...`
 - brief sections: Problem, AC-1, AC-3
 

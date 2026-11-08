@@ -2,7 +2,7 @@
 paths:
   - "UNRESOLVED/**"
 pack:
-  - .agentflow/docs/tech/UNRESOLVED.md
+  - .fyzxsflow/docs/tech/UNRESOLVED.md
 ---
 
 # Segment: <name>

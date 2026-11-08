@@ -1,6 +1,6 @@
 # Role contracts
 
-Every agent in agentflow is exactly one of these roles. An agent file states its role in its first
+Every agent in FyzxsFlow is exactly one of these roles. An agent file states its role in its first
 section and follows that role's contract.
 
 **Precedence** when sources disagree: the owner's feedback in your inputs, then the project docs, then
@@ -27,12 +27,12 @@ existing code. When a doc marks a pattern legacy, do not copy it, however often 
 4. Write findings, each with `file:line` evidence and a severity.
 
 ## Runner
-1. Know how to start, build and test the system, from `.agentflow/config.json`.
-2. Run the requested mode through `.agentflow/engine/runner.py`.
+1. Know how to start, build and test the system, from `.fyzxsflow/config.json`.
+2. Run the requested mode through `.fyzxsflow/package/engine/runner.py`.
 3. Trust only exit codes and counts, never output text.
 4. Classify each failure and route it.
 5. It is the only agent that runs builds or tests. (Linters and scanners run through the Gate Analyst
-   and `.agentflow/engine/gates.py`; nobody else runs tools directly.)
+   and `.fyzxsflow/package/engine/gates.py`; nobody else runs tools directly.)
 
 ## Coordinator
 - **Orchestrator:** dispatches stages, hands off files, keeps the ledger, enforces caps and gates.
@@ -46,8 +46,8 @@ existing code. When a doc marks a pattern legacy, do not copy it, however often 
 - **Only the owner reduces oversight.** No agent lowers a review level, skips a required review, or
   reduces a gate without the owner's words. Agents may raise oversight on evidence and must say so.
 - **Deterministic first.** Anything a tool can decide (build, test, lint, scan, traceability) is decided
-  by a script with an exit code: `.agentflow/engine/runner.py`, `.agentflow/engine/gates.py`, `.agentflow/engine/ac_trace.py`,
-  `.agentflow/engine/docs_check.py`. Agents interpret results; they never overrule an exit code.
+  by a script with an exit code: `.fyzxsflow/package/engine/runner.py`, `.fyzxsflow/package/engine/gates.py`, `.fyzxsflow/package/engine/ac_trace.py`,
+  `.fyzxsflow/package/engine/docs_check.py`. Agents interpret results; they never overrule an exit code.
 - Never ask the invoker a question mid-task. Record the assumption in the report and continue. Only the
   Orchestrator raises questions to the owner, and only at a gate.
 - Never run builds or tests yourself; ask the Build & Test Runner.

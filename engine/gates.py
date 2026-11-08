@@ -1,4 +1,4 @@
-"""Run the deterministic gates (linters, scanners, custom scripts) declared in .agentflow/gates.json.
+"""Run the deterministic gates (linters, scanners, custom scripts) declared in .fyzxsflow/gates.json.
 
   python -I engine/gates.py --stage <quick|ci|extreme|pre-pr> [--run <run-dir>] [--changed <path> ...]
   python -I engine/gates.py --stage extreme --update-baseline <gate>      # owner action: accept current results
@@ -6,12 +6,12 @@
 A gate runs when it is enabled, lists the requested stage, and (if it declares `paths`) at least one
 changed path matches. Each gate's output is normalised into one shape:
   {gate, rule, level (error|warning|note), path, line, message, fingerprint}
-Results whose fingerprint is in .agentflow/baselines/<gate>.json are counted as baseline, not new.
+Results whose fingerprint is in .fyzxsflow/baselines/<gate>.json are counted as baseline, not new.
 A gate fails when its process could not run correctly, or when it has a new result at or above `fail_on`.
 Writes gates/<invocation>.json (summary) and gates/<invocation>/<gate>.log in the run folder.
 Exit 0 = every selected gate passed, 1 = at least one failed, 2 = configuration error.
 
-gates.json shape (see templates/project/.agentflow/gates.md):
+gates.json shape (see templates/project/.fyzxsflow/gates.md):
   { "gates": [ { "name": "semgrep", "enabled": true, "stages": ["extreme", "pre-pr"],
                  "run": "semgrep scan --config auto --sarif --output {out}", "format": "sarif",
                  "fail_on": "error", "ok_exit_codes": [0, 1], "paths": ["src/**"], "timeout_s": 1800 } ] }
@@ -26,6 +26,9 @@ import json
 import pathlib
 import subprocess
 import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from layout import HOME, PACKAGE  # noqa: E402
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from docs_check import glob_to_regex  # noqa: E402
@@ -78,7 +81,7 @@ def run_gate(gate: dict, root: pathlib.Path, outdir: pathlib.Path) -> dict:
             code = subprocess.run(command, shell=True, cwd=root / gate.get("cwd", "."), stdout=f,
                                   stderr=subprocess.STDOUT, timeout=gate.get("timeout_s")).returncode
         except subprocess.TimeoutExpired:
-            f.write(f"\n[agentflow gates] timed out after {gate.get('timeout_s')}s\n")
+            f.write(f"\n[fyzxsflow gates] timed out after {gate.get('timeout_s')}s\n")
             code = 124
     fmt = gate.get("format", "exit")
     ok_codes = gate.get("ok_exit_codes", [0])
@@ -105,10 +108,10 @@ def run_gate(gate: dict, root: pathlib.Path, outdir: pathlib.Path) -> dict:
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--stage", required=True)
-    p.add_argument("--run", help="run folder (default: .agentflow/runs/_adhoc)")
+    p.add_argument("--run", help="run folder (default: .fyzxsflow/runs/_adhoc)")
     p.add_argument("--changed", nargs="*", default=[], help="changed paths; gates with `paths` run only if one matches")
     p.add_argument("--root", default=".")
-    p.add_argument("--config", default=".agentflow/gates.json")
+    p.add_argument("--config", default=f"{HOME}/gates.json")
     p.add_argument("--update-baseline", metavar="GATE", help="accept the gate's current results as baseline (owner action)")
     args = p.parse_args(argv)
 
@@ -133,11 +136,11 @@ def main(argv=None) -> int:
             print(f"unknown gate '{args.update_baseline}'", file=sys.stderr)
             return 2
 
-    run = pathlib.Path(args.run) if args.run else root / ".agentflow" / "runs" / "_adhoc"
+    run = pathlib.Path(args.run) if args.run else root / HOME / "runs" / "_adhoc"
     invocation = f"{args.stage}-{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d-%H%M%S-%f')}"
     outdir = run / "gates" / invocation
     outdir.mkdir(parents=True, exist_ok=True)
-    baselines = root / ".agentflow" / "baselines"
+    baselines = root / HOME / "baselines"
 
     summary, failed = [], False
     for gate in chosen:

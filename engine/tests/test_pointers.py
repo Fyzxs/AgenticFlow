@@ -16,7 +16,7 @@ paths:
   - "src/Mappers/**"
   - "src/Shared/Mapping/**"
 pack:
-  - .agentflow/docs/tech/csharp.md
+  - .fyzxsflow/docs/tech/csharp.md
 ---
 
 # Segment: Mappers
@@ -27,8 +27,8 @@ Body.
 
 class PointerTests(unittest.TestCase):
     def setUp(self):
-        self.root = pathlib.Path(tempfile.mkdtemp(prefix="agentflow-pointers-"))
-        seg = self.root / ".agentflow" / "docs" / "segments"
+        self.root = pathlib.Path(tempfile.mkdtemp(prefix="fyzxsflow-pointers-"))
+        seg = self.root / ".fyzxsflow" / "docs" / "segments"
         seg.mkdir(parents=True)
         (seg / "mapper.md").write_text(SEGMENT, encoding="utf-8")
         (seg / "_template.md").write_text(SEGMENT, encoding="utf-8")
@@ -46,19 +46,19 @@ class PointerTests(unittest.TestCase):
     def test_writes_both_hosts_scoped_to_segment_paths(self):
         code, out = self.pointers()
         self.assertEqual(code, 0, out)
-        claude = (self.root / ".claude/rules/agentflow-mapper.md").read_text(encoding="utf-8")
-        copilot = (self.root / ".github/instructions/agentflow-mapper.instructions.md").read_text(encoding="utf-8")
+        claude = (self.root / ".claude/rules/fyzxsflow-mapper.md").read_text(encoding="utf-8")
+        copilot = (self.root / ".github/instructions/fyzxsflow-mapper.instructions.md").read_text(encoding="utf-8")
         self.assertIn('  - "src/Mappers/**"\n  - "src/Shared/Mapping/**"', claude)
         self.assertIn('applyTo: "src/Mappers/**,src/Shared/Mapping/**"', copilot)
-        self.assertIn('description: "Mappers conventions (agentflow segment)"', copilot)
+        self.assertIn('description: "Mappers conventions (fyzxsflow segment)"', copilot)
         for text in (claude, copilot):
-            self.assertIn("`.agentflow/docs/segments/mapper.md` and every file listed under its `pack:`", text)
-        self.assertFalse((self.root / ".claude/rules/agentflow-_template.md").exists())
+            self.assertIn("`.fyzxsflow/docs/segments/mapper.md` and every file listed under its `pack:`", text)
+        self.assertFalse((self.root / ".claude/rules/fyzxsflow-_template.md").exists())
         self.assertEqual((self.root / ".claude/rules/hand-written.md").read_text(encoding="utf-8"), "mine")
 
     def test_installer_owned_files_are_never_treated_as_stale(self):
-        wa_claude = self.root / ".claude/rules/agentflow-working-agreement.md"
-        wa_copilot = self.root / ".github/instructions/agentflow-working-agreement.instructions.md"
+        wa_claude = self.root / ".claude/rules/fyzxsflow-working-agreement.md"
+        wa_copilot = self.root / ".github/instructions/fyzxsflow-working-agreement.instructions.md"
         wa_copilot.parent.mkdir(parents=True)
         for f in (wa_claude, wa_copilot):
             f.write_text("working agreement", encoding="utf-8")
@@ -71,21 +71,21 @@ class PointerTests(unittest.TestCase):
         self.assertEqual(self.pointers("--check")[0], 1)
         self.pointers()
         self.assertEqual(self.pointers("--check")[0], 0)
-        edited = self.root / ".claude/rules/agentflow-mapper.md"
+        edited = self.root / ".claude/rules/fyzxsflow-mapper.md"
         edited.write_text(edited.read_text(encoding="utf-8") + "extra\n", encoding="utf-8")
-        (self.root / ".github/instructions/agentflow-gone.instructions.md").write_text("old", encoding="utf-8")
+        (self.root / ".github/instructions/fyzxsflow-gone.instructions.md").write_text("old", encoding="utf-8")
         code, out = self.pointers("--check")
         self.assertEqual(code, 1)
-        self.assertIn("agentflow-mapper.md: out of date or edited by hand", out)
-        self.assertIn("agentflow-gone.instructions.md: no matching segment doc (stale)", out)
+        self.assertIn("fyzxsflow-mapper.md: out of date or edited by hand", out)
+        self.assertIn("fyzxsflow-gone.instructions.md: no matching segment doc (stale)", out)
 
     def test_refresh_removes_stale_and_respects_host_config(self):
-        (self.root / ".agentflow" / "config.json").write_text(json.dumps({"docs": {"host_pointers": ["copilot"]}}), encoding="utf-8")
-        (self.root / ".claude/rules/agentflow-mapper.md").write_text("old", encoding="utf-8")
+        (self.root / ".fyzxsflow" / "config.json").write_text(json.dumps({"docs": {"host_pointers": ["copilot"]}}), encoding="utf-8")
+        (self.root / ".claude/rules/fyzxsflow-mapper.md").write_text("old", encoding="utf-8")
         code, out = self.pointers()
         self.assertEqual(code, 0, out)
-        self.assertFalse((self.root / ".claude/rules/agentflow-mapper.md").exists())
-        self.assertTrue((self.root / ".github/instructions/agentflow-mapper.instructions.md").exists())
+        self.assertFalse((self.root / ".claude/rules/fyzxsflow-mapper.md").exists())
+        self.assertTrue((self.root / ".github/instructions/fyzxsflow-mapper.instructions.md").exists())
 
 
 if __name__ == "__main__":

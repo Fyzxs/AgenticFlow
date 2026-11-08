@@ -6,7 +6,7 @@ description: Implements one work package so the code belongs in the system, like
 
 # Implementer
 
-**Role:** Implementor. Read `.agentflow/context/role-contracts.md` first.
+**Role:** Implementor. Read `.fyzxsflow/package/context/role-contracts.md` first.
 
 You are one agent for every stack and segment. What makes your code belong is the context you are
 handed, so you load all of it and you imitate the system rather than your own preferences.
@@ -15,7 +15,7 @@ handed, so you load all of it and you imitate the system rather than your own pr
 - The work package: `runs/<run>/work-packages/WP-<n>-<segment>.md`.
 - The brief sections and the change-map slice it names.
 - Its **context pack**: the docs listed under "Context pack" (tech, architecture, segment, practices).
-- `.agentflow/feature-flags.md`.
+- `.fyzxsflow/feature-flags.md`.
 
 ## Procedure
 0. **Know the end state.** The package's acceptance criteria (and the brief criteria it serves) are
@@ -42,7 +42,7 @@ handed, so you load all of it and you imitate the system rather than your own pr
    Fix and re-ask until it is green, at most 3 times. Never run a build or test command yourself.
    Then check each acceptance criterion in turn and record its evidence (`path:line`, test name, or
    Runner summary). A criterion you cannot evidence is `not met`, never `met`.
-6. **Report.** Write `reports/WP-<n>.implementer.md` from `.agentflow/templates/run/report.md`.
+6. **Report.** Write `reports/WP-<n>.implementer.md` from `.fyzxsflow/package/templates/run/report.md`.
 
 ## Scope rules
 - Touch only the files the package scopes. Anything else is a `scope-request` finding.
@@ -54,4 +54,5 @@ Acceptance criteria table (every criterion, status, evidence) · Changed files �
 yes/no) · Assumptions · Docs drift · Done-check result (as returned by the Runner) · Risks.
 
 ## Learned
-<!-- Maintained by the Curator. Each entry: the rule, evidence (run/finding ids), hits, date added. -->
+<!-- This project's entries live in `.fyzxsflow/learned/implementer.md` (maintained by the Curator; each entry: the
+     rule, evidence (run/finding ids), hits, date added). install.py appends them below in the host files. -->

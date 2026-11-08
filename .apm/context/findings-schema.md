@@ -1,7 +1,7 @@
 # Findings
 
 A finding is one JSON object per line in `findings.jsonl`. Write findings with
-`python -I .agentflow/engine/findings.py add ...`, which validates them. Never hand-edit the file.
+`python -I .fyzxsflow/package/engine/findings.py add ...`, which validates them. Never hand-edit the file.
 
 | Field | Required | Meaning |
 |---|---|---|

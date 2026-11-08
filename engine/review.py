@@ -1,13 +1,13 @@
 """Human-in-the-loop review between agent hand-offs.
 
-  python -I .agentflow/engine/review.py needed --run <dir> --agent <name> [--stage S] [--package WP-02]
+  python -I .fyzxsflow/package/engine/review.py needed --run <dir> --agent <name> [--stage S] [--package WP-02]
       [--segment SEG] [--paths p1 p2 ...]          -> "review=pause|notify|no reason=<why> level=<level>"
-  python -I .agentflow/engine/review.py decide --run <dir> --agent <name> --target <WP-02|stage> --reply "<owner reply>"
+  python -I .fyzxsflow/package/engine/review.py decide --run <dir> --agent <name> --target <WP-02|stage> --reply "<owner reply>"
       [--edited N] [--review-file reviews/<file>.md]
       -> "decision=<d> adjust=<less-review|more-review|none> level=<a>-><b> feedback=<F-n|none> note=<...>"
-  python -I .agentflow/engine/review.py set-level --agent <name> --level on|notify|off --reason "<owner's words>"
-  python -I .agentflow/engine/review.py regress --agent <name> --reason "<evidence>"   (system: raise to on)
-  python -I .agentflow/engine/review.py summary [--root .]
+  python -I .fyzxsflow/package/engine/review.py set-level --agent <name> --level on|notify|off --reason "<owner's words>"
+  python -I .fyzxsflow/package/engine/review.py regress --agent <name> --reason "<evidence>"   (system: raise to on)
+  python -I .fyzxsflow/package/engine/review.py summary [--root .]
 
 Levels, per agent, in config.json -> review: on (pause for the owner), notify (post the summary, don't pause),
 off (don't pause or post). Every agent starts at review.default ("on"). The level only decides whether the run
@@ -37,6 +37,9 @@ import re
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from layout import HOME, PACKAGE  # noqa: E402
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from docs_check import glob_to_regex  # noqa: E402
 
 LADDER = ["off", "notify", "on"]
@@ -48,13 +51,13 @@ AUTOPILOT = re.compile(r"^\s*-\s*autopilot\s*$", re.M | re.I)
 
 def root_of(path: pathlib.Path) -> pathlib.Path:
     for parent in [path.resolve(), *path.resolve().parents]:
-        if parent.name == ".agentflow":
+        if parent.name == HOME:
             return parent.parent
-    raise SystemExit(f"{path} is not inside a .agentflow/ folder")
+    raise SystemExit(f"{path} is not inside a .fyzxsflow/ folder")
 
 
 def load_config(root: pathlib.Path):
-    path = root / ".agentflow" / "config.json"
+    path = root / HOME / "config.json"
     data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     review = dict(DEFAULTS)
     review.update(data.get("review") or {})
@@ -82,15 +85,15 @@ def commit_policy(root: pathlib.Path, agent: str, before: str, after: str, by: s
     import run as runmod  # noqa: E402  (same engine folder)
     if runmod.runs_mode(root) == "local" or runmod.git(root, "rev-parse", "--git-dir").returncode != 0:
         return
-    paths = [p for p in (".agentflow/config.json", ".agentflow/reviews.jsonl") if (root / p).exists()]
+    paths = [p for p in (f"{HOME}/config.json", f"{HOME}/reviews.jsonl") if (root / p).exists()]
     runmod.git(root, "add", "--", *paths)
-    runmod.git(root, "commit", "-q", "-m", f"agentflow: review level for {agent} {before} -> {after} ({by})", "--", *paths)
+    runmod.git(root, "commit", "-q", "-m", f"fyzxsflow: review level for {agent} {before} -> {after} ({by})", "--", *paths)
 
 
 def log(root: pathlib.Path, run, entry: dict):
     """Review decisions and level changes: per run when there is one, else the project-level log."""
     entry = {"time": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), **entry}
-    target = (run / "reviews.jsonl") if run else (root / ".agentflow" / "reviews.jsonl")
+    target = (run / "reviews.jsonl") if run else (root / HOME / "reviews.jsonl")
     target.parent.mkdir(parents=True, exist_ok=True)
     with open(target, "a", encoding="utf-8", newline="\n") as f:
         f.write(json.dumps(entry) + "\n")
@@ -233,7 +236,7 @@ def cmd_decide(args) -> int:
 
 
 def cmd_set_level(args) -> int:
-    root = root_of(pathlib.Path(args.root) / ".agentflow")
+    root = root_of(pathlib.Path(args.root) / HOME)
     _, _, review = load_config(root)
     before = level_of(review, args.agent)
     save_level(root, args.agent, args.level)
@@ -245,7 +248,7 @@ def cmd_set_level(args) -> int:
 
 
 def cmd_regress(args) -> int:
-    root = root_of(pathlib.Path(args.root) / ".agentflow")
+    root = root_of(pathlib.Path(args.root) / HOME)
     _, _, review = load_config(root)
     before = level_of(review, args.agent)
     if before == "on":
@@ -263,7 +266,7 @@ def cmd_summary(args) -> int:
     root = pathlib.Path(args.root).resolve()
     _, _, review = load_config(root)
     entries = []
-    base = root / ".agentflow"
+    base = root / HOME
     for path in sorted(base.rglob("reviews.jsonl")):
         if "_adhoc" in path.parts:
             continue

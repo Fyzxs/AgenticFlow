@@ -24,7 +24,7 @@ def run(script, *args, cwd=None):
 
 class TempRepo(unittest.TestCase):
     def setUp(self):
-        self.root = pathlib.Path(tempfile.mkdtemp(prefix="agentflow-test-"))
+        self.root = pathlib.Path(tempfile.mkdtemp(prefix="fyzxsflow-test-"))
 
     def tearDown(self):
         shutil.rmtree(self.root, ignore_errors=True)
@@ -81,11 +81,11 @@ class RunTests(TempRepo):
 
     def test_stamp_records_the_model_on_reports_and_models_lists_them(self):
         r = self.new_run()
-        agents = self.root / ".agentflow" / "agents"
+        agents = self.root / ".fyzxsflow" / "package" / "agents"
         agents.mkdir(parents=True)
         (agents / "implementer.agent.md").write_text("---\nname: implementer\ntier: standard\n---\n", encoding="utf-8")
         (agents / "validator.agent.md").write_text("---\nname: validator\ntier: deep\n---\n", encoding="utf-8")
-        (self.root / ".agentflow" / "config.json").write_text(
+        (self.root / ".fyzxsflow" / "config.json").write_text(
             json.dumps({"models": {"claude": {"deep": "opus", "standard": "sonnet", "fast": "haiku"}}}), encoding="utf-8")
         impl = r / "reports" / "WP-01.implementer.md"
         impl.write_text("---\nagent: implementer\ntarget: WP-01\nresult: done\n"
@@ -133,7 +133,7 @@ class CheckpointTests(TempRepo):
         code, out = run("run.py", "checkpoint", str(r), "intake")
         self.assertEqual(code, 0, out)
         committed = self.git("show", "--name-only", "--format=%s", "HEAD").split()
-        self.assertIn(f"agentflow({r.name}):", committed[0])
+        self.assertIn(f"fyzxsflow({r.name}):", committed[0])
         self.assertTrue(any(p.endswith("brief.md") for p in committed))
         self.assertTrue(any(p.endswith("runner/ci-1.json") for p in committed))
         self.assertFalse(any(p.endswith(".log") for p in committed))
@@ -154,7 +154,7 @@ class CheckpointTests(TempRepo):
         found = [json.loads(l) for l in (r / "findings.jsonl").read_text(encoding="utf-8").splitlines()]
         self.assertEqual([f["kind"] for f in found], ["human-edit"])
         self.assertIn("owner edits", self.git("log", "-1", "--format=%s"))
-        self.assertEqual(self.git("status", "--porcelain", "--", ".agentflow"), "")
+        self.assertEqual(self.git("status", "--porcelain", "--", ".fyzxsflow"), "")
 
     def test_close_moves_active_to_completed_with_a_recorded_rename(self):
         r = self.new_run()
@@ -164,13 +164,13 @@ class CheckpointTests(TempRepo):
         self.assertIn("active: 1", out)
         code, out = run("run.py", "close", str(r), "--outcome", "completed", "--note", "PR #12")
         self.assertEqual(code, 0, out)
-        dest = self.root / ".agentflow" / "runs" / "completed" / r.name
+        dest = self.root / ".fyzxsflow" / "runs" / "completed" / r.name
         self.assertTrue((dest / "brief.md").exists())
         self.assertFalse(r.exists())
         self.assertIn("completed: PR #12", (dest / "ledger.md").read_text(encoding="utf-8"))
         self.assertIn("completed", self.git("log", "-1", "--format=%s"))
         self.assertIn("R", self.git("show", "--name-status", "--format=", "HEAD").split()[0])
-        self.assertEqual(self.git("status", "--porcelain", "--", ".agentflow"), "")
+        self.assertEqual(self.git("status", "--porcelain", "--", ".fyzxsflow"), "")
         code, out = run("run.py", "list", "--root", str(self.root))
         self.assertIn("active: 0", out)
         self.assertIn("completed: 1", out)
@@ -180,13 +180,13 @@ class CheckpointTests(TempRepo):
         r = self.new_run()
         code, out = run("run.py", "close", str(r), "--outcome", "abandoned", "--note", "owner stopped it")
         self.assertEqual(code, 0, out)
-        dest = self.root / ".agentflow" / "runs" / "abandoned" / r.name
+        dest = self.root / ".fyzxsflow" / "runs" / "abandoned" / r.name
         self.assertIn("abandoned: owner stopped it", (dest / "ledger.md").read_text(encoding="utf-8"))
-        self.assertEqual(self.git("status", "--porcelain", "--", ".agentflow"), "")
+        self.assertEqual(self.git("status", "--porcelain", "--", ".fyzxsflow"), "")
 
     def test_local_mode_commits_nothing(self):
-        (self.root / ".agentflow").mkdir(exist_ok=True)
-        (self.root / ".agentflow" / "profile.md").write_text("## Runs\n- Runs: local\n", encoding="utf-8")
+        (self.root / ".fyzxsflow").mkdir(exist_ok=True)
+        (self.root / ".fyzxsflow" / "profile.md").write_text("## Runs\n- Runs: local\n", encoding="utf-8")
         r = self.new_run()
         code, out = run("run.py", "checkpoint", str(r), "intake")
         self.assertEqual(code, 0)
@@ -263,8 +263,8 @@ class AcTraceTests(TempRepo):
         return r
 
     def set_policy(self, policy):
-        (self.root / ".agentflow").mkdir(exist_ok=True)
-        (self.root / ".agentflow" / "feature-flags.md").write_text(f"# Feature-flag source\n\n## Policy\nPolicy: {policy}\n", encoding="utf-8")
+        (self.root / ".fyzxsflow").mkdir(exist_ok=True)
+        (self.root / ".fyzxsflow" / "feature-flags.md").write_text(f"# Feature-flag source\n\n## Policy\nPolicy: {policy}\n", encoding="utf-8")
 
     def test_not_required_rejected_under_default_policy(self):
         code, out = run("ac_trace.py", "--run", str(self.setup_run(flag=NOT_REQ)))
@@ -335,16 +335,16 @@ class DocsCheckTests(TempRepo):
         super().setUp()
         (self.root / "src" / "Mappers").mkdir(parents=True)
         (self.root / "src" / "Mappers" / "CardMapper.cs").write_text("class CardMapper {}", encoding="utf-8")
-        (self.root / ".agentflow" / "docs" / "segments").mkdir(parents=True)
+        (self.root / ".fyzxsflow" / "docs" / "segments").mkdir(parents=True)
         self.modes = {m: {"steps": [{"name": "x", "run": "echo"}]} for m in ("quick", "ci", "extreme")}
         self.write_cfg()
 
     def write_cfg(self):
-        (self.root / ".agentflow" / "config.json").write_text(
+        (self.root / ".fyzxsflow" / "config.json").write_text(
             json.dumps({"docs": {"pack_budget_kb": 1}, "modes": self.modes}), encoding="utf-8")
 
     def write_profile(self, database="yes (Postgres)", api="no"):
-        (self.root / ".agentflow" / "profile.md").write_text(
+        (self.root / ".fyzxsflow" / "profile.md").write_text(
             f"## Surfaces\n| Surface | Present | Docs |\n|---|---|---|\n| API | {api} | |\n| Database | {database} | |\n",
             encoding="utf-8")
 
@@ -384,7 +384,7 @@ class DocsCheckTests(TempRepo):
         if pack:
             fm += "pack:\n" + "".join(f"  - {p}\n" for p in pack)
         fm += "---\n"
-        (self.root / ".agentflow" / "docs" / "segments" / "mapper.md").write_text(fm + body, encoding="utf-8")
+        (self.root / ".fyzxsflow" / "docs" / "segments" / "mapper.md").write_text(fm + body, encoding="utf-8")
 
     def test_passes_when_paths_exist(self):
         self.write_segment("Example: `src/Mappers/CardMapper.cs:1`. Run `--quick --scope x`.")
@@ -419,8 +419,8 @@ class DocsCheckTests(TempRepo):
 class RunnerTests(TempRepo):
     def write_config(self, steps, **mode):
         cfg = {"modes": {"quick": dict(steps=steps, **mode)}}
-        (self.root / ".agentflow").mkdir(exist_ok=True)
-        (self.root / ".agentflow" / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
+        (self.root / ".fyzxsflow").mkdir(exist_ok=True)
+        (self.root / ".fyzxsflow" / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
 
     def step(self, name, code, text="hello"):
         return {"name": name, "run": f'"{PY}" -I -c "print(\'{text} {{scope}}\'); raise SystemExit({code})"'}

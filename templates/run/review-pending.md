@@ -3,7 +3,7 @@
 **Where we are:** Package <n> of <N>: <segment, what this package delivers in plain words>.
 Done: <WP-01, WP-02, ... or none yet>. Next: <the next step: this package's tester, or WP-05: its title>.
 <!-- Package reviews: copy the where/done/next_package lines from
-     `python -I .agentflow/engine/run.py packages <run> --current <WP-n> --agent <agent>`, and name this file
+     `python -I .fyzxsflow/package/engine/run.py packages <run> --current <WP-n> --agent <agent>`, and name this file
      with the review_file it prints (reviews/<package file stem>.<agent>.md), never the bare id.
      Stage reviews: reviews/<stage>.<agent>.md; say which stage and what comes after it. -->
 
@@ -18,7 +18,7 @@ picked up at the next hand-off (or say "process feedback").>
 **Your feedback, applied** <!-- only when feedback was routed since your last review: each item (review
      feedback F-n, or an inbox file), what was done with it and where (doc path, package, queued run), or why
      not. Approve or redo it with this review. Omit the block when there is none. -->
-- <F-n / feedback/<file>> → <docs: `.agentflow/docs/...` (what the rule now says) | agent input: WP-n | rework: WP-n | queued run | this output only: why>
+- <F-n / feedback/<file>> → <docs: `.fyzxsflow/docs/...` (what the rule now says) | agent input: WP-n | rework: WP-n | queued run | this output only: why>
 
 **Done by:** <agent> on <model from the report's frontmatter> (tier <tier>; the agent reported
 <model_reported>; escalated: <escalated>). The validator ran on <its model>.
@@ -52,5 +52,5 @@ Add `-less-review` or `-more-review` to any reply to change how closely **<agent
      on (docs updated, agents told, rework planned) and you approve the result in your next review. With approve
      it applies from the next agent on; with redo, or written later about output that is wrong, the output is
      reworked too. Edit it again later and it is picked up again. Leave it empty for none. Feedback not about
-     this output goes in .agentflow/feedback/. -->
+     this output goes in .fyzxsflow/feedback/. -->
 <write feedback here>

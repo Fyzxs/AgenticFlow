@@ -77,7 +77,7 @@
         },
         {
           "name": "docs-and-pointers",
-          "run": "python -I .agentflow/engine/docs_check.py && python -I .agentflow/engine/pointers.py --check"
+          "run": "python -I .fyzxsflow/package/engine/docs_check.py && python -I .fyzxsflow/package/engine/pointers.py --check"
         }
       ]
     },
@@ -160,11 +160,11 @@
         },
         {
           "name": "docs-check",
-          "run": "python -I .agentflow/engine/docs_check.py"
+          "run": "python -I .fyzxsflow/package/engine/docs_check.py"
         },
         {
           "name": "pointers-check",
-          "run": "python -I .agentflow/engine/pointers.py --check"
+          "run": "python -I .fyzxsflow/package/engine/pointers.py --check"
         }
       ]
     }
