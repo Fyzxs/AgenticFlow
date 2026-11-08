@@ -146,6 +146,8 @@ class CheckpointTests(TempRepo):
         run("run.py", "checkpoint", str(r), "intake")
         self.assertIn("no edits", run("run.py", "edits", str(r))[1])
         (r / "brief.md").write_text("# brief\n- **AC-3** (stated): added by the owner", encoding="utf-8")
+        (r / "reviews").mkdir()  # review files carry ## Human Feedback, recorded by review.py decide instead
+        (r / "reviews" / "WP-01-x.implementer.md").write_text("## Human Feedback\nuse nameof\n", encoding="utf-8")
         code, out = run("run.py", "edits", str(r), "--record")
         self.assertEqual(code, 0, out)
         self.assertIn("brief.md", out)

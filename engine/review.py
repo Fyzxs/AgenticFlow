@@ -3,7 +3,8 @@
   python -I .agentflow/engine/review.py needed --run <dir> --agent <name> [--stage S] [--package WP-02]
       [--segment SEG] [--paths p1 p2 ...]          -> "review=pause|notify|no reason=<why> level=<level>"
   python -I .agentflow/engine/review.py decide --run <dir> --agent <name> --target <WP-02|stage> --reply "<owner reply>"
-      [--edited N]                                  -> "decision=<d> adjust=<less-review|more-review|none> level=<a>-><b> note=<...>"
+      [--edited N] [--review-file reviews/<file>.md]
+      -> "decision=<d> adjust=<less-review|more-review|none> level=<a>-><b> feedback=<F-n|none> note=<...>"
   python -I .agentflow/engine/review.py set-level --agent <name> --level on|notify|off --reason "<owner's words>"
   python -I .agentflow/engine/review.py regress --agent <name> --reason "<evidence>"   (system: raise to on)
   python -I .agentflow/engine/review.py summary [--root .]
@@ -14,6 +15,11 @@ off (no review). Every agent starts at review.default ("on").
 An owner reply starts with approve | continue | redo | stop, and may carry -less-review or -more-review anywhere:
 it moves the reviewed agent's level one step (on <-> notify <-> off). Only the owner lowers a level; the
 system may raise one on evidence (regress), never lower it.
+
+Feedback: the reply's note and the review file's `## Human Feedback` section (whatever the decision) are recorded
+together as one owner-feedback finding, the owner's words verbatim, and printed as feedback=F-n. The Orchestrator
+routes it (Docs Gardener before the next agent; with redo, also the re-dispatched agent's input). approve +
+feedback accepts this output as it is and applies the feedback from the next agent on; redo also fixes this output.
 
 Whatever the level, a review is forced when the run's review-requests.md or config review.always matches:
   review-requests.md lines:  "- review: agent=<a>" | "stage=<s>" | "package=<WP-n>" | "segment=<seg>" |
@@ -154,6 +160,46 @@ def step(level: str, adjust: str) -> str:
     return LADDER[max(0, min(i, len(LADDER) - 1))]
 
 
+FEEDBACK_SECTION = re.compile(r"^##\s+Human Feedback\s*$(.*?)(?=^##\s|\Z)", re.M | re.S | re.I)
+
+
+def human_feedback(review_file) -> str:
+    """The owner's text under `## Human Feedback` in a review file, without the template's comment."""
+    if not review_file:
+        return ""
+    path = pathlib.Path(review_file)
+    if not path.exists():
+        return ""
+    m = FEEDBACK_SECTION.search(path.read_text(encoding="utf-8"))
+    if not m:
+        return ""
+    text = re.sub(r"<!--.*?-->", "", m.group(1), flags=re.S).strip()
+    return "" if text in ("<write feedback here>", "") else text
+
+
+def record_feedback(run: pathlib.Path, args, decision: str, note: str, section: str) -> str:
+    import findings  # noqa: E402  (same engine folder)
+    parts = []
+    if note:
+        parts.append(f"Reply ({decision}): {note}")
+    if section:
+        parts.append(section)
+    if not parts:
+        return "none"
+    detail = "\n\n".join(parts)
+    summary = " ".join(detail.split())
+    summary = summary if len(summary) <= 160 else summary[:157] + "..."
+    evidence = [pathlib.Path(args.review_file).as_posix()] if section else [f"reviews.jsonl ({args.target})"]
+    import contextlib
+    import io
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        code = findings.cmd_add(argparse.Namespace(
+            run=str(run), source="human", target=args.agent, kind="owner-feedback", severity="major",
+            summary=f"{args.target}: {summary}", evidence=evidence, rule=None, fixed=False, detail=detail))
+    return out.getvalue().strip() if code == 0 else "none"
+
+
 def cmd_decide(args) -> int:
     run = pathlib.Path(args.run)
     root = root_of(run)
@@ -175,7 +221,8 @@ def cmd_decide(args) -> int:
     if after != before:
         commit_policy(root, args.agent, before, after, "owner")
     unchanged = " (already at the limit)" if adjust != "none" and after == before else ""
-    print(f"decision={decision} adjust={adjust} level={before}->{after}{unchanged} note={note}")
+    feedback = record_feedback(run, args, decision, note, human_feedback(args.review_file))
+    print(f"decision={decision} adjust={adjust} level={before}->{after}{unchanged} feedback={feedback} note={note}")
     return 0
 
 
@@ -245,6 +292,7 @@ def main(argv=None) -> int:
     d = sub.add_parser("decide")
     d.add_argument("--run", required=True); d.add_argument("--agent", required=True)
     d.add_argument("--target", required=True); d.add_argument("--reply", required=True)
+    d.add_argument("--review-file", help="the review file, to read its ## Human Feedback section")
     d.add_argument("--edited", type=int, default=0, help="files the owner edited during this review")
     s = sub.add_parser("set-level")
     s.add_argument("--agent", required=True); s.add_argument("--level", required=True, choices=LADDER)

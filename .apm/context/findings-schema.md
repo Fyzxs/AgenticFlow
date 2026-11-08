@@ -15,6 +15,7 @@ A finding is one JSON object per line in `findings.jsonl`. Write findings with
 | `evidence` | yes | list of `path:line` (or a URL for a PR comment) |
 | `rule` | no | the general rule that would have prevented it, written as an instruction |
 | `fixed` | no | `true` if the source already corrected the output |
+| `detail` | no | full text where a sentence is not enough: the owner's feedback, verbatim |
 
 ## Kinds
 - `instance`: a one-off mistake; the output was wrong but nothing upstream misled it.
@@ -29,6 +30,8 @@ A finding is one JSON object per line in `findings.jsonl`. Write findings with
 - `scope-request`: an agent needed to touch something outside its package.
 - `replan`: the plan was wrong; Locate must redo it.
 - `owner-decision`: only the owner can decide; goes to the next gate.
+- `owner-feedback`: the owner's feedback on a review (reply note plus the review file's `## Human Feedback`),
+  written by `review.py decide`, verbatim in `detail`. The Orchestrator routes it before the next dispatch.
 
 The Curator reads `kind`, `target` and `rule`. A finding without a `rule` can still be fixed, but cannot
 improve anything.

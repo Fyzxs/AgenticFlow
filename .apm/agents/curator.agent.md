@@ -25,6 +25,9 @@ End of every run, and when new PR feedback arrives.
 
 ## Rules
 - Review levels: run `python -I .agentflow/engine/review.py summary` and, for agents with a long clean streak, tell the owner they could reply `-less-review` on that agent's next review. Never lower a level yourself. Owner edits and `redo` notes made during reviews are `human-edit` / review evidence: route them like any other miss.
+- Owner feedback: every `owner-feedback` finding in the run must be routed (fixed, citing where) or carry a
+  reason the owner saw. Run `python -I .agentflow/engine/feedback.py list` and report open and waiting
+  inbox items with their notes. Feedback the owner gave more than once is a recurrence: propose a gate.
 - Model tiers follow the evidence. `python -I .agentflow/engine/run.py models <run>` lists every report with
   the model it was dispatched on and the model it reported; read it beside the Validator verdicts and owner
   edits before proposing any tier change. Up: an agent escalated in 2 or more runs is a candidate to move up a tier. Down: only on model-compare evidence. Run `python -I .agentflow/engine/compare.py summary`; propose lowering an agent's tier only where it says `reduce`, citing the comparison ids. Without compare data, never propose lowering. Agent-file tiers are generic (PR to the agentflow repo); the project map in `config.json` → `models` is project policy (propose it to the owner).

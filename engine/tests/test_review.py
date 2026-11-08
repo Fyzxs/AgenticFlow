@@ -40,6 +40,42 @@ class ReviewTests(unittest.TestCase):
         return self.rv("decide", "--run", str(self.run_dir), "--agent", agent, "--target", "WP-01",
                        "--reply", reply, "--edited", str(edited))
 
+    def findings(self):
+        path = self.run_dir / "findings.jsonl"
+        return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+
+    def review_file(self, feedback):
+        f = self.run_dir / "reviews" / "WP-01-api-sort.implementer.md"
+        f.parent.mkdir(exist_ok=True)
+        f.write_text("# Review\n\n**Reply with one of**\n- approve\n\n## Human Feedback\n"
+                     "<!-- Write anything here -->\n" + feedback + "\n", encoding="utf-8")
+        return f
+
+    def test_human_feedback_section_and_note_become_one_owner_feedback_finding(self):
+        f = self.review_file("No null-forgiving ! in tests.\nOlder tests use it; don't copy them.")
+        code, out = self.rv("decide", "--run", str(self.run_dir), "--agent", "tester", "--target", "WP-01",
+                            "--reply", "redo: fix the five asserts", "--review-file", str(f))
+        self.assertEqual(code, 0, out)
+        self.assertIn("decision=redo", out)
+        self.assertIn("feedback=F-1", out)
+        (finding,) = self.findings()
+        self.assertEqual((finding["kind"], finding["source"], finding["target"]), ("owner-feedback", "human", "tester"))
+        self.assertIn("Reply (redo): fix the five asserts", finding["detail"])
+        self.assertIn("Older tests use it; don't copy them.", finding["detail"])  # verbatim, all lines
+        self.assertNotIn("Write anything here", finding["detail"])                # template comment stripped
+
+    def test_approve_with_feedback_is_recorded_and_empty_feedback_is_not(self):
+        f = self.review_file("<write feedback here>")
+        code, out = self.rv("decide", "--run", str(self.run_dir), "--agent", "tester", "--target", "WP-01",
+                            "--reply", "approve", "--review-file", str(f))
+        self.assertIn("feedback=none", out)
+        self.assertEqual(self.findings(), [])
+        f = self.review_file("Use nameof everywhere in these asserts.")
+        code, out = self.rv("decide", "--run", str(self.run_dir), "--agent", "tester", "--target", "WP-01",
+                            "--reply", "approve", "--review-file", str(f))
+        self.assertIn("decision=approve", out)
+        self.assertIn("feedback=F-1", out)
+
     def level(self, agent):
         cfg = json.loads((self.root / ".agentflow/config.json").read_text(encoding="utf-8"))
         return cfg.get("review", {}).get("agents", {}).get(agent)
@@ -57,7 +93,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(self.needed(), "review=no reason=agent-level level=off")
         code, out = self.decide("redo: tests miss the null case -more-review")
         self.assertEqual(code, 0)
-        self.assertIn("decision=redo adjust=more-review level=off->notify note=tests miss the null case", out)
+        self.assertIn("decision=redo adjust=more-review level=off->notify feedback=F-1 note=tests miss the null case", out)
         self.assertIn("decision=stop adjust=more-review level=notify->on", self.decide("stop -more-review")[1])
         self.assertIn("review level for implementer", subprocess.run(
             ["git", "log", "-1", "--format=%s"], cwd=self.root, capture_output=True, text=True).stdout)

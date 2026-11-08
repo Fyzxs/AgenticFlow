@@ -352,7 +352,8 @@ def cmd_edits(args) -> int:
         sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
         import findings  # noqa: E402
         for f in files:
-            if f.endswith(("ledger.md", "findings.jsonl")):
+            # Review files are read by review.py decide (## Human Feedback -> owner-feedback); no duplicate here.
+            if f.endswith(("ledger.md", "findings.jsonl")) or "/reviews/" in f:
                 continue
             findings.cmd_add(argparse.Namespace(
                 run=str(run), source="human", target=f, kind="human-edit", severity="observation",

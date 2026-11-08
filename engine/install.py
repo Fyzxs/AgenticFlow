@@ -85,6 +85,15 @@ def install_package(source: pathlib.Path, target: pathlib.Path, written: list):
         write(dest, new, written)
     write(af / "INSTALLED.json", json.dumps({"agentflow": VERSION}, indent=2) + "\n", written)
     ensure_gitignore(target, written)
+    ensure_feedback_inbox(source, target, written)
+
+
+def ensure_feedback_inbox(source: pathlib.Path, target: pathlib.Path, written: list):
+    """The owner's feedback inbox. Created once with its guide; the owner's items are never touched."""
+    readme = target / ".agentflow" / "feedback" / "README.md"
+    if not readme.exists():
+        tpl = source / "templates" / "project" / ".agentflow" / "feedback" / "README.md"
+        write(readme, tpl.read_text(encoding="utf-8"), written)
 
 
 def ensure_gitignore(target: pathlib.Path, written: list):

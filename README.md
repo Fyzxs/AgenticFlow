@@ -44,6 +44,9 @@ Design: https://claude.ai/artifact/SzJwCgeAbqtwCeWJLSAGhd (private to the owner)
 11. **Human review between hand-offs, earned down.** Every agent's output pauses for the owner by default.
     Reply `approve`, `continue`, `redo: ...` or `stop`, adding `-less-review` or `-more-review` to change that agent's
     level (on → notify → off). Only the owner lowers it; risky segments and per-run requests always pause.
+    Write anything in the review file's `## Human Feedback` section, or drop a file in `.agentflow/feedback/`
+    at any time: the flow routes it (docs updated, agents told, rework or new work queued) and shows you what
+    it did in your next review. You never edit docs or agent files to make feedback stick.
 12. **Bounded everything.** Review-fix loops stop after 2 rounds, context packs and agent files have size
    budgets, and the Curator's patches are validated before they land.
 
@@ -60,6 +63,7 @@ apm.yml                      APM manifest (targets: copilot, claude)
 engine/                      host-neutral Python 3 scripts (stdlib only)
   run.py                     create a run folder, append to the ledger, print status and package progress, record each report's model
   findings.py                append and validate findings
+  feedback.py                the owner's feedback inbox: scan for new or edited items, record how each was handled
   runner.py                  execute a Build & Test Runner mode from .agentflow/config.json (destructive steps refused without approval)
   gates.py                   run declared linters/scanners, normalise SARIF, apply baselines
   ac_trace.py                acceptance-criteria traceability (plan check; evidence check before PR)
@@ -68,7 +72,8 @@ engine/                      host-neutral Python 3 scripts (stdlib only)
   install.py                 install into a repo (.agentflow/ + host files), or --sync host files after edits
   models.py                  agent tier -> model per host (config.json models), escalation (--up), shadow (--down)
   compare.py                 model compare: whether to shadow a dispatch, record and score it, summarise
-  review.py                  human review between hand-offs: needed?, reply parsing (-less-review/-more-review), levels
+  review.py                  human review between hand-offs: needed?, reply parsing (-less-review/-more-review), levels,
+                             ## Human Feedback -> owner-feedback findings
   hooks/                     tool-call guards (Claude Code adapter today)
   tests/                     python -I engine/tests/run_all.py
 templates/

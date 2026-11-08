@@ -28,6 +28,9 @@ code, never run builds or tests, and never review. You keep the run moving and k
    - at the start of the next stage, and whenever you resume after a gate or a new session:
      `python -I .agentflow/engine/run.py edits <run> --record`. If it lists files, the owner changed them:
      re-read them, treat the edited versions as authoritative, and mention the edits in the next heartbeat.
+5. **Process the feedback inbox** at the start of every run, at every hand-off, on resume, and whenever the
+   owner says "process feedback" (with or without a run): `python -I .agentflow/engine/feedback.py scan`.
+   See **Owner feedback** below.
 
 ## Stages
 
@@ -57,7 +60,8 @@ Before handing any agent's output to the next agent (after its Validator), ask:
   When the owner replies:
   1. `python -I .agentflow/engine/run.py edits <run> --record` (counts and records any edits);
   2. `python -I .agentflow/engine/review.py decide --run <run> --agent <agent> --target <target> --reply
-     "<the owner's reply, verbatim>" --edited <number of files edited>`;
+     "<the owner's reply, verbatim>" --edited <number of files edited> --review-file <the review file>`;
+     on `feedback=F-n`, route it (**Owner feedback**) before the next dispatch;
   3. act on `decision=`: approve/continue → hand off (edited files are authoritative); redo → re-dispatch the
      agent with the note as an extra input; stop → `run.py close --outcome abandoned`. If the reply is not
      understood (exit 2), show the owner the reply options again.
@@ -68,6 +72,36 @@ Before handing any agent's output to the next agent (after its Validator), ask:
 - **Only the owner lowers review.** Never run `set-level` or pass `-less-review` without the owner's
   words. When output from an agent whose level was `notify` or `off` later draws an owner edit or a
   `major` finding, run `review.py regress --agent <a> --reason "<finding ids>"` and tell the owner.
+
+## Owner feedback
+The owner's feedback is a signal for the flow to change itself. The owner never edits docs or agent files to
+make it stick; you route it and the owner approves the result. It arrives two ways:
+- **On a review**: the reply's note plus the review file's `## Human Feedback` section, recorded by
+  `review.py decide ... --review-file <file>` as one `owner-feedback` finding (`feedback=F-n`).
+- **In the inbox** `.agentflow/feedback/`: any file, any time; `feedback.py scan` lists new and edited items.
+
+For each item, decide what it needs (often more than one), act before the next agent is dispatched, and
+record it:
+| It is... | Do |
+|---|---|
+| a convention, or a correction that will recur | dispatch `docs-gardener` in feedback mode with the owner's words verbatim, then `validator` on it. It updates the project docs, and when existing code contradicts the rule it marks that code legacy ("don't copy") in the doc |
+| input for work in flight | add it, verbatim, to that package's inputs for its next dispatch |
+| rework of a package in this run | re-open the package: re-dispatch its implementer (and tester) with the item, back through validator, done-check and review |
+| rework of work outside this run (merged, or an earlier run) | queue a rework run: `run.py new --source feedback:<item>`, started when the active run ends (now, if none is active) |
+| new work | queue a run the same way; its Intake review is the owner's approval |
+| unclear | ask the owner in the next review; set it `waiting` |
+
+- Inbox items: `feedback.py set <item> --status <in-progress|waiting|applied|declined> --action <...> --note
+  "<what you did, or why not>" --ref <run|F-n|sha>`. Review feedback: mark the `owner-feedback` finding fixed
+  once routed, citing where it went.
+- Every routed item appears in the owner's next review under **Your feedback, applied**: the doc and what
+  the rule now says, the package it went to, the queued run, or why it applied to that output only. The
+  Docs Gardener's change is approved there; batch it into the next pause rather than adding one.
+- With `redo` + feedback, dispatch the Docs Gardener first, then re-dispatch the agent, so the redone output
+  is produced from the updated docs and proves them. With `approve` + feedback, accept the output as it is
+  and apply the feedback from the next agent on.
+- The owner's words are the authority. Never soften, generalise away, or decline feedback silently: a
+  `declined` item names why, and the owner sees it.
 
 ## Models
 - Each agent's host file already carries the model for its tier (`tier:` in its frontmatter, mapped by

@@ -54,6 +54,16 @@ class InstallTests(unittest.TestCase):
         settings = json.loads((self.root / ".claude/settings.json").read_text(encoding="utf-8"))
         self.assertEqual(len(settings["hooks"]["PreToolUse"]), 1)
 
+    def test_feedback_inbox_is_created_once_and_owner_items_are_left_alone(self):
+        self.install("--host", "claude")
+        inbox = self.root / ".agentflow" / "feedback"
+        self.assertIn("Feedback inbox", (inbox / "README.md").read_text(encoding="utf-8"))
+        (inbox / "README.md").write_text("my own guide\n", encoding="utf-8")
+        (inbox / "idea.md").write_text("change X in Y.cs to Z\n", encoding="utf-8")
+        self.install("--host", "claude")
+        self.assertEqual((inbox / "README.md").read_text(encoding="utf-8"), "my own guide\n")
+        self.assertEqual((inbox / "idea.md").read_text(encoding="utf-8"), "change X in Y.cs to Z\n")
+
     def test_sync_regenerates_host_files_from_installed_copy(self):
         self.install("--host", "claude")
         agent = self.root / ".agentflow/agents/validator.agent.md"

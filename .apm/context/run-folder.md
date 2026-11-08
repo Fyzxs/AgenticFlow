@@ -10,6 +10,9 @@ it and writes its output back into it. `.agentflow/engine/run.py new` creates it
   abandoned/<run-id>/    stopped before a PR, with the reason in the ledger (--outcome abandoned)
 ```
 
+Beside the runs, `.agentflow/feedback/` is the owner's inbox: any file, any time, read by the Orchestrator
+at every run start and hand-off (`.agentflow/engine/feedback.py`). Handled items move to `feedback/done/`.
+
 ```
 <run-id>/
   input.md             the raw request: prompt text, or the work item id and its fetched content
@@ -29,7 +32,8 @@ it and writes its output back into it. `.agentflow/engine/run.py new` creates it
   compare.jsonl        model-compare records, when compare is enabled (.agentflow/engine/compare.py)
   review-requests.md   the owner's review requests for this run (editable any time)
   reviews/             one file per human review pause (.agentflow/templates/run/review-pending.md),
-                       named <package file stem>.<agent>.md or <stage>.<agent>.md (run.py packages)
+                       named <package file stem>.<agent>.md or <stage>.<agent>.md (run.py packages); the
+                       owner writes in its ## Human Feedback section, recorded as an owner-feedback finding
   reviews.jsonl        every review decision, with -less-review/-more-review level changes (.agentflow/engine/review.py)
   reports/shadow/      shadow outputs from model compares; never used by the run
   ledger.md            heartbeat: one line per stage transition (.agentflow/engine/run.py log)

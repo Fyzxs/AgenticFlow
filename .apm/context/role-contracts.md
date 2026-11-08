@@ -3,6 +3,9 @@
 Every agent in agentflow is exactly one of these roles. An agent file states its role in its first
 section and follows that role's contract.
 
+**Precedence** when sources disagree: the owner's feedback in your inputs, then the project docs, then
+existing code. When a doc marks a pattern legacy, do not copy it, however often it appears in the code.
+
 ## Implementor
 1. Read the files it was given, and only those (plus what they point to).
 2. Do the work.

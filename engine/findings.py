@@ -1,7 +1,7 @@
 """Append and list agentflow findings (schema: .apm/context/findings-schema.md).
 
   python -I engine/findings.py add --run <dir> --source validator --target implementer --kind agent-gap \
-      --severity major --summary "..." --evidence src/a.cs:12 [--evidence ...] [--rule "..."] [--fixed]
+      --severity major --summary "..." --evidence src/a.cs:12 [--evidence ...] [--rule "..."] [--fixed] [--detail "<full text>"]
   python -I engine/findings.py list --run <dir> [--kind agent-gap] [--target implementer]
 """
 
@@ -11,7 +11,7 @@ import pathlib
 import sys
 
 KINDS = ("instance", "agent-gap", "context-gap", "docs-drift", "flag", "flake", "env", "human-edit", "escalation",
-         "scope-request", "replan", "owner-decision")
+         "scope-request", "replan", "owner-decision", "owner-feedback")
 SEVERITIES = ("major", "medium", "minor", "observation")
 
 
@@ -56,6 +56,8 @@ def cmd_add(args) -> int:
         finding["rule"] = args.rule.strip()
     if args.fixed:
         finding["fixed"] = True
+    if getattr(args, "detail", None):
+        finding["detail"] = args.detail.strip()
     errors = validate(finding)
     if errors:
         print("finding rejected: " + "; ".join(errors), file=sys.stderr)
@@ -89,6 +91,7 @@ def main(argv=None) -> int:
     a.add_argument("--evidence", action="append")
     a.add_argument("--rule")
     a.add_argument("--fixed", action="store_true")
+    a.add_argument("--detail", help="full text, e.g. the owner's feedback verbatim")
     l = sub.add_parser("list")
     l.add_argument("--run", required=True)
     l.add_argument("--kind")
