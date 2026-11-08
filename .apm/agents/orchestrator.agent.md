@@ -78,6 +78,13 @@ Before handing any agent's output to the next agent (after its Validator), ask:
   `escalation` finding naming the agent and both tiers. If it is already `deep` (`capped=yes`), gate to
   the owner instead of retrying.
 - **Owner overrides** ("use Fable for the reviews") apply to this run only; note them in the ledger.
+- **Record the model on every report.** As each agent returns (validators and reviewers too), run
+  `python -I .agentflow/engine/run.py stamp <report> --agent <agent> --host <host>`, adding the `--up N` it
+  was escalated with, `--down` for a shadow output, or `--model <name>` for an owner override. It writes
+  `tier`, `model` and `escalated` into the report's frontmatter beside the agent's own `model_reported`.
+  When `model` says `inherit` or `auto`, the reported model is the only record of what actually ran.
+  Every review's **Done by** line comes from those fields. `run.py models <run>` prints the whole run's
+  table for the owner and the Curator.
 - **Model compare** (only when `config.json` → `compare.enabled`). Before dispatching an agent, run
   `python -I .agentflow/engine/compare.py should --run <run> --agent <agent>`. On `shadow=yes`:
   1. Dispatch the primary as normal. Its output is the run's output; the shadow never changes the run.

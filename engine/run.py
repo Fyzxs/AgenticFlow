@@ -10,6 +10,9 @@
   python -I engine/run.py packages <run-dir> [--current WP-04 [--agent implementer]]
       -> the plan with each package's status; with --current, "Package n of N: <title>", done packages, the next
          package, and (with --agent) the readable review file name reviews/<package file stem>.<agent>.md
+  python -I engine/run.py stamp <report> --agent <a> [--host claude] [--up N | --down] [--model <override>]
+      -> writes tier, model (host:model or host:inherit) and escalated into the report's frontmatter
+  python -I engine/run.py models <run-dir>      -> every report with its dispatched and self-reported model
 
 Runs live in .agentflow/runs/active/<id>/ while work is in flight, and move to runs/completed/<id>/ (a PR was
 delivered) or runs/abandoned/<id>/ (stopped, with the reason in the ledger) when closed. Only active runs are
@@ -148,6 +151,83 @@ def cmd_packages(args) -> int:
     print(f"where=Package {i + 1} of {len(packages)} ({cur['id']}): {cur['title']}")
     print(f"done={', '.join(done) or 'none yet'}")
     print("next_package=" + (f"{later[0]['id']}: {later[0]['title']}" if later else "none (last package)"))
+    return 0
+
+
+MODEL_KEYS = ("tier", "model", "model_reported", "escalated")
+
+
+def set_frontmatter(text: str, values: dict) -> str:
+    """Set keys in a report's frontmatter, replacing existing lines and appending missing ones."""
+    m = FRONTMATTER.match(text)
+    lines = m.group(1).splitlines() if m else []
+    body = text[m.end():] if m else text
+    for key, value in values.items():
+        new = f"{key}: {value}"
+        for i, line in enumerate(lines):
+            if re.match(r"^" + re.escape(key) + r":", line):
+                lines[i] = new
+                break
+        else:
+            lines.append(new)
+    return "---\n" + "\n".join(lines) + "\n---\n" + ("" if m else "\n") + body
+
+
+def report_meta(text: str) -> dict:
+    m = FRONTMATTER.match(text)
+    if not m:
+        return {}
+    return {k: re.sub(r"\s+#.*$", "", v).strip() for k, v in re.findall(r"^(\w[\w-]*):\s*(.*?)\s*$", m.group(1), re.M)}
+
+
+def cmd_stamp(args) -> int:
+    """Record which tier and model the Orchestrator dispatched an agent on, in its report's frontmatter."""
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    import models  # same folder: engine/ in the source repo, .agentflow/engine/ when installed
+    report = pathlib.Path(args.report)
+    if not report.exists():
+        print(f"no report {report}", file=sys.stderr)
+        return 2
+    root = repo_root(report.parent)
+    agent_file = root / ".agentflow" / "agents" / f"{args.agent}.agent.md"
+    declared = models.tier_of(agent_file.read_text(encoding="utf-8")) if agent_file.exists() else "standard"
+    if args.down:
+        low = models.shadow(declared, models.model_map(root, args.host))
+        used, model = low if low else (declared, "")
+    else:
+        used, model, _ = models.resolve(declared, models.model_map(root, args.host), args.up)
+    if args.model:  # an owner override for this run
+        model = args.model
+    text = report.read_text(encoding="utf-8")
+    values = {"tier": used, "model": f"{args.host}:{model or 'inherit'}",
+              "escalated": f"from {declared}" if used != declared and not args.down else "no"}
+    if args.down:
+        values["escalated"] = f"no (shadow, one below {declared})"
+    if args.model:
+        values["model"] += " (owner override)"
+    if "model_reported" not in report_meta(text):
+        values["model_reported"] = "unknown"
+    report.write_text(set_frontmatter(text, values), encoding="utf-8", newline="\n")
+    print(f"stamped {report.name}: tier={values['tier']} model={values['model']} escalated={values['escalated']}")
+    return 0
+
+
+def cmd_models(args) -> int:
+    """Every report in the run with the model it was done on: the table a human reads to tune tiers."""
+    run = pathlib.Path(args.run)
+    rows = []
+    for f in sorted((run / "reports").rglob("*.md")):
+        meta = report_meta(f.read_text(encoding="utf-8"))
+        rows.append((f.relative_to(run / "reports").as_posix(), meta.get("agent", "?"), meta.get("tier", "?"),
+                     meta.get("model", "not stamped"), meta.get("model_reported", "?"), meta.get("escalated", "?"),
+                     meta.get("result", "?")))
+    if not rows:
+        print(f"no reports in {run / 'reports'}", file=sys.stderr)
+        return 2
+    print("| report | agent | tier | model (dispatched) | model (reported) | escalated | result |")
+    print("|---|---|---|---|---|---|---|")
+    for r in rows:
+        print("| " + " | ".join(r) + " |")
     return 0
 
 
@@ -304,8 +384,17 @@ def main(argv=None) -> int:
     pk = sub.add_parser("packages")
     pk.add_argument("run"); pk.add_argument("--current", help="package id, e.g. WP-04")
     pk.add_argument("--agent", help="with --current: also print the review file name for this agent")
+    st = sub.add_parser("stamp")
+    st.add_argument("report"); st.add_argument("--agent", required=True)
+    st.add_argument("--host", default="claude", choices=["claude", "copilot"])
+    st.add_argument("--up", type=int, default=0, help="the escalation the agent was dispatched with")
+    st.add_argument("--down", action="store_true", help="a model-compare shadow output")
+    st.add_argument("--model", help="an owner override for this run: the model actually used")
+    md = sub.add_parser("models")
+    md.add_argument("run")
     args = p.parse_args(argv)
     return {"new": cmd_new, "log": cmd_log, "status": cmd_status, "packages": cmd_packages,
+            "stamp": cmd_stamp, "models": cmd_models,
             "checkpoint": cmd_checkpoint, "edits": cmd_edits, "close": cmd_close, "list": cmd_list}[args.cmd](args)
 
 

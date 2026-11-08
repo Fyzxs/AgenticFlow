@@ -79,6 +79,35 @@ class RunTests(TempRepo):
         self.assertNotIn("review_file", out)
         self.assertEqual(run("run.py", "packages", str(r), "--current", "WP-09")[0], 2)
 
+    def test_stamp_records_the_model_on_reports_and_models_lists_them(self):
+        r = self.new_run()
+        agents = self.root / ".agentflow" / "agents"
+        agents.mkdir(parents=True)
+        (agents / "implementer.agent.md").write_text("---\nname: implementer\ntier: standard\n---\n", encoding="utf-8")
+        (agents / "validator.agent.md").write_text("---\nname: validator\ntier: deep\n---\n", encoding="utf-8")
+        (self.root / ".agentflow" / "config.json").write_text(
+            json.dumps({"models": {"claude": {"deep": "opus", "standard": "sonnet", "fast": "haiku"}}}), encoding="utf-8")
+        impl = r / "reports" / "WP-01.implementer.md"
+        impl.write_text("---\nagent: implementer\ntarget: WP-01\nresult: done\n"
+                        "model_reported: claude-sonnet-5-5\n---\n\n# body\n", encoding="utf-8")
+        code, out = run("run.py", "stamp", str(impl), "--agent", "implementer")
+        self.assertEqual(code, 0, out)
+        text = impl.read_text(encoding="utf-8")
+        self.assertIn("tier: standard\nmodel: claude:sonnet\nescalated: no\n---\n\n# body", text)
+        self.assertIn("model_reported: claude-sonnet-5-5", text)  # the agent's own line is kept
+        code, out = run("run.py", "stamp", str(impl), "--agent", "implementer", "--up", "1")  # re-stamp replaces
+        self.assertIn("tier: deep\nmodel: claude:opus\nescalated: from standard", impl.read_text(encoding="utf-8"))
+        self.assertEqual(impl.read_text(encoding="utf-8").count("tier:"), 1)
+        val = r / "reports" / "WP-01.validator.implementer.md"
+        val.write_text("---\nagent: validator\nresult: pass\n---\n", encoding="utf-8")
+        run("run.py", "stamp", str(val), "--agent", "validator", "--model", "fable")
+        self.assertIn("model: claude:fable (owner override)", val.read_text(encoding="utf-8"))
+        self.assertIn("model_reported: unknown", val.read_text(encoding="utf-8"))
+        code, out = run("run.py", "models", str(r))
+        self.assertEqual(code, 0, out)
+        self.assertIn("| WP-01.implementer.md | implementer | deep | claude:opus | claude-sonnet-5-5 | from standard | done |", out)
+        self.assertIn("| WP-01.validator.implementer.md | validator | deep | claude:fable (owner override) | unknown | no | pass |", out)
+
 
 class CheckpointTests(TempRepo):
     def setUp(self):

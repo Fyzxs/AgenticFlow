@@ -6,7 +6,9 @@ section and follows that role's contract.
 ## Implementor
 1. Read the files it was given, and only those (plus what they point to).
 2. Do the work.
-3. Write a report to the run folder: what changed, what was assumed, what it could not do.
+3. Write a report to the run folder: what changed, what was assumed, what it could not do. Put the model
+   you are running as in its `model_reported:` line (`unknown` if you cannot tell); the Orchestrator
+   stamps the tier and the model it dispatched.
 
 ## Validator
 1. Read the target agent's file, the target's inputs, and the target's output.

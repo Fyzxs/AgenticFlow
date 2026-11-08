@@ -17,7 +17,8 @@ it and writes its output back into it. `.agentflow/engine/run.py new` creates it
   change-map.md        Code Indicator output (.agentflow/templates/run/change-map.md)
   work-packages/       Build Coordinator plan: one file per package (.agentflow/templates/run/work-package.md)
     WP-01-<segment>-<what>.md    e.g. WP-04-adapter-postgresql-exi-contract.md (status: in frontmatter)
-  reports/             one report per agent invocation (.agentflow/templates/run/report.md)
+  reports/             one report per agent invocation (.agentflow/templates/run/report.md); each records
+                       its tier, dispatched model and self-reported model (run.py stamp / run.py models)
     WP-01.implementer.md
     WP-01.tester.md
     WP-01.validator.implementer.md

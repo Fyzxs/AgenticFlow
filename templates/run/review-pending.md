@@ -10,6 +10,9 @@ Done: <WP-01, WP-02, ... or none yet>. Next: <the next step: this package's test
 <!-- Written by the Orchestrator when review.py needed says pause. Committed with the checkpoint, so the
      owner can read it, and the files it lists, in the repo or the PR. -->
 
+**Done by:** <agent> on <model from the report's frontmatter> (tier <tier>; the agent reported
+<model_reported>; escalated: <escalated>). The validator ran on <its model>.
+
 **What to look at**
 - `<path>` — <one line on what it is>
 
