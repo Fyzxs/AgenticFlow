@@ -63,7 +63,7 @@ UNRESOLVED (e.g. infrastructure → database → backend → frontend)
 ## Reviews
 <!-- Every agent's output can pause for your review before the next agent gets it. Levels per agent in
      config.json -> review: on (pause) -> notify (summary only) -> off. Everything starts at review.default
-     ("on"). Reply to any review with -less-review or -more-review to move that agent one level; only you can lower
+     ("on"). Whatever the level, every hand-off writes a review file you can comment in later. Reply to any review with -less-review or -more-review to move that agent one level; only you can lower
      a level. review.always forces reviews for risky segments or paths. Per run, ask in your request or edit
      the run's review-requests.md. See where every agent stands: python -I .agentflow/engine/review.py summary -->
 - Always review: UNRESOLVED (e.g. segments db-migration, iac; paths **/Auth/**)

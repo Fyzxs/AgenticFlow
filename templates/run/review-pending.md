@@ -7,8 +7,13 @@ Done: <WP-01, WP-02, ... or none yet>. Next: <the next step: this package's test
      with the review_file it prints (reviews/<package file stem>.<agent>.md), never the bare id.
      Stage reviews: reviews/<stage>.<agent>.md; say which stage and what comes after it. -->
 
-<!-- Written by the Orchestrator when review.py needed says pause. Committed with the checkpoint, so the
-     owner can read it, and the files it lists, in the repo or the PR. -->
+**Reply needed:** <yes — the run is waiting for you. | no — <agent> is at review level <notify|off>, so the run
+moved on to <the next step>. Read this whenever you like; anything you write under Human Feedback below is
+picked up at the next hand-off (or say "process feedback").>
+
+<!-- Written by the Orchestrator at EVERY hand-off, whatever review.py needed says: pause → "Reply needed: yes";
+     notify or no → "Reply needed: no", and drop the "Reply with one of" block (keep the level line). Committed
+     with the checkpoint, so the owner can read it, and the files it lists, in the repo or the PR. -->
 
 **Your feedback, applied** <!-- only when feedback was routed since your last review: each item (review
      feedback F-n, or an inbox file), what was done with it and where (doc path, package, queued run), or why
@@ -37,10 +42,15 @@ Done: <WP-01, WP-02, ... or none yet>. Next: <the next step: this package's test
 
 Add `-less-review` or `-more-review` to any reply to change how closely **<agent>** is reviewed from now on
 (current level: **<level>**; levels: on → notify → off).
+<!-- No-reply reviews say instead: "**<agent>** is at review level **<level>**. To have the run wait for you on
+     it again, say 'review <agent> again'." -->
 
 ## Human Feedback
-<!-- Write anything here, any length, before you reply: corrections, conventions, context. It is recorded with
-     your reply whatever you answer and acted on (docs updated, agents told, rework planned); you approve the
-     result in your next review. With approve it applies from the next agent on; with redo it also fixes this
-     output. Leave it empty for none. Feedback not about this review goes in .agentflow/feedback/. -->
+<!-- Write anything here, any length: corrections, conventions, context. On a review the run is waiting for,
+     write it before you reply; it is recorded with your reply whatever you answer. On a no-reply review, write
+     it any time, even after the run has finished; it is picked up at the next hand-off. Either way it is acted
+     on (docs updated, agents told, rework planned) and you approve the result in your next review. With approve
+     it applies from the next agent on; with redo, or written later about output that is wrong, the output is
+     reworked too. Edit it again later and it is picked up again. Leave it empty for none. Feedback not about
+     this output goes in .agentflow/feedback/. -->
 <write feedback here>

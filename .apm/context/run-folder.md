@@ -31,9 +31,11 @@ at every run start and hand-off (`.agentflow/engine/feedback.py`). Handled items
   findings.jsonl       every finding from every agent (.agentflow/engine/findings.py)
   compare.jsonl        model-compare records, when compare is enabled (.agentflow/engine/compare.py)
   review-requests.md   the owner's review requests for this run (editable any time)
-  reviews/             one file per human review pause (.agentflow/templates/run/review-pending.md),
-                       named <package file stem>.<agent>.md or <stage>.<agent>.md (run.py packages); the
-                       owner writes in its ## Human Feedback section, recorded as an owner-feedback finding
+  reviews/             one file per hand-off, whatever the review level (.agentflow/templates/run/review-pending.md;
+                       "Reply needed: yes" only when the run paused), named <package file stem>.<agent>.md or
+                       <stage>.<agent>.md (run.py packages); the owner writes in its ## Human Feedback section,
+                       before replying or any time later, recorded as an owner-feedback finding.
+                       .feedback-seen.json remembers what was recorded (feedback.py), so edits are picked up again
   reviews.jsonl        every review decision, with -less-review/-more-review level changes (.agentflow/engine/review.py)
   reports/shadow/      shadow outputs from model compares; never used by the run
   ledger.md            heartbeat: one line per stage transition (.agentflow/engine/run.py log)

@@ -28,9 +28,9 @@ code, never run builds or tests, and never review. You keep the run moving and k
    - at the start of the next stage, and whenever you resume after a gate or a new session:
      `python -I .agentflow/engine/run.py edits <run> --record`. If it lists files, the owner changed them:
      re-read them, treat the edited versions as authoritative, and mention the edits in the next heartbeat.
-5. **Process the feedback inbox** at the start of every run, at every hand-off, on resume, and whenever the
-   owner says "process feedback" (with or without a run): `python -I .agentflow/engine/feedback.py scan`.
-   See **Owner feedback** below.
+5. **Process owner feedback** at the start of every run, at every hand-off, on resume, and whenever the
+   owner says "process feedback" (with or without a run): `python -I .agentflow/engine/feedback.py scan`
+   lists new inbox items and review files with new or edited Human Feedback. See **Owner feedback** below.
 
 ## Stages
 
@@ -49,14 +49,19 @@ code, never run builds or tests, and never review. You keep the run moving and k
 Before handing any agent's output to the next agent (after its Validator), ask:
 `python -I .agentflow/engine/review.py needed --run <run> --agent <agent> --stage <stage> [--package WP-n]
 [--segment <segment>] [--paths <changed files>]`.
-- `review=no`: hand off.
-- `review=notify`: post the output's summary in your heartbeat and hand off without waiting.
-- `review=pause`: checkpoint, write the review from `.agentflow/templates/run/review-pending.md`, log
-  `gated` in the ledger, and stop with that review as one self-contained message. For a package, run
-  `python -I .agentflow/engine/run.py packages <run> --current <WP-n> --agent <agent>`: name the file with
-  its `review_file` (the package's readable file stem, never the bare id) and open the review with its
-  where / done / next lines, so the owner knows where the run is without opening the plan. For a stage:
-  `reviews/<stage>.<agent>.md`, saying what comes after the stage. When parallel packages finish together, batch their reviews into one pause.
+
+**Every hand-off writes a review file, whatever the answer**, from `.agentflow/templates/run/review-pending.md`,
+committed with the checkpoint. The level only decides whether the run waits; the file is how the owner reads
+any output later and comments on it in place. For a package, run
+`python -I .agentflow/engine/run.py packages <run> --current <WP-n> --agent <agent>`: name the file with its
+`review_file` (the package's readable file stem, never the bare id) and open the review with its where / done /
+next lines, so the owner knows where the run is without opening the plan. For a stage:
+`reviews/<stage>.<agent>.md`, saying what comes after the stage.
+- `review=no`: write the review with **Reply needed: no**, and hand off.
+- `review=notify`: the same, and post the output's summary and the review file's path in your heartbeat.
+- `review=pause`: checkpoint, write the review with **Reply needed: yes**, log `gated` in the ledger, and stop
+  with that review as one self-contained message. When parallel packages finish together, batch their
+  reviews into one pause.
   When the owner replies:
   1. `python -I .agentflow/engine/run.py edits <run> --record` (counts and records any edits);
   2. `python -I .agentflow/engine/review.py decide --run <run> --agent <agent> --target <target> --reply
@@ -68,16 +73,24 @@ Before handing any agent's output to the next agent (after its Validator), ask:
   The `-less-review` / `-more-review` flags in the reply already changed the agent's level; confirm it in one line.
 - **Mid-run review requests** ("review the migration", "pause before the PR", "autopilot") go into
   the run's `review-requests.md` in its syntax. Plain-language level changes ("stop reviewing the
-  tester") go through `review.py set-level --agent <a> --level <l> --reason "<the owner's words>"`.
+  tester", or "review the tester again" from a no-reply review) go through
+  `review.py set-level --agent <a> --level <l> --reason "<the owner's words>"`.
 - **Only the owner lowers review.** Never run `set-level` or pass `-less-review` without the owner's
-  words. When output from an agent whose level was `notify` or `off` later draws an owner edit or a
-  `major` finding, run `review.py regress --agent <a> --reason "<finding ids>"` and tell the owner.
+  words. When output from an agent whose level was `notify` or `off` later draws an owner edit, a `major`
+  finding, or owner feedback you route to **rework** (the output was wrong), run
+  `review.py regress --agent <a> --reason "<finding ids>"` and tell the owner. Feedback that only adds a
+  convention for the future (routed to docs or agent input) does not regress the agent.
 
 ## Owner feedback
 The owner's feedback is a signal for the flow to change itself. The owner never edits docs or agent files to
 make it stick; you route it and the owner approves the result. It arrives two ways:
 - **On a review**: the reply's note plus the review file's `## Human Feedback` section, recorded by
   `review.py decide ... --review-file <file>` as one `owner-feedback` finding (`feedback=F-n`).
+- **Later, in a review file**: a no-reply review (level `notify`/`off`), or one already answered and edited
+  again, in an active or completed run. `feedback.py scan` lists it as `review <path> ... (run=<run>
+  state=<state>)`; record it with `python -I .agentflow/engine/feedback.py record-review <path>`, which prints
+  `F-n run=... state=... agent=... target=...` (the finding goes in that review's run), then route it like
+  any review feedback. Rework of a package whose run is `completed` is a queued rework run, not a re-open.
 - **In the inbox** `.agentflow/feedback/`: any file, any time; `feedback.py scan` lists new and edited items.
 
 For each item, decide what it needs (often more than one), act before the next agent is dispatched, and

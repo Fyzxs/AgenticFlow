@@ -44,7 +44,8 @@ Design: https://claude.ai/artifact/SzJwCgeAbqtwCeWJLSAGhd (private to the owner)
 11. **Human review between hand-offs, earned down.** Every agent's output pauses for the owner by default.
     Reply `approve`, `continue`, `redo: ...` or `stop`, adding `-less-review` or `-more-review` to change that agent's
     level (on → notify → off). Only the owner lowers it; risky segments and per-run requests always pause.
-    Write anything in the review file's `## Human Feedback` section, or drop a file in `.agentflow/feedback/`
+    The level only decides whether the run waits: every hand-off still writes its review file.
+    Write anything in a review file's `## Human Feedback` section (now, or days later), or drop a file in `.agentflow/feedback/`
     at any time: the flow routes it (docs updated, agents told, rework or new work queued) and shows you what
     it did in your next review. You never edit docs or agent files to make feedback stick.
 12. **Bounded everything.** Review-fix loops stop after 2 rounds, context packs and agent files have size

@@ -63,6 +63,9 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("Reply (redo): fix the five asserts", finding["detail"])
         self.assertIn("Older tests use it; don't copy them.", finding["detail"])  # verbatim, all lines
         self.assertNotIn("Write anything here", finding["detail"])                # template comment stripped
+        scan = subprocess.run([PY, "-I", str(ENGINE / "feedback.py"), "scan", "--root", str(self.root)],
+                              capture_output=True, text=True).stdout
+        self.assertIn("reviews: 0 with new feedback", scan)  # recorded with the reply: not picked up twice
 
     def test_approve_with_feedback_is_recorded_and_empty_feedback_is_not(self):
         f = self.review_file("<write feedback here>")

@@ -64,6 +64,47 @@ class FeedbackTests(unittest.TestCase):
         self.assertTrue((self.inbox / "x.md").exists())  # reopened items leave done/
         self.assertIn("[in-progress] .agentflow/feedback/x.md", self.fb("list")[1])
 
+    def review(self, feedback, state="active", name="WP-02-api-sort.tester.md"):
+        run = self.root / ".agentflow" / "runs" / state / "20261108-run"
+        (run / "reviews").mkdir(parents=True, exist_ok=True)
+        (run / "findings.jsonl").touch()
+        f = run / "reviews" / name
+        f.write_text("# Review\n\n**Reply needed:** no\n\n## Human Feedback\n<!-- Write anything here -->\n"
+                     + feedback + "\n", encoding="utf-8")
+        return run, f
+
+    def findings(self, run):
+        import json
+        return [json.loads(l) for l in (run / "findings.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+
+    def test_review_feedback_written_later_is_found_recorded_once_and_again_when_edited(self):
+        run, f = self.review("<write feedback here>")
+        self.assertIn("reviews: 0 with new feedback", self.fb("scan")[1])  # placeholder only: nothing to do
+        run, f = self.review("No ! in these asserts.")
+        out = self.fb("scan")[1]
+        self.assertIn("review .agentflow/runs/active/20261108-run/reviews/WP-02-api-sort.tester.md: No ! in these "
+                      "asserts. (run=20261108-run state=active)", out)
+        self.assertIn("reviews: 1 with new feedback", out)
+        code, out = self.fb("record-review", str(f))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out, "F-1 run=20261108-run state=active agent=tester target=WP-02")
+        (finding,) = self.findings(run)
+        self.assertEqual((finding["kind"], finding["target"]), ("owner-feedback", "tester"))
+        self.assertTrue(finding["detail"].startswith("No ! in these asserts."))
+        self.assertIn("the run did not wait for it", finding["detail"])
+        self.assertIn("reviews: 0 with new feedback", self.fb("scan")[1])
+        self.assertIn("no new Human Feedback", self.fb("record-review", str(f))[1])
+        f.write_text(f.read_text(encoding="utf-8") + "Use nameof too.\n", encoding="utf-8")
+        self.assertIn("reviews: 1 with new feedback", self.fb("scan")[1])
+        self.assertTrue(self.fb("record-review", str(f))[1].startswith("F-2 "))
+        self.assertIn("edited since F-1", self.findings(run)[1]["detail"])
+
+    def test_completed_runs_are_scanned_and_stage_reviews_target_the_stage(self):
+        run, f = self.review("Brief should name the game.", state="completed", name="intake.work-summarizer.md")
+        self.assertIn("state=completed", self.fb("scan")[1])
+        self.assertEqual(self.fb("record-review", str(f))[1],
+                         "F-1 run=20261108-run state=completed agent=work-summarizer target=intake")
+
     def test_waiting_stays_in_the_inbox_and_bad_values_are_refused(self):
         item = self.inbox / "q.md"
         item.write_text("should the sort be per game?\n", encoding="utf-8")

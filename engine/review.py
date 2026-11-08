@@ -10,7 +10,9 @@
   python -I .agentflow/engine/review.py summary [--root .]
 
 Levels, per agent, in config.json -> review: on (pause for the owner), notify (post the summary, don't pause),
-off (no review). Every agent starts at review.default ("on").
+off (don't pause or post). Every agent starts at review.default ("on"). The level only decides whether the run
+waits: every hand-off writes a review file, so the owner can read any output later and comment under its
+`## Human Feedback` (picked up by feedback.py scan / record-review).
 
 An owner reply starts with approve | continue | redo | stop, and may carry -less-review or -more-review anywhere:
 it moves the reviewed agent's level one step (on <-> notify <-> off). Only the owner lowers a level; the
@@ -221,7 +223,11 @@ def cmd_decide(args) -> int:
     if after != before:
         commit_policy(root, args.agent, before, after, "owner")
     unchanged = " (already at the limit)" if adjust != "none" and after == before else ""
-    feedback = record_feedback(run, args, decision, note, human_feedback(args.review_file))
+    section = human_feedback(args.review_file)
+    feedback = record_feedback(run, args, decision, note, section)
+    if section and feedback != "none":
+        import feedback as inbox  # noqa: E402  (same engine folder)
+        inbox.mark_seen(args.review_file, feedback, section)  # feedback.py scan won't record it again
     print(f"decision={decision} adjust={adjust} level={before}->{after}{unchanged} feedback={feedback} note={note}")
     return 0
 

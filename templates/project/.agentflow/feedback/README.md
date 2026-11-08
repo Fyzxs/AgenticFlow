@@ -21,5 +21,6 @@ Every change it makes shows up in your next review under **Your feedback, applie
 Done items move to `done/`. Edit an item again later and it is picked up again. To see what's open and why:
 `python -I .agentflow/engine/feedback.py list`.
 
-For feedback on the work in front of you during a review, write it in that review file's `## Human Feedback`
-section instead.
+For feedback on one agent's output, write it in that output's review file instead, under `## Human Feedback`
+(`.agentflow/runs/<active|completed>/<run>/reviews/`). Every hand-off writes one, even when the run didn't wait
+for you, so you can comment on yesterday's output in place.

@@ -7,19 +7,31 @@
       -> records how the item was handled in its frontmatter; applied and declined items move to feedback/done/
   python -I .agentflow/engine/feedback.py list [--root .] [--all]
       -> open items (and with --all, done ones) with their status and note
+  python -I .agentflow/engine/feedback.py record-review <review file> [--root .]
+      -> records the file's ## Human Feedback as an owner-feedback finding in its run:
+         "F-n run=<run> state=<active|completed> agent=<a> target=<WP-n|stage>"
 
 The owner writes plain text; the system adds a frontmatter block (status, actions, note, refs, seen_hash, updated)
 and never edits the owner's words. seen_hash covers the text below the frontmatter, so an item the owner edits
 after it was handled shows up in scan again, even from done/ (it is reopened). README.md is the folder's guide,
 not an item.
+
+Review files: every hand-off writes one, whatever the agent's review level, so the owner can comment on any
+output later, in place. scan also lists review files (active and completed runs) whose `## Human Feedback`
+section is new or edited since it was last recorded: "review <path>: <first line> (run=<run> state=<state>)".
+What was recorded is kept in each run's reviews/.feedback-seen.json (review.py decide writes it too), so a
+section is recorded once, and again only when the owner edits it.
 """
 
 import argparse
 import datetime
 import hashlib
+import json
 import pathlib
 import re
 import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 STATUSES = ("in-progress", "waiting", "applied", "declined")
 ACTIONS = ("docs", "agent-input", "rework", "new-work", "none")
@@ -62,8 +74,89 @@ def first_line(body: str) -> str:
     return "(empty)"
 
 
+SEEN = ".feedback-seen.json"
+REVIEW_STATES = ("active", "completed")  # abandoned runs are not scanned
+
+
+def review_files(root: pathlib.Path) -> list:
+    runs = root / ".agentflow" / "runs"
+    return [f for state in REVIEW_STATES for f in sorted((runs / state).glob("*/reviews/*.md"))]
+
+
+def review_parts(review_file: pathlib.Path):
+    """reviews/<stem>.<agent>.md -> (run dir, state, agent, target): target is the WP id, or the stage."""
+    run = review_file.parent.parent
+    state = run.parent.name
+    stem, _, agent = review_file.name[:-len(".md")].rpartition(".")
+    m = re.match(r"WP-\d+", stem)
+    return run, state, agent or "unknown", (m.group(0) if m else stem or review_file.stem)
+
+
+def load_seen(run: pathlib.Path) -> dict:
+    path = run / "reviews" / SEEN
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except ValueError:
+        return {}
+
+
+def mark_seen(review_file, finding: str, section: str):
+    """Remember which Human Feedback text was recorded for a review file, and as which finding."""
+    review_file = pathlib.Path(review_file)
+    run = review_file.parent.parent
+    seen = load_seen(run)
+    seen[review_file.name] = {"hash": body_hash(section), "finding": finding}
+    path = run / "reviews" / SEEN
+    path.write_text(json.dumps(seen, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+
+
+def unseen_section(review_file: pathlib.Path):
+    """The review's Human Feedback text when it is new or edited since last recorded, else None."""
+    from review import human_feedback  # noqa: E402  (same engine folder)
+    section = human_feedback(review_file)
+    if not section:
+        return None
+    entry = load_seen(review_file.parent.parent).get(review_file.name) or {}
+    return None if entry.get("hash") == body_hash(section) else section
+
+
+def cmd_record_review(args) -> int:
+    root = pathlib.Path(args.root).resolve()
+    f = pathlib.Path(args.review_file)
+    if not f.is_absolute():
+        f = (root / f) if (root / f).exists() else f.resolve()
+    if not f.exists():
+        print(f"no review file {args.review_file}", file=sys.stderr)
+        return 2
+    section = unseen_section(f)
+    if section is None:
+        print(f"{f.name}: no new Human Feedback")
+        return 0
+    from review import record_feedback  # noqa: E402
+    run, state, agent, target = review_parts(f)
+    earlier = (load_seen(run).get(f.name) or {}).get("finding")
+    lead = (f"Written in the review file after hand-off (edited since {earlier}); the run did not wait for it."
+            if earlier else "Written in the review file after hand-off; the run did not wait for it.")
+    finding = record_feedback(run, argparse.Namespace(agent=agent, target=target, review_file=str(f)),
+                              "late", "", f"{section}\n\n({lead})")
+    if finding == "none":
+        print(f"could not record feedback from {f.name}", file=sys.stderr)
+        return 2
+    mark_seen(f, finding, section)
+    print(f"{finding} run={run.name} state={state} agent={agent} target={target}")
+    return 0
+
+
 def cmd_scan(args) -> int:
     root = pathlib.Path(args.root).resolve()
+    reviews = 0
+    for f in review_files(root):
+        section = unseen_section(f)
+        if section is None:
+            continue
+        reviews += 1
+        run, state, _, _ = review_parts(f)
+        print(f"review {f.relative_to(root).as_posix()}: {first_line(section)} (run={run.name} state={state})")
     pending = 0
     for f in items(root):
         meta, body = split(f.read_text(encoding="utf-8"))
@@ -78,6 +171,7 @@ def cmd_scan(args) -> int:
         pending += 1
         print(f"{state} {f.relative_to(root).as_posix()}: {first_line(body)}")
     print(f"inbox: {pending} to process")
+    print(f"reviews: {reviews} with new feedback")
     return 0
 
 
@@ -141,8 +235,9 @@ def main(argv=None) -> int:
     st.add_argument("--action", action="append", required=True, choices=ACTIONS)
     st.add_argument("--note", required=True); st.add_argument("--ref", action="append")
     ls = sub.add_parser("list"); ls.add_argument("--root", default="."); ls.add_argument("--all", action="store_true")
+    rr = sub.add_parser("record-review"); rr.add_argument("review_file"); rr.add_argument("--root", default=".")
     args = p.parse_args(argv)
-    return {"scan": cmd_scan, "set": cmd_set, "list": cmd_list}[args.cmd](args)
+    return {"scan": cmd_scan, "set": cmd_set, "list": cmd_list, "record-review": cmd_record_review}[args.cmd](args)
 
 
 if __name__ == "__main__":
