@@ -1,6 +1,7 @@
 ---
 id: WP-01
 segment: <segment>
+status: planned          # planned | building | done; the Build Coordinator keeps it current
 depends_on: []
 blocks: []
 ---

@@ -48,9 +48,12 @@ Before handing any agent's output to the next agent (after its Validator), ask:
 [--segment <segment>] [--paths <changed files>]`.
 - `review=no`: hand off.
 - `review=notify`: post the output's summary in your heartbeat and hand off without waiting.
-- `review=pause`: checkpoint, write `reviews/<target>.<agent>.md` from
-  `.agentflow/templates/run/review-pending.md`, log `gated` in the ledger, and stop with that review as
-  one self-contained message. When parallel packages finish together, batch their reviews into one pause.
+- `review=pause`: checkpoint, write the review from `.agentflow/templates/run/review-pending.md`, log
+  `gated` in the ledger, and stop with that review as one self-contained message. For a package, run
+  `python -I .agentflow/engine/run.py packages <run> --current <WP-n> --agent <agent>`: name the file with
+  its `review_file` (the package's readable file stem, never the bare id) and open the review with its
+  where / done / next lines, so the owner knows where the run is without opening the plan. For a stage:
+  `reviews/<stage>.<agent>.md`, saying what comes after the stage. When parallel packages finish together, batch their reviews into one pause.
   When the owner replies:
   1. `python -I .agentflow/engine/run.py edits <run> --record` (counts and records any edits);
   2. `python -I .agentflow/engine/review.py decide --run <run> --agent <agent> --target <target> --reply

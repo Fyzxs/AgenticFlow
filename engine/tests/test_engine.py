@@ -54,6 +54,31 @@ class RunTests(TempRepo):
         r = self.new_run()
         self.assertEqual(run("run.py", "log", str(r), "intake", "finished", "x")[0], 2)
 
+    def write_package(self, r, stem, segment, title, status=None):
+        pid = stem[:5]
+        fm = f"---\nid: {pid}\nsegment: {segment}\n" + (f"status: {status}\n" if status else "") + "---\n\n"
+        (r / "work-packages" / f"{stem}.md").write_text(f"{fm}# {pid} — {segment}: {title}\n", encoding="utf-8")
+
+    def test_packages_gives_readable_review_name_and_position(self):
+        r = self.new_run()
+        self.write_package(r, "WP-01-db-migration-add-column", "db-migration", "adds the column", "done")
+        self.write_package(r, "WP-02-api-sort-field", "api", "the sort field", "building")
+        self.write_package(r, "WP-03-web-sort-menu", "web", "the sort menu")
+        code, out = run("run.py", "packages", str(r))
+        self.assertEqual(code, 0, out)
+        self.assertIn("2/3 WP-02  building api: the sort field", out)
+        self.assertIn("3/3 WP-03  planned  web: the sort menu", out)
+        code, out = run("run.py", "packages", str(r), "--current", "WP-02", "--agent", "implementer")
+        self.assertEqual(code, 0, out)
+        self.assertIn("review_file=reviews/WP-02-api-sort-field.implementer.md", out)
+        self.assertIn("where=Package 2 of 3 (WP-02): api: the sort field", out)
+        self.assertIn("done=WP-01", out)
+        self.assertIn("next_package=WP-03: web: the sort menu", out)
+        code, out = run("run.py", "packages", str(r), "--current", "WP-03")
+        self.assertIn("next_package=none (last package)", out)
+        self.assertNotIn("review_file", out)
+        self.assertEqual(run("run.py", "packages", str(r), "--current", "WP-09")[0], 2)
+
 
 class CheckpointTests(TempRepo):
     def setUp(self):

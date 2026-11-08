@@ -16,7 +16,7 @@ it and writes its output back into it. `.agentflow/engine/run.py new` creates it
   brief.md             Work Summarizer output (.agentflow/templates/run/brief.md)
   change-map.md        Code Indicator output (.agentflow/templates/run/change-map.md)
   work-packages/       Build Coordinator plan: one file per package (.agentflow/templates/run/work-package.md)
-    WP-01-<segment>.md
+    WP-01-<segment>-<what>.md    e.g. WP-04-adapter-postgresql-exi-contract.md (status: in frontmatter)
   reports/             one report per agent invocation (.agentflow/templates/run/report.md)
     WP-01.implementer.md
     WP-01.tester.md
@@ -27,7 +27,8 @@ it and writes its output back into it. `.agentflow/engine/run.py new` creates it
   findings.jsonl       every finding from every agent (.agentflow/engine/findings.py)
   compare.jsonl        model-compare records, when compare is enabled (.agentflow/engine/compare.py)
   review-requests.md   the owner's review requests for this run (editable any time)
-  reviews/             one file per human review pause (.agentflow/templates/run/review-pending.md)
+  reviews/             one file per human review pause (.agentflow/templates/run/review-pending.md),
+                       named <package file stem>.<agent>.md or <stage>.<agent>.md (run.py packages)
   reviews.jsonl        every review decision, with -less-review/-more-review level changes (.agentflow/engine/review.py)
   reports/shadow/      shadow outputs from model compares; never used by the run
   ledger.md            heartbeat: one line per stage transition (.agentflow/engine/run.py log)

@@ -16,8 +16,12 @@ description: Plan mode (Locate) -- splits change-map.md into work packages, one 
 - `.agentflow/feature-flags.md`
 
 ## Outputs
-- plan mode: `work-packages/WP-<n>-<segment>.md` from `.agentflow/templates/run/work-package.md`
-- execute mode: a status line per package in the ledger; contract-check results
+- plan mode: `work-packages/WP-<nn>-<segment>-<what>.md` from `.agentflow/templates/run/work-package.md`.
+  `<nn>` is the build order, two digits; `<what>` is 2 to 5 kebab-case words a person can read without
+  opening the file (`WP-04-adapter-postgresql-exi-contract`, not `WP-04-adapter-postgresql`). The file stem
+  names the package everywhere a person sees it: reviews, reports, the PR.
+- execute mode: a status line per package in the ledger, and its frontmatter `status:` kept current
+  (`building` when dispatched, `done` when its done-check passes); contract-check results
 
 ## Runs when
 Locate (plan), then Build (execute).

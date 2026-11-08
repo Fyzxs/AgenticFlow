@@ -7,6 +7,9 @@
   python -I engine/run.py edits <run-dir> [--record]                          -> lists files changed since the last checkpoint
   python -I engine/run.py close <run-dir> --outcome completed|abandoned [--note "PR #12"]
   python -I engine/run.py list [--root .]                                      -> active runs with their last ledger line
+  python -I engine/run.py packages <run-dir> [--current WP-04 [--agent implementer]]
+      -> the plan with each package's status; with --current, "Package n of N: <title>", done packages, the next
+         package, and (with --agent) the readable review file name reviews/<package file stem>.<agent>.md
 
 Runs live in .agentflow/runs/active/<id>/ while work is in flight, and move to runs/completed/<id>/ (a PR was
 delivered) or runs/abandoned/<id>/ (stopped, with the reason in the ledger) when closed. Only active runs are
@@ -98,6 +101,53 @@ def cmd_status(args) -> int:
     rows = [l for l in (run / "ledger.md").read_text(encoding="utf-8").splitlines() if l.startswith("| 20")]
     for line in rows[-args.lines:]:
         print(line)
+    return 0
+
+
+PACKAGE_STATUSES = ("planned", "building", "done")
+FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.S)
+
+
+def read_packages(run: pathlib.Path) -> list:
+    """Work packages in plan order: id, file stem, segment, title (the heading after the id), status."""
+    out = []
+    for f in sorted((run / "work-packages").glob("WP-*.md")):
+        text = f.read_text(encoding="utf-8")
+        fm = FRONTMATTER.match(text)
+        meta = dict(re.findall(r"^(\w[\w-]*):\s*(.*?)\s*$", fm.group(1), re.M)) if fm else {}
+        pid = meta.get("id") or re.match(r"(WP-\d+)", f.stem).group(1)
+        heading = re.search(r"^#\s+(.+)$", text, re.M)
+        title = heading.group(1).strip() if heading else f.stem
+        title = re.sub(r"^" + re.escape(pid) + r"\s*[—–-]\s*", "", title)
+        status = meta.get("status", "planned")
+        out.append({"id": pid, "stem": f.stem, "segment": meta.get("segment", ""), "title": title,
+                    "status": status if status in PACKAGE_STATUSES else "planned"})
+    return out
+
+
+def cmd_packages(args) -> int:
+    run = pathlib.Path(args.run)
+    packages = read_packages(run)
+    if not packages:
+        print(f"no work packages in {run / 'work-packages'}", file=sys.stderr)
+        return 2
+    if not args.current:
+        for i, p in enumerate(packages, start=1):
+            print(f"{i}/{len(packages)} {p['id']:6} {p['status']:8} {p['title']}")
+        return 0
+    ids = [p["id"] for p in packages]
+    if args.current not in ids:
+        print(f"unknown package {args.current}; packages: {', '.join(ids)}", file=sys.stderr)
+        return 2
+    i = ids.index(args.current)
+    cur = packages[i]
+    done = [p["id"] for p in packages if p["status"] == "done"]
+    later = [p for p in packages[i + 1:] if p["status"] != "done"]
+    if args.agent:
+        print(f"review_file=reviews/{cur['stem']}.{args.agent}.md")
+    print(f"where=Package {i + 1} of {len(packages)} ({cur['id']}): {cur['title']}")
+    print(f"done={', '.join(done) or 'none yet'}")
+    print("next_package=" + (f"{later[0]['id']}: {later[0]['title']}" if later else "none (last package)"))
     return 0
 
 
@@ -251,8 +301,11 @@ def main(argv=None) -> int:
     l.add_argument("run"); l.add_argument("stage"); l.add_argument("status"); l.add_argument("note")
     s = sub.add_parser("status")
     s.add_argument("run"); s.add_argument("--lines", type=int, default=8)
+    pk = sub.add_parser("packages")
+    pk.add_argument("run"); pk.add_argument("--current", help="package id, e.g. WP-04")
+    pk.add_argument("--agent", help="with --current: also print the review file name for this agent")
     args = p.parse_args(argv)
-    return {"new": cmd_new, "log": cmd_log, "status": cmd_status,
+    return {"new": cmd_new, "log": cmd_log, "status": cmd_status, "packages": cmd_packages,
             "checkpoint": cmd_checkpoint, "edits": cmd_edits, "close": cmd_close, "list": cmd_list}[args.cmd](args)
 
 
