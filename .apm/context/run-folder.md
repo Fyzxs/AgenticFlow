@@ -28,7 +28,7 @@ it and writes its output back into it. `.agentflow/engine/run.py new` creates it
   compare.jsonl        model-compare records, when compare is enabled (.agentflow/engine/compare.py)
   review-requests.md   the owner's review requests for this run (editable any time)
   reviews/             one file per human review pause (.agentflow/templates/run/review-pending.md)
-  reviews.jsonl        every review decision, with -reduce/-increase level changes (.agentflow/engine/review.py)
+  reviews.jsonl        every review decision, with -less-review/-more-review level changes (.agentflow/engine/review.py)
   reports/shadow/      shadow outputs from model compares; never used by the run
   ledger.md            heartbeat: one line per stage transition (.agentflow/engine/run.py log)
   .gitignore           keeps raw logs out of git

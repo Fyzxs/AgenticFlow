@@ -42,7 +42,7 @@ Design: https://claude.ai/artifact/SzJwCgeAbqtwCeWJLSAGhd (private to the owner)
     that run. Optional model compare (off by default; it doubles shadowed tokens) runs a tier below as a
     shadow, so the Curator can propose moving down only when the cheaper tier has proven itself.
 11. **Human review between hand-offs, earned down.** Every agent's output pauses for the owner by default.
-    Reply `approve`, `continue`, `redo: ...` or `stop`, adding `-reduce` or `-increase` to change that agent's
+    Reply `approve`, `continue`, `redo: ...` or `stop`, adding `-less-review` or `-more-review` to change that agent's
     level (on → notify → off). Only the owner lowers it; risky segments and per-run requests always pause.
 12. **Bounded everything.** Review-fix loops stop after 2 rounds, context packs and agent files have size
    budgets, and the Curator's patches are validated before they land.
@@ -68,7 +68,7 @@ engine/                      host-neutral Python 3 scripts (stdlib only)
   install.py                 install into a repo (.agentflow/ + host files), or --sync host files after edits
   models.py                  agent tier -> model per host (config.json models), escalation (--up), shadow (--down)
   compare.py                 model compare: whether to shadow a dispatch, record and score it, summarise
-  review.py                  human review between hand-offs: needed?, reply parsing (-reduce/-increase), levels
+  review.py                  human review between hand-offs: needed?, reply parsing (-less-review/-more-review), levels
   hooks/                     tool-call guards (Claude Code adapter today)
   tests/                     python -I engine/tests/run_all.py
 templates/

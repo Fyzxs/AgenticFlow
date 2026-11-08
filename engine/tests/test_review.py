@@ -1,4 +1,4 @@
-"""Tests for engine/review.py: when to pause, reply parsing with -reduce/-increase, levels, graduation."""
+"""Tests for engine/review.py: when to pause, reply parsing with -less-review/-more-review, levels, graduation."""
 
 import json
 import pathlib
@@ -49,26 +49,27 @@ class ReviewTests(unittest.TestCase):
             self.assertEqual(self.needed(agent), "review=pause reason=agent-level level=on")
 
     def test_reduce_and_increase_step_the_ladder_from_any_reply(self):
-        self.assertIn("level=on->notify", self.decide("approve -reduce")[1])
+        self.assertIn("level=on->notify", self.decide("approve -less-review")[1])
         self.assertEqual(self.level("implementer"), "notify")
         self.assertEqual(self.needed(), "review=notify reason=agent-level level=notify")
-        self.assertIn("level=notify->off", self.decide("continue -reduce")[1])
-        self.assertIn("level=off->off (already at the limit)", self.decide("approve -reduce")[1])
+        self.assertIn("level=notify->off", self.decide("continue -less-review")[1])
+        self.assertIn("level=off->off (already at the limit)", self.decide("approve -less-review")[1])
         self.assertEqual(self.needed(), "review=no reason=agent-level level=off")
-        code, out = self.decide("redo: tests miss the null case -increase")
+        code, out = self.decide("redo: tests miss the null case -more-review")
         self.assertEqual(code, 0)
-        self.assertIn("decision=redo adjust=increase level=off->notify note=tests miss the null case", out)
-        self.assertIn("decision=stop adjust=increase level=notify->on", self.decide("stop -increase")[1])
+        self.assertIn("decision=redo adjust=more-review level=off->notify note=tests miss the null case", out)
+        self.assertIn("decision=stop adjust=more-review level=notify->on", self.decide("stop -more-review")[1])
         self.assertIn("review level for implementer", subprocess.run(
             ["git", "log", "-1", "--format=%s"], cwd=self.root, capture_output=True, text=True).stdout)
 
     def test_reply_errors(self):
         self.assertEqual(self.decide("looks good")[0], 2)
-        self.assertEqual(self.decide("approve -reduce -increase")[0], 2)
+        self.assertEqual(self.decide("approve -less-review -more-review")[0], 2)
         self.assertEqual(self.decide("")[0], 2)
+        self.assertEqual(self.decide("approve -reduce")[0], 2)  # retired name: refused, not read as a note
 
     def test_run_requests_and_always_rules_beat_levels_and_autopilot(self):
-        self.decide("approve -reduce"); self.decide("approve -reduce")  # implementer now off
+        self.decide("approve -less-review"); self.decide("approve -less-review")  # implementer now off
         (self.run_dir / "review-requests.md").write_text(
             "- autopilot\n- review: package=WP-03\n- review: path=**/Auth/**\n", encoding="utf-8")
         self.assertEqual(self.needed(), "review=no reason=autopilot level=off")
@@ -81,12 +82,12 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("always:path=infra/main.bicep", self.needed("implementer", "--paths", "infra/main.bicep"))
 
     def test_review_all_request(self):
-        self.decide("approve -reduce"); self.decide("approve -reduce")
+        self.decide("approve -less-review"); self.decide("approve -less-review")
         (self.run_dir / "review-requests.md").write_text("- review: all\n", encoding="utf-8")
         self.assertIn("run-request:all", self.needed())
 
     def test_regress_only_raises_and_set_level(self):
-        self.decide("approve -reduce")
+        self.decide("approve -less-review")
         self.assertIn("level=notify->on", self.rv("regress", "--agent", "implementer", "--reason", "F-4 major",
                                                  "--root", str(self.root))[1])
         self.assertIn("unchanged", self.rv("regress", "--agent", "implementer", "--reason", "x", "--root", str(self.root))[1])
@@ -102,7 +103,7 @@ class ReviewTests(unittest.TestCase):
             self.decide("approve")
         out = self.rv("summary", "--root", str(self.root))[1]
         self.assertIn("implementer", out)
-        self.assertIn("clean-streak=3 -> 3 clean approvals in a row: consider replying -reduce", out)
+        self.assertIn("clean-streak=3 -> 3 clean approvals in a row: consider replying -less-review", out)
 
 
 if __name__ == "__main__":

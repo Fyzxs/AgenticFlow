@@ -3,7 +3,7 @@
   python -I .agentflow/engine/review.py needed --run <dir> --agent <name> [--stage S] [--package WP-02]
       [--segment SEG] [--paths p1 p2 ...]          -> "review=pause|notify|no reason=<why> level=<level>"
   python -I .agentflow/engine/review.py decide --run <dir> --agent <name> --target <WP-02|stage> --reply "<owner reply>"
-      [--edited N]                                  -> "decision=<d> adjust=<reduce|increase|none> level=<a>-><b> note=<...>"
+      [--edited N]                                  -> "decision=<d> adjust=<less-review|more-review|none> level=<a>-><b> note=<...>"
   python -I .agentflow/engine/review.py set-level --agent <name> --level on|notify|off --reason "<owner's words>"
   python -I .agentflow/engine/review.py regress --agent <name> --reason "<evidence>"   (system: raise to on)
   python -I .agentflow/engine/review.py summary [--root .]
@@ -11,7 +11,7 @@
 Levels, per agent, in config.json -> review: on (pause for the owner), notify (post the summary, don't pause),
 off (no review). Every agent starts at review.default ("on").
 
-An owner reply starts with approve | continue | redo | stop, and may carry -reduce or -increase anywhere:
+An owner reply starts with approve | continue | redo | stop, and may carry -less-review or -more-review anywhere:
 it moves the reviewed agent's level one step (on <-> notify <-> off). Only the owner lowers a level; the
 system may raise one on evidence (regress), never lower it.
 
@@ -128,6 +128,9 @@ def cmd_needed(args) -> int:
     return 0
 
 
+FLAG_WORDS = ("-less-review", "--less-review", "-more-review", "--more-review")
+
+
 def parse_reply(reply: str):
     words = reply.strip().split()
     if not words:
@@ -135,15 +138,19 @@ def parse_reply(reply: str):
     decision = words[0].lower().rstrip(":,.")
     if decision not in DECISIONS:
         raise ValueError(f"a reply starts with one of: {', '.join(DECISIONS)}")
-    flags = {w.lower().lstrip("-") for w in words if w.lower() in ("-reduce", "--reduce", "-increase", "--increase")}
+    lowered = [w.lower() for w in words]
+    retired = [w for w in lowered if w.lstrip("-") in ("reduce", "increase") and w.startswith("-")]
+    if retired:
+        raise ValueError(f"{retired[0]} was renamed: use -less-review or -more-review")
+    flags = {w.lstrip("-") for w in lowered if w in FLAG_WORDS}
     if len(flags) > 1:
-        raise ValueError("use -reduce or -increase, not both")
-    note = " ".join(w for w in words[1:] if w.lower() not in ("-reduce", "--reduce", "-increase", "--increase"))
+        raise ValueError("use -less-review or -more-review, not both")
+    note = " ".join(w for w in words[1:] if w.lower() not in FLAG_WORDS)
     return decision, (flags.pop() if flags else "none"), note.lstrip(":").strip()
 
 
 def step(level: str, adjust: str) -> str:
-    i = LADDER.index(level) + (1 if adjust == "increase" else -1 if adjust == "reduce" else 0)
+    i = LADDER.index(level) + (1 if adjust == "more-review" else -1 if adjust == "less-review" else 0)
     return LADDER[max(0, min(i, len(LADDER) - 1))]
 
 
@@ -153,7 +160,7 @@ def cmd_decide(args) -> int:
     try:
         decision, adjust, note = parse_reply(args.reply)
     except ValueError as e:
-        print(f"reply not understood: {e}. Examples: 'approve', 'approve -reduce', 'redo: tests miss nulls -increase'",
+        print(f"reply not understood: {e}. Examples: 'approve', 'approve -less-review', 'redo: tests miss nulls -more-review'",
               file=sys.stderr)
         return 2
     _, _, review = load_config(root)
@@ -223,7 +230,7 @@ def cmd_summary(args) -> int:
         level = level_of(review, agent)
         hint = ""
         if level != "off" and streak >= review["graduate_after"]:
-            hint = f" -> {streak} clean approvals in a row: consider replying -reduce on its next review"
+            hint = f" -> {streak} clean approvals in a row: consider replying -less-review on its next review"
         print(f"{agent:24} level={level:6} reviews={len(mine):3} clean-streak={streak}{hint}")
     return 0
 

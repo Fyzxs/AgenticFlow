@@ -58,11 +58,11 @@ Before handing any agent's output to the next agent (after its Validator), ask:
   3. act on `decision=`: approve/continue → hand off (edited files are authoritative); redo → re-dispatch the
      agent with the note as an extra input; stop → `run.py close --outcome abandoned`. If the reply is not
      understood (exit 2), show the owner the reply options again.
-  The `-reduce` / `-increase` flags in the reply already changed the agent's level; confirm it in one line.
+  The `-less-review` / `-more-review` flags in the reply already changed the agent's level; confirm it in one line.
 - **Mid-run review requests** ("review the migration", "pause before the PR", "autopilot") go into
   the run's `review-requests.md` in its syntax. Plain-language level changes ("stop reviewing the
   tester") go through `review.py set-level --agent <a> --level <l> --reason "<the owner's words>"`.
-- **Only the owner lowers review.** Never run `set-level` or pass `-reduce` without the owner's
+- **Only the owner lowers review.** Never run `set-level` or pass `-less-review` without the owner's
   words. When output from an agent whose level was `notify` or `off` later draws an owner edit or a
   `major` finding, run `review.py regress --agent <a> --reason "<finding ids>"` and tell the owner.
 

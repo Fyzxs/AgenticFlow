@@ -20,5 +20,5 @@
 - `redo: <what's wrong>` — the agent re-runs with your note
 - `stop` — abandon the run
 
-Add `-reduce` or `-increase` to any reply to change how closely **<agent>** is reviewed from now on
+Add `-less-review` or `-more-review` to any reply to change how closely **<agent>** is reviewed from now on
 (current level: **<level>**; levels: on → notify → off).

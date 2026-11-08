@@ -42,7 +42,7 @@ REVIEW_REQUESTS = """# Review requests for this run
        - review: package=WP-03         - review: segment=db-migration     - review: agent=implementer
        - review: stage=deliver          - review: path=**/Auth/**          - review: all
        - autopilot                      (skip agent-level reviews this run; config review.always still applies)
-     Replying to any review with -reduce or -increase changes that agent's level for future runs. -->
+     Replying to any review with -less-review or -more-review changes that agent's level for future runs. -->
 """
 RUNS_MODE = re.compile(r"^\s*-?\s*Runs:\s*`?(commit|local)`?", re.M | re.I)
 LEDGER_HEADER = "# Ledger\n\n| time (UTC) | stage | status | note |\n|---|---|---|---|\n"
