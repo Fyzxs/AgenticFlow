@@ -153,6 +153,7 @@ def cmd_record_review(args) -> int:
     if not f.exists():
         print(f"no review file {args.review_file}", file=sys.stderr)
         return 2
+    f = f.resolve()  # one spelling of the path as root: on Windows a short (8.3) name can't be compared to a long one
     section = unseen_section(f)
     if section is None:
         print(f"{f.name}: no new Human Feedback")
@@ -208,6 +209,7 @@ def cmd_set(args) -> int:
     if not f.exists():
         print(f"no feedback item {args.item}", file=sys.stderr)
         return 2
+    f = f.resolve()  # one spelling of the path as root: on Windows a short (8.3) name can't be compared to a long one
     meta, body, digest, binary = read_item(root, f)
     meta.update({
         "status": args.status,

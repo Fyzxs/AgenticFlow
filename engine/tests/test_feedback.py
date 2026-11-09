@@ -135,6 +135,21 @@ class FeedbackTests(unittest.TestCase):
         done.write_bytes(data + b"\x00more")
         self.assertIn("changed .fyzxsflow/feedback/done/screen.png", self.fb("scan")[1])
 
+    @unittest.skipUnless(sys.platform == "win32", "8.3 short names are a Windows feature")
+    def test_set_accepts_an_item_path_spelled_with_a_short_name(self):
+        import ctypes
+        buf = ctypes.create_unicode_buffer(1024)
+        if not ctypes.windll.kernel32.GetShortPathNameW(str(self.root), buf, 1024) or buf.value == str(self.root):
+            self.skipTest("no 8.3 short name for the temp folder")
+        short_root = pathlib.Path(buf.value)
+        shot = short_root / ".fyzxsflow" / "feedback" / "screen.png"
+        shot.write_bytes(b"\x89PNG\r\n\x1a\n\x00\xff")
+        proc = subprocess.run([PY, "-I", str(ENGINE / "feedback.py"), "set", str(shot), "--status", "applied",
+                               "--action", "rework", "--note", "done", "--root", str(short_root)],
+                              capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertTrue((self.inbox / "done" / "screen.png").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
