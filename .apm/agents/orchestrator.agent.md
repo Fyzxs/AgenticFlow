@@ -28,7 +28,12 @@ code, never run builds or tests, and never review. You keep the run moving and k
    - at the start of the next stage, and whenever you resume after a gate or a new session:
      `python -I .fyzxsflow/package/engine/run.py edits <run> --record`. If it lists files, the owner changed them:
      re-read them, treat the edited versions as authoritative, and mention the edits in the next heartbeat.
-5. **Process owner feedback** at the start of every run, at every hand-off, on resume, and whenever the
+5. **Steps.** After Intake (the request may switch steps for this run), run
+   `python -I .fyzxsflow/package/engine/steps.py list --run <run>` and put its `off:` line in the heartbeat. Before dispatching anything the table below marks *(step: name)*, run
+   `python -I .fyzxsflow/package/engine/steps.py enabled <name> --run <run>`. Exit 1 means it is off: don't dispatch
+   it, write no review for it, and log `<stage> skipped "<name> off (<source>)"`. Its done-when condition no
+   longer applies. Everything without a step name is the core of the flow and always runs.
+6. **Process owner feedback** at the start of every run, at every hand-off, on resume, and whenever the
    owner says "process feedback" (with or without a run): `python -I .fyzxsflow/package/engine/feedback.py scan`
    lists new inbox items and review files with new or edited Human Feedback. See **Owner feedback** below.
 
@@ -39,11 +44,17 @@ code, never run builds or tests, and never review. You keep the run moving and k
 | 1 | Intake | `work-summarizer`, then `validator` on it | `input.md`, profile | `brief.md` validated |
 | 2 | Locate | `code-indicator` + validator; `build-coordinator` (plan mode) + validator; then `.fyzxsflow/package/engine/ac_trace.py --run <run>` | brief, docs index, `feature-flags.md` | `change-map.md` and `work-packages/` validated; every acceptance criterion served by a package |
 | — | Plan gate | owner, **only if** the brief or packages contain an `owner-decision` finding or an unflaggable change | the decisions, each self-contained | answered |
-| 3 | Build | `build-coordinator` (execute mode); IaC packages go to `iac-implementer` | `work-packages/` | every package's done-check green, then Runner `--ci` green and `gate-analyst --stage ci` recommends move-on |
-| 4 | Prove | `http-generator` + validator, then Runner `--http` | API diff | only if the change-map lists an API surface |
-| 5 | Review | the reviewers the change-map names, in parallel; always `reviewer-narrow` and `reviewer-large`, plus `reviewer-feature-flag` when flags are required; `reviewer-iac` when IaC changed | diff, their docs | no `major` findings left |
-| 6 | Deliver | Runner `--extreme`; `gate-analyst --stage extreme` and `--stage pre-pr`; `.fyzxsflow/package/engine/ac_trace.py --run <run> --require-evidence`; then `pr-producer` + validator; `pr-reviewer` | all reports | every gate passed or moved on, every criterion met with evidence, PR open |
-| 7 | Learn | `curator`, then `validator` on the Curator | `findings.jsonl`, PR comments | patches applied or proposed |
+| 3 | Build | `build-coordinator` (execute mode); IaC packages go to `iac-implementer` | `work-packages/` | every package's done-check green, then Runner `--ci` green and `gate-analyst --stage ci` *(step: gates)* recommends move-on |
+| 4 | Prove | `http-generator` + validator, then Runner `--http` *(step: http-proofs)* | API diff | only if the change-map lists an API surface |
+| 5 | Review | the reviewers the change-map names, in parallel; always `reviewer-narrow` and `reviewer-large`, plus `reviewer-feature-flag` when flags are required; `reviewer-iac` when IaC changed. Each is a step: `review-narrow`, `review-large`, `review-architecture`, `review-security`, `review-feature-flag`, `review-iac` | diff, their docs | no `major` findings left |
+| 6 | Deliver | Runner `--extreme` *(step: extreme)*; `gate-analyst --stage extreme` and `--stage pre-pr` *(step: gates)*; `.fyzxsflow/package/engine/ac_trace.py --run <run> --require-evidence`; then `pr-producer` + validator *(step: pr)*; `pr-reviewer` *(steps: pr, pr-review)* | all reports | every gate passed or moved on, every criterion met with evidence, PR open (with `pr` off: the run branch committed and ready) |
+| 7 | Learn | `docs-gardener` after-run mode *(step: docs-upkeep)*; `curator`, then `validator` on the Curator *(step: learn)* | `findings.jsonl`, PR comments | patches applied or proposed |
+
+The owner can switch steps off for the project (`config.json` → `steps.off`) or for one run. Plain-language
+requests ("no PR this time", "skip the security review") go through
+`steps.py set <name> off --run <run> --reason "<the owner's words>"`. "Never run the PR agents" without a
+run in mind is a project change: `steps.py set <name> off --reason "<the owner's words>"`. Only the owner
+switches a step off. When `review-feature-flag` is off while flags are required, say so in the next review.
 
 ## Human review between hand-offs
 Before handing any agent's output to the next agent (after its Validator), ask:
@@ -169,7 +180,7 @@ options with their cost, and your recommendation. Never use bare ids.
 Close the run: `python -I .fyzxsflow/package/engine/run.py close <run> --outcome completed --note "<PR link>"`
 (or `--outcome abandoned --note "<why>"` when the owner stops it). Only `close` moves a run out of `active/`.
 
-End with one line: `Run <id>: PR <link or "ready">. Flags: <names, default off | not-required: revert by <path>>. Findings: <n> (<n> applied
+End with one line: `Run <id>: PR <link | "ready" | "off: branch <name> ready">. Skipped: <steps that were off, or none>. Flags: <names, default off | not-required: revert by <path>>. Findings: <n> (<n> applied
 by the Curator). Deploy: <components in order>.`
 
 ## Learned

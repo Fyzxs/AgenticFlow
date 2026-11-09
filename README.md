@@ -95,6 +95,29 @@ Copilot.
 
 Install again at any time to upgrade. Your project's files are never overwritten.
 
+### Turning steps off
+
+Everything outside the core (intake, planning, build, validation, build and test checks) can be switched
+off. For the whole project, list the steps in `.fyzxsflow/config.json`:
+
+```json
+"steps": { "off": ["pr", "learn"] }
+```
+
+For one run, say it in your request ("no PR this time", "skip the security review"). See where every step
+stands with `python -I .fyzxsflow/package/engine/steps.py list`.
+
+| Step | While it is off |
+|---|---|
+| `pr` | no pull request; the run ends with its branch committed and ready |
+| `pr-review` | the PR opens without the agent's whole-PR review |
+| `reviews` | no reviewers (or one at a time: `review-narrow`, `review-large`, `review-architecture`, `review-security`, `review-feature-flag`, `review-iac`) |
+| `http-proofs` | API changes are proven by tests only |
+| `gates` | the flow doesn't run your linters and scanners (CI still does) |
+| `extreme` | no strict sign-off build; the CI-equivalent run is the last check |
+| `docs-upkeep` | docs aren't refreshed after the run (your feedback still updates them) |
+| `learn` | findings are kept but not turned into agent or doc changes |
+
 ### What lands in your repo
 
 ```

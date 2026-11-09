@@ -33,6 +33,8 @@ at every run start and hand-off (`.fyzxsflow/package/engine/feedback.py`). Handl
   findings.jsonl       every finding from every agent (.fyzxsflow/package/engine/findings.py)
   compare.jsonl        model-compare records, when compare is enabled (.fyzxsflow/package/engine/compare.py)
   review-requests.md   the owner's review requests for this run (editable any time)
+  steps.json           this run's step overrides ({"off": [...], "on": [...]}), written only by steps.py set --run;
+                       steps.jsonl logs each change with the owner's words
   reviews/             one file per hand-off, whatever the review level (.fyzxsflow/package/templates/run/review-pending.md;
                        "Reply needed: yes" only when the run paused), named <package file stem>.<agent>.md or
                        <stage>.<agent>.md (run.py packages); the owner writes in its ## Human Feedback section,

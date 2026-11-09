@@ -68,6 +68,13 @@ UNRESOLVED (e.g. infrastructure → database → backend → frontend)
      the run's review-requests.md. See where every agent stands: python -I .fyzxsflow/package/engine/review.py summary -->
 - Always review: UNRESOLVED (e.g. segments db-migration, iac; paths **/Auth/**)
 
+## Steps
+<!-- Optional parts of the flow, all on by default. Switch them off for the project in config.json -> steps.off
+     (e.g. ["pr"] to end every run with a ready branch instead of a PR), or for one run by saying so in your
+     request ("no PR this time"). Steps: http-proofs, gates, reviews (or review-narrow, review-large,
+     review-architecture, review-security, review-feature-flag, review-iac), extreme, pr, pr-review,
+     docs-upkeep, learn. See them: python -I .fyzxsflow/package/engine/steps.py list -->
+
 ## Runs
 - Runs: commit
 <!-- commit (default): every run folder is committed at each stage checkpoint, so the brief, plan, reports and

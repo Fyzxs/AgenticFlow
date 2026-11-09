@@ -37,6 +37,9 @@
     },
     "graduate_after": 10
   },
+  "steps": {
+    "off": []
+  },
   "gates_policy": {
     "inferred_acceptance_criteria_need_owner": false
   },

@@ -27,6 +27,7 @@ Always; first stage.
 - An assumption that would change the design becomes an `owner-decision` finding. Everything else proceeds on the assumption.
 - Use the glossary's vocabulary. Restate the goal in one sentence at the top.
 - If the owner's request asks for reviews ("let me review the migration", "pause before the PR", "autopilot"), append them to the run's `review-requests.md` in its syntax, quoting the owner. Never invent one.
+- If the owner's request switches a step on or off for this run ("no PR this time", "skip the security review", "do open a PR"), run `python -I .fyzxsflow/package/engine/steps.py set <step> on|off --run <run> --reason "<the owner's words>"` (step names: `steps.py list`). Never infer one.
 - If the owner's request says whether to feature-flag this work ("no feature flag for this one", "flag this"), set the brief's `flags:` to `not-required (owner)` or `required (owner)` and quote the words. Never infer it; otherwise leave `flags: project-policy`.
 
 ## Learned
