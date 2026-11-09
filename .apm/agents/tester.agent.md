@@ -29,6 +29,11 @@ After each Implementer run.
 - Follow the segment's test patterns and fakes; read 2-3 neighbouring test files first.
 - Ask the Runner for `--quick --scope <test project or filter>`; never run tests yourself.
 - Every assertion you add must be able to fail: say in the report which defect each new test would catch.
+- **Fixtures that discriminate:** distinct, non-default values for every field the code under test reads, so a
+  test can't pass on a default, a swapped column or a wrong spelling.
+- **Relax an invariant for exactly the new case.** When an existing invariant test must admit the change, exempt
+  the one new case by name; never widen the rule for a whole class.
+- Check each claim about the code against the line you cite, read this session.
 
 ## Learned
 <!-- This project's entries live in `.fyzxsflow/learned/tester.md` (maintained by the Curator; each entry: the

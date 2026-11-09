@@ -79,6 +79,10 @@
           "run": "UNRESOLVED: copied verbatim from the CI pipeline"
         },
         {
+          "name": "run-ids",
+          "run": "python -I .fyzxsflow/package/engine/checks.py run-ids --base main"
+        },
+        {
           "name": "docs-and-pointers",
           "run": "python -I .fyzxsflow/package/engine/docs_check.py && python -I .fyzxsflow/package/engine/pointers.py --check"
         }
@@ -127,7 +131,8 @@
       "steps": [
         {
           "name": "seed",
-          "run": "UNRESOLVED: load the data the proofs need (fixtures or ingestion), or set not_applicable"
+          "run": "UNRESOLVED: load the data the proofs need (fixtures or ingestion), or set not_applicable",
+          "fail_if_output": "UNRESOLVED: regex for the tool's failure report when it can exit 0 with failures, or remove this key"
         }
       ],
       "lock": "local-db"

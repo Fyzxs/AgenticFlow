@@ -31,7 +31,11 @@ The single Implementer is only as good as the context it is handed. You write th
    - `seed`: load the data proofs need (fixtures, or an ingestion command).
    Mark every step that wipes or replaces local state `"destructive": true`, in any mode. A capability
    the repo truly lacks gets `"not_applicable": "<why>"`; one you cannot find stays `UNRESOLVED`.
-   **Never** set `allow_destructive`: that is the owner's call. Derive `quick` (scoped) from the same commands. Draft
+   **Never** set `allow_destructive`: that is the owner's call. Every mode that writes the local database
+   gets `"lock": "local-db"`, so two of them never run at once. A step whose tool can exit 0 while reporting
+   failures (ingestion, import and seed commands often do: read its source or its output format) gets a
+   `fail_if_output` regex for that report, so a lossy run fails. Add `checks.py run-ids --base <the default
+   branch>` as a `ci` step. Derive `quick` (scoped) from the same commands. Draft
    `extreme` as `ci` plus the strictest options the toolchain supports, and mark it `"draft": true` for
    the owner to confirm. Define `http` only if the repo has API proof files.
 3. **Architecture.** Layers, boundaries and dependency direction, as the code shows them (project

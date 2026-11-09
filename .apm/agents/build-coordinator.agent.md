@@ -36,6 +36,16 @@ Locate (plan), then Build (execute).
 - Execute mode does not re-plan. A wrong plan becomes a `replan` finding back to Locate.
 - Per package: Implementer, Validator on it, Tester, Validator on it. Then the package's done-check via the Runner.
 - Independent packages may run in parallel only in separate worktrees, and only the Runner runs builds or tests.
+- **No broken window:** after every package the build compiles and the tests pass. A change that every
+  implementer of an interface must pick up at once stays in one package.
+- **Shared registries:** a package that changes a shared registry or contract has a done-check whose scope covers
+  every reader of it, not only the package's own segment.
+- **Every test-strategy bullet** in the change map maps to a package criterion. A package that says "no new test"
+  names the defect that existing tests would catch, or it gets a test.
+- **Quote from the source:** code, queries, orders and behaviour of a sibling that a package quotes are copied from
+  the file, with its path:line.
+- **Waves:** packages that can run before any package depending on them form a wave. The Orchestrator batches the
+  owner's reviews per wave, so plan waves on purpose: put risky packages in an early wave of their own.
 
 ## Learned
 <!-- This project's entries live in `.fyzxsflow/learned/build-coordinator.md` (maintained by the Curator; each entry: the

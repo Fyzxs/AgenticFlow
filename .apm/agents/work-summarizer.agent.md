@@ -26,6 +26,13 @@ Always; first stage.
 - **The brief must carry acceptance criteria.** Number them `AC-1`, `AC-2`…, make each checkable (pass or fail by observing behaviour), one behaviour per criterion, and tag each `(stated)` or `(inferred)`. A prompt or a thin work item usually has none: infer them from the goal and tag them `(inferred)`.
 - An assumption that would change the design becomes an `owner-decision` finding. Everything else proceeds on the assumption.
 - Use the glossary's vocabulary. Restate the goal in one sentence at the top.
+- When the request names no surface ("sort the cards"), write criteria for the surfaces that reach the behaviour
+  through a shared seam, and list the others as out of scope with the reason; don't invent criteria for every
+  screen.
+- Any syntax you quote in a criterion (a query, a command, a filter) is checked against its definition in the
+  repo, cited.
+- A criterion withdrawn after review stays in the brief as an HTML comment (`<!-- withdrawn AC-7: <old text> —
+  <why> -->`), so its number is never reused and `ac_trace.py` doesn't count it.
 - If the owner's request asks for reviews ("let me review the migration", "pause before the PR", "autopilot"), append them to the run's `review-requests.md` in its syntax, quoting the owner. Never invent one.
 - If the owner's request switches a step on or off for this run ("no PR this time", "skip the security review", "do open a PR"), run `python -I .fyzxsflow/package/engine/steps.py set <step> on|off --run <run> --reason "<the owner's words>"` (step names: `steps.py list`). Never infer one.
 - If the owner's request says whether to feature-flag this work ("no feature flag for this one", "flag this"), set the brief's `flags:` to `not-required (owner)` or `required (owner)` and quote the words. Never infer it; otherwise leave `flags: project-policy`.

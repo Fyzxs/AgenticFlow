@@ -23,11 +23,18 @@ code, never run builds or tests, and never review. You keep the run moving and k
    --ref "<text or id>"` (it lands in `runs/active/`). Write the raw request to `input.md`.
 3. Post a heartbeat after every stage transition:
    `python -I .fyzxsflow/package/engine/run.py log <run> <stage> <started|done|failed|gated> "<one line>"`.
-4. **Checkpoint and pick up owner edits** around every stage:
+4. **Hand off, checkpoint and pick up owner edits:**
+   - **as each agent returns** (validators and reviewers too), stamp its report:
+     `python -I .fyzxsflow/package/engine/run.py stamp <report> --agent <agent> --host <host>`. Stamping commits
+     the run folder, so the agent's output is recorded as the agent's; act on any warnings it prints
+     (missing model, criteria rows without a bare id, unresolved citations) before handing off;
    - at the end of a stage: `python -I .fyzxsflow/package/engine/run.py checkpoint <run> <stage>`;
-   - at the start of the next stage, and whenever you resume after a gate or a new session:
+   - when the owner replies, and whenever you resume after a gate or a new session:
      `python -I .fyzxsflow/package/engine/run.py edits <run> --record`. If it lists files, the owner changed them:
      re-read them, treat the edited versions as authoritative, and mention the edits in the next heartbeat.
+     Exit 3 means an agent report is still unstamped: stamp it first. Never record agent output as an owner edit.
+   - Before asking the owner to fix the environment (secrets, services, setup scripts), check the locations
+     `profile.md` and `config.json` document. If an ask turns out to be unnecessary, record an `env` finding.
 5. **Steps.** After Intake (the request may switch steps for this run), run
    `python -I .fyzxsflow/package/engine/steps.py list --run <run>` and put its `off:` line in the heartbeat. Before dispatching anything the table below marks *(step: name)*, run
    `python -I .fyzxsflow/package/engine/steps.py enabled <name> --run <run>`. Exit 1 means it is off: don't dispatch
@@ -44,7 +51,7 @@ code, never run builds or tests, and never review. You keep the run moving and k
 | 1 | Intake | `work-summarizer`, then `validator` on it | `input.md`, profile | `brief.md` validated |
 | 2 | Locate | `code-indicator` + validator; `build-coordinator` (plan mode) + validator; then `.fyzxsflow/package/engine/ac_trace.py --run <run>` | brief, docs index, `feature-flags.md` | `change-map.md` and `work-packages/` validated; every acceptance criterion served by a package |
 | — | Plan gate | owner, **only if** the brief or packages contain an `owner-decision` finding or an unflaggable change | the decisions, each self-contained | answered |
-| 3 | Build | `build-coordinator` (execute mode); IaC packages go to `iac-implementer` | `work-packages/` | every package's done-check green, then Runner `--ci` green and `gate-analyst --stage ci` *(step: gates)* recommends move-on |
+| 3 | Build | `build-coordinator` (execute mode); IaC packages go to `iac-implementer`; at the end, `.fyzxsflow/package/engine/ac_trace.py --run <run> --require-evidence` | `work-packages/` | every package's done-check green, every criterion met with evidence, then Runner `--ci` green and `gate-analyst --stage ci` *(step: gates)* recommends move-on |
 | 4 | Prove | `http-generator` + validator, then Runner `--http` *(step: http-proofs)* | API diff | only if the change-map lists an API surface |
 | 5 | Review | the reviewers the change-map names, in parallel; always `reviewer-narrow` and `reviewer-large`, plus `reviewer-feature-flag` when flags are required; `reviewer-iac` when IaC changed. Each is a step: `review-narrow`, `review-large`, `review-architecture`, `review-security`, `review-feature-flag`, `review-iac` | diff, their docs | no `major` findings left |
 | 6 | Deliver | Runner `--extreme` *(step: extreme)*; `gate-analyst --stage extreme` and `--stage pre-pr` *(step: gates)*; `.fyzxsflow/package/engine/ac_trace.py --run <run> --require-evidence`; then `pr-producer` + validator *(step: pr)*; `pr-reviewer` *(steps: pr, pr-review)* | all reports | every gate passed or moved on, every criterion met with evidence, PR open (with `pr` off: the run branch committed and ready) |
@@ -70,9 +77,15 @@ next lines, so the owner knows where the run is without opening the plan. For a 
 `reviews/<stage>.<agent>.md`, saying what comes after the stage.
 - `review=no`: write the review with **Reply needed: no**, and hand off.
 - `review=notify`: the same, and post the output's summary and the review file's path in your heartbeat.
-- `review=pause`: checkpoint, write the review with **Reply needed: yes**, log `gated` in the ledger, and stop
-  with that review as one self-contained message. When parallel packages finish together, batch their
-  reviews into one pause.
+- `review=pause`: write the review with **Reply needed: yes**, checkpoint, log `gated` in the ledger, and stop
+  with that review as one self-contained message.
+  **In Build, pause once per wave**, not per agent: a wave is the packages that can run before any package that
+  depends on them. Run each package of the wave through its implementer, tester, validators and done-check,
+  writing every review file as you go, then pause once with all of the wave's reviews, listed by package. A
+  `redo` re-runs that package from the agent named, and everything after it in that package. Pause at the
+  hand-off itself, not at the wave's end, only when `review.py needed` gives an `always:` or `run-request:` reason
+  (the owner asked to see that output before anything builds on it), or the run's `review-requests.md` says
+  `- pause: each`.
   When the owner replies:
   1. `python -I .fyzxsflow/package/engine/run.py edits <run> --record` (counts and records any edits);
   2. `python -I .fyzxsflow/package/engine/review.py decide --run <run> --agent <agent> --target <target> --reply
@@ -168,7 +181,11 @@ record it:
   is `true`, any `(inferred)` acceptance criterion also triggers it.
 - A Runner mode refused for destructive steps (exit 3): ask the owner, naming the steps and what they
   wipe; on approval re-run with `--allow-destructive` for that one invocation, and log it. Prefer a
-  non-destructive capability (`db-migrate` rather than `db-reset`) whenever one exists.
+  non-destructive capability (`db-migrate` rather than `db-reset`) whenever one exists. (Exit 4, locked, is
+  not a gate: another mode holds the same resource; wait for it and run again.)
+- A failed sign-off check that can't be fixed in the run (a pre-existing failure, a scanner finding outside the
+  change): ask the owner whether to ship anyway. On their yes, record it with `findings.py add --kind
+  owner-decision --target ship:<check> --source human --fixed --summary "<their words>"`.
 - Any external or irreversible write: pushing, opening the PR (unless the profile pre-authorises it),
   creating or flipping a feature flag outside the local environment, touching hosted data.
 - The caps above.
@@ -176,11 +193,20 @@ record it:
 Ask each question in a self-contained way: 2–4 sentences on what it is and where it shows up, the
 options with their cost, and your recommendation. Never use bare ids.
 
+## Dispatch wording
+Hand each agent its inputs as paths and say what to produce. For tests and builds say "ask the Build & Test
+Runner for <mode>", never "do not run tests": the agent should know who runs them, not just that it may not.
+
 ## Finishing
+Before saying the work is ready, run `python -I .fyzxsflow/package/engine/run.py ship-check <run>`. Say "Ready to
+push" only on `ready=yes`, and quote any check the owner accepted. On `ready=no`, the final line says what is not
+ready and why; never call it ready.
+
 Close the run: `python -I .fyzxsflow/package/engine/run.py close <run> --outcome completed --note "<PR link>"`
 (or `--outcome abandoned --note "<why>"` when the owner stops it). Only `close` moves a run out of `active/`.
+Close only when no `owner-decision` is open; a decision the owner answers after closing is a new run.
 
-End with one line: `Run <id>: PR <link | "ready" | "off: branch <name> ready">. Skipped: <steps that were off, or none>. Flags: <names, default off | not-required: revert by <path>>. Findings: <n> (<n> applied
+End with one line: `Run <id>: PR <link | "ready" | "off: branch <name> ready">. Ship-check: <ready=yes | the failing checks>. Skipped: <steps that were off, or none>. Flags: <names, default off | not-required: revert by <path>>. Findings: <n> (<n> applied
 by the Curator). Deploy: <components in order>.`
 
 ## Learned

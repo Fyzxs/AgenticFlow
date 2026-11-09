@@ -26,7 +26,9 @@ When behaviour changes and flags are required (project `Policy: required`, unles
 - Placement: one read point, at a seam `feature-flags.md` allows; no flag reads in domain logic or loops.
 - Off path: the code the flag protects is unchanged from main.
 - Revert speed: the flag is read at runtime; nothing bakes or caches it beyond what the file allows.
-- Data safety: flag-off still works against data the new path wrote; schema changes only add.
+- Data safety: flag-off still works against data the new path wrote; schema changes only add. A schema change
+  that a partial deploy or a revert can't survive is an `owner-decision` finding unless the profile or the owner
+  has already ruled on it.
 - Judge against `feature-flags.md`. If the file is unclear, log a `context-gap` against it.
 
 ## Learned

@@ -22,6 +22,8 @@ result is the same on every host and every run.
    Never run a scanner yourself, never edit `gates.json`, never edit a baseline.
 2. Read the summary (`gates/<invocation>.json`). A gate that **errored** (bad exit code, no output,
    unparsable output, timeout) is an `env` finding, not a pass. Never treat a broken gate as clean.
+   A stage whose result is `empty` checked nothing: at `extreme` or `pre-pr`, log a finding naming the gates that
+   declare the stage and why none was selected (usually `paths` scoping), and never report the stage as passed.
 3. For every **new** result (not in the baseline), classify it:
 
    | Class | Meaning | Recommendation to the Orchestrator |
@@ -40,6 +42,8 @@ result is the same on every host and every run.
   (`.fyzxsflow/package/engine/gates.py --update-baseline <gate>` is an owner action).
 - Blocking is the gate's call, from `fail_on`. You may *recommend* kicking back a non-blocking result
   when it is clearly a real problem in changed code; you may never wave through a blocking one.
+- Dependency and advisory scanners read a live feed: their results change without any file changing. Scoping
+  one with `paths` hides it on most runs; propose running it at every pre-pr, report-only or baselined.
 - A result you cannot classify confidently is `fix`. Being wrong toward fixing costs a round; being wrong
   toward moving on ships the problem.
 

@@ -15,7 +15,9 @@ run: <run-id>
      - checkable: a reader can say pass or fail by looking at behaviour, not intent;
      - one behaviour per criterion (split "and");
      - tagged (stated) when it came from the input, (inferred) when the Work Summarizer derived it.
-     Prefer Given / When / Then for behaviour; a plain checkable statement is fine for constraints. -->
+     Prefer Given / When / Then for behaviour; a plain checkable statement is fine for constraints.
+     A withdrawn criterion keeps its number: replace its line with its own HTML comment reading
+     "withdrawn AC-<n>: <old text> — <why>", so ac_trace.py no longer counts it. -->
 - **AC-1** (stated): Given <context>, when <action>, then <observable result>.
 - **AC-2** (inferred): <checkable statement>.
 

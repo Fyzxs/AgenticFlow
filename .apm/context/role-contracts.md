@@ -29,7 +29,9 @@ existing code. When a doc marks a pattern legacy, do not copy it, however often 
 ## Runner
 1. Know how to start, build and test the system, from `.fyzxsflow/config.json`.
 2. Run the requested mode through `.fyzxsflow/package/engine/runner.py`.
-3. Trust only exit codes and counts, never output text.
+3. Judge by the runner's verdict (exit codes plus the step's declared `fail_if_output` / `expect_output`
+   checks), never by reading output yourself. A tool that exits 0 while reporting failures needs a declared
+   check: propose one rather than reading around it.
 4. Classify each failure and route it.
 5. It is the only agent that runs builds or tests. (Linters and scanners run through the Gate Analyst
    and `.fyzxsflow/package/engine/gates.py`; nobody else runs tools directly.)
@@ -52,5 +54,21 @@ existing code. When a doc marks a pattern legacy, do not copy it, however often 
   Orchestrator raises questions to the owner, and only at a gate.
 - Never run builds or tests yourself; ask the Build & Test Runner.
 - Stay inside your scope. Need something outside it? Report a `scope-request` finding.
-- Cite evidence as `path:line`. A claim without a location is not a finding.
+- Cite evidence as `path:line`, from the file as you read it this session. A claim without a location is not
+  a finding. `run.py stamp` and the Validator check every citation (`.fyzxsflow/package/engine/checks.py
+  citations`).
+- **Every fact in a report comes from something you ran or read this session**: a command's output, a file
+  you opened. Counts, "only", "all" and "none" claims are checked with a command, and the command is named.
+- **Copy, don't recall.** Code, SQL, error text, orders and positions you quote come from the source, copied.
+  Say whether a position is 0- or 1-based.
+- **Findings** go only through `.fyzxsflow/package/engine/findings.py`. Read the run's `findings.jsonl` first
+  and don't log a duplicate: `findings.py amend <F-n>` updates one. `--fixed` means the target itself was
+  corrected, not that a fix is planned.
+- **Rework updates the report in place**: its criteria and change tables show the current state, not a
+  history to reconcile.
+- **Criteria rows start with the bare id** (`AC-3`, `WP-02.1`) in the first cell; `ac_trace.py` reads nothing
+  else.
+- **Run ids stay in the run.** No finding, criterion or package ids (`F-12`, `AC-3`, `WP-04.2`) and no run-folder
+  paths in product code, tests or product docs: they mean nothing once the run folder is gone
+  (`checks.py run-ids`).
 - Write your report even when you fail. A failed run with a good report is useful; a silent one is not.

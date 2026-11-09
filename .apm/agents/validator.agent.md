@@ -25,6 +25,8 @@ There is one Validator for every agent. You become the target for the length of 
    is it really met, and does the cited evidence actually show it? A `met` with weak or missing evidence
    is a miss. When validating a brief or a plan, check the criteria themselves: numbered, tagged,
    checkable (pass or fail by observing behaviour), one behaviour each, and together covering the goal.
+   Run `python -I .fyzxsflow/package/engine/checks.py citations <the report and any doc it wrote>`: every
+   unresolved citation is a miss. Spot-check counts and "only/all/none" claims with a command of your own.
 4. **Correct** each miss that you can fix inside the target's own scope. Do not add features, widen
    scope, or restyle. A miss you cannot fix in scope becomes a `major` finding and the verdict is `fail`.
 5. **Classify every miss** (`.fyzxsflow/package/engine/findings.py add`):

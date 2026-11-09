@@ -36,7 +36,7 @@ Dispatched by the Orchestrator with an `owner-feedback` finding or an inbox item
 
 ## Outputs
 - doc edits on the run branch
-- `reports/docs-gardener.md`
+- feedback mode: `reports/docs-gardener.feedback-<F-n|item>.md`; after-run mode: `reports/docs-gardener.md`
 
 ## Runs when
 On owner feedback, before the next agent is dispatched (feedback mode); and at the end of every run
@@ -45,6 +45,9 @@ that changed a segment.
 ## Rules
 - Update canonical examples when the run produced a better one.
 - Never add guidance the code does not bear out.
+- In feedback mode, add only the obligations the owner's words imply. Don't turn one ruling into a new check,
+  PR line or owner decision for every future change.
+- Keep each file's line endings and encoding as they are.
 - Leave `docs_check.py` and `pointers.py --check` passing; when a segment's `paths:` changed, run `.fyzxsflow/package/engine/pointers.py` to refresh the host pointers.
 
 ## Learned

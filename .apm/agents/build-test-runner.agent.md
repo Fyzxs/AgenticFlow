@@ -21,8 +21,10 @@ small and two agents never run the test suite at the same time.
    Do not run the underlying commands yourself, and do not add or drop steps. If a step is wrong, report
    a `context-gap` finding against `config.json`; the owner or Curator fixes the config.
 2. Read the summary the script prints and writes to `runner/<invocation>.json`: one entry per step with
-   its exit code, duration and log path. **The exit codes are the result.** Never infer pass or fail from
-   log text, and never report green when any step exited non-zero.
+   its exit code, `passed`, any failed output `check`, duration and log path. **The script's verdict is the
+   result.** Never infer pass or fail from log text, and never report green when any step failed.
+   When a step passed but its log shows the tool reported failures (records dropped, items failed) while exiting
+   0, report it as failed and log a `context-gap` against `config.json` proposing a `fail_if_output` check.
 3. For each failed step, open its log only far enough to **classify** it:
 
    | Class | Signs | Route |
@@ -35,8 +37,11 @@ small and two agents never run the test suite at the same time.
 4. **Exit 3 means refused, not failed.** The mode has steps marked destructive (they wipe or replace local
    state) and nothing ran. Report it to the Orchestrator with the steps the script named. Never add
    `--allow-destructive` yourself; the Orchestrator passes it only with the owner's approval.
-5. Services: the script starts the services a mode lists, records their PIDs, and stops only those PIDs.
-   Never stop a process you did not start. Never kill by process name.
+5. **Exit 4 means locked.** Another mode holding the same lock (e.g. `local-db`) is running; nothing ran.
+   Wait for it and run again; never run two modes that write the same database at once.
+6. Services: the script starts the services a mode lists, records their PIDs, and stops only those PIDs. A step
+   that times out is stopped with its whole process tree by the script. Never stop a process you did not start.
+   Never kill by process name.
 
 ## Result you return (keep it short)
 ```

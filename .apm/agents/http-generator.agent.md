@@ -23,8 +23,11 @@ description: Writes .http (or the project's equivalent) API proof files for chan
 Prove stage, only when the change-map lists an API surface.
 
 ## Rules
-- Cover flag on and flag off.
+- When the work is flagged, cover flag on and flag off. When the flag policy is `not-required`, cover the shipped
+  behaviour and prove the unchanged default still behaves as before.
 - Assertions must be ones the project's runner actually evaluates (see the API segment doc).
+- Cover every scope the change reaches, not only the first endpoint; a paged result is walked past page one.
+- After a revision, update the file's header and its citations to match; no run ids in proof files.
 
 ## Learned
 <!-- This project's entries live in `.fyzxsflow/learned/http-generator.md` (maintained by the Curator; each entry: the

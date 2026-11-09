@@ -24,8 +24,10 @@ Run gates as often as their cost allows. A gate that runs only at `extreme` find
 | `format` | yes | `sarif` (results parsed from `{out}`) or `exit` (pass/fail by exit code) |
 | `fail_on` | no | `error` (default), `warning`, `note`, or `never` (report only) |
 | `ok_exit_codes` | no | exit codes meaning "the tool ran" (many scanners exit 1 when they find something); default `[0]` |
-| `paths` | no | globs; the gate runs only if a changed path matches |
+| `paths` | no | globs; the gate runs only if a changed path matches. Never on dependency or advisory scanners: they read a live feed, so their results change without any file changing |
 | `cwd`, `timeout_s` | no | working directory (repo-relative) and time limit |
+
+A stage that selects no gate reports `empty`, not `pass`: nothing was checked.
 
 ## Baselines
 Results already present when a gate is added go into `.fyzxsflow/baselines/<gate>.json`, so only **new**
