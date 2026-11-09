@@ -71,14 +71,13 @@ host or model. Each run is committed at every stage, so you can read it, edit it
 Requirements: Python 3 (the engine uses the standard library only), git, and Claude Code and/or GitHub
 Copilot.
 
-1. **Install into your repo.** From a clone of this repo:
+1. **Install into your repo**, either with [APM](#install-with-apm) (below) or from a clone of this repo:
 
    ```
    python -I engine/install.py --target <path to your repo> --host claude --host copilot
    ```
 
-   Use only the `--host` flags you need. Install through [APM](https://github.com/microsoft/apm) is
-   planned but not yet verified.
+   Use only the `--host` flags you need.
 
 2. **Describe your repo.** In your repo, run the `fyzxsflow-init` prompt. The Repo Cartographer drafts
    `.fyzxsflow/` (profile, build and test commands, gates, feature-flag rules and per-segment docs) from
@@ -91,9 +90,50 @@ Copilot.
    /flow 12345        (an Azure DevOps work item id)
    ```
 
-   Answer each review with `approve`, `continue`, `redo: <what to change>` or `stop`.
+   Answer each review with `approve`, `redo: <what to change>` or `stop`.
 
 Install again at any time to upgrade. Your project's files are never overwritten.
+
+### Install with APM
+
+> **Not yet verified end to end.** These steps follow [APM's documentation](https://microsoft.github.io/apm/);
+> if one doesn't behave as described, please open an issue.
+
+[APM](https://github.com/microsoft/apm) (Agent Package Manager) installs agent packages from GitHub and pins
+them in `apm.yml` and `apm.lock.yaml`. Install the CLI (for example `pip install apm-cli`, `brew install apm`,
+or `winget install --id Microsoft.APM --exact --source winget`), then, in your repo:
+
+```
+apm install Fyzxs/AgenticFlow --target claude,copilot
+python -I apm_modules/Fyzxs/AgenticFlow/engine/install.py --target . --host claude --host copilot
+```
+
+The first command downloads FyzxsFlow into `apm_modules/` (keep that gitignored) and deploys its agents,
+prompts, instructions and skills into `.claude/` and `.github/`. The second sets up `.fyzxsflow/`: the engine
+the agents call, the templates, the kill-by-name hook, and host files that include what the Curator has learned
+for your project. APM can't run a package's installer itself, so the second command is needed, after every
+`apm install` or `apm update` of FyzxsFlow. Pin a version with `apm install Fyzxs/AgenticFlow#<tag or commit>`.
+
+To have APM run the installer for you, add this to **your** repo's `apm.yml` and trust it once with
+`apm lifecycle trust` (APM never runs a project's lifecycle scripts until you do, and re-asks after any change
+to them):
+
+```yaml
+lifecycle:
+  post-install:
+    - type: command
+      description: "Set up FyzxsFlow (.fyzxsflow/ and host files)"
+      command: "python -I apm_modules/Fyzxs/AgenticFlow/engine/install.py --target . --host claude --host copilot"
+      timeoutSec: 120
+  post-update:
+    - type: command
+      description: "Set up FyzxsFlow (.fyzxsflow/ and host files)"
+      command: "python -I apm_modules/Fyzxs/AgenticFlow/engine/install.py --target . --host claude --host copilot"
+      timeoutSec: 120
+```
+
+The installer rewrites some files APM deployed (each agent file gets your project's Learned entries), so
+`apm audit` reports those files as changed. That is expected.
 
 ### Turning steps off
 

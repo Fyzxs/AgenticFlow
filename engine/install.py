@@ -154,7 +154,7 @@ def sync_hosts(target: pathlib.Path, hosts: list, written: list):
     import models  # noqa: E402  (the installed copy, so --sync uses the project's own engine)
     pkg = target / HOME / PACKAGE
     agents = sorted((pkg / "agents").glob("*.agent.md"))
-    agreement = (pkg / "instructions" / "working-agreement.instructions.md").read_text(encoding="utf-8")
+    agreement = (pkg / "instructions" / f"{HOME[1:]}-working-agreement.instructions.md").read_text(encoding="utf-8")
     _, agreement_body = split_frontmatter(agreement)
     prompts = sorted((pkg / "prompts").glob("*.prompt.md"))
     prefix = HOME[1:]
