@@ -180,6 +180,12 @@
         }
       ],
       "lock": "local-db"
+    },
+    "e2e-airplane": {
+      "not_applicable": "no end-to-end suite yet; switch the opt-in e2e step on (steps.py set e2e on) to have one investigated and set up"
+    },
+    "e2e-connected": {
+      "not_applicable": "no end-to-end suite yet; switch the opt-in e2e step on (steps.py set e2e on) to have one investigated and set up"
     }
   }
 }

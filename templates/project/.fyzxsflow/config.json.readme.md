@@ -13,7 +13,7 @@ Sections:
 - [`modes`](#modes): the build, test and other commands the Build & Test Runner may run
 - [`services`](#services): processes a mode starts first, such as your API
 - [`review`](#review): when the flow pauses for you
-- [`steps`](#steps): optional steps switched off
+- [`steps`](#steps): optional steps switched off, and opt-in steps switched on
 - [`models`](#models): which model each tier runs on
 - [`compare`](#compare): model compare, which tests whether a cheaper tier is good enough
 - [`docs`](#docs): doc size budget and which hosts get doc pointers
@@ -40,7 +40,11 @@ ask the Runner for a mode by name (`python -I .fyzxsflow/package/engine/runner.p
   "http": { "services": ["api"], "steps": [ { "name": "http-proofs", "run": "npx httpyac send {scope} --all" } ] },
   "db-reset": { "destructive": true, "lock": "local-db",
                 "steps": [ { "name": "reset", "run": "./scripts/db-reset.sh" } ] },
-  "seed": { "not_applicable": "no database in this repo" }
+  "seed": { "not_applicable": "no database in this repo" },
+  "e2e-airplane": { "network": "airplane", "services": ["api"], "offline_allow": ["172.16.0.0/12"],
+                    "steps": [ { "name": "stack", "run": "docker compose -f e2e/compose.yml up -d --wait --pull never" },
+                               { "name": "e2e", "run": "npx playwright test" } ] },
+  "e2e-connected": { "not_applicable": "no external services approved for end-to-end tests" }
 }
 ```
 
@@ -57,6 +61,18 @@ ask the Runner for a mode by name (`python -I .fyzxsflow/package/engine/runner.p
 | `db-reset` | `profile.md` lists a database | rebuilds the local database from empty; must be `"destructive": true` |
 | `seed` | `profile.md` lists a database | loads the data the proofs need |
 
+**End-to-end modes** (opt-in, see [`steps`](#steps) → `e2e`). `docs_check.py` only warns while they are missing:
+
+| Mode | Used for |
+|---|---|
+| `e2e-airplane` | the whole app, end to end, with everything it needs on this machine: containers, emulators, mock servers. Must declare `"network": "airplane"` |
+| `e2e-connected` | the app runs on this machine but may call the external, never-production services you approved in `.fyzxsflow/e2e.md`. Must declare `"network": "connected"` |
+| `e2e-prefetch` | optional: pulls the images and packages `e2e-airplane` needs, while online |
+
+`.fyzxsflow/e2e.md` records how the project is tested end to end, and its `Status:` (`not-set-up`,
+`setup-needed`, `blocked`, `ready`). With the `e2e` step on, ship-check blocks on these modes only once the
+status is `ready`; before that it warns, and the PR description says the change wasn't proven end to end.
+
 You can add other modes; agents use them when a work package names them.
 
 **Mode keys:**
@@ -72,6 +88,8 @@ You can add other modes; agents use them when a work package names them.
 | `allow_destructive` | `false` | **owner only.** Lets this mode's destructive steps run without asking each time. Agents never set it |
 | `draft` | `false` | you haven't confirmed this mode yet; the Runner prints a reminder each time it runs |
 | `not_applicable` | none | a reason the repo has no such capability. The mode exits 0 without running anything |
+| `network` | none | `"connected"` or `"airplane"`, recorded in the summary. **Airplane** means everything the mode needs lives on this machine. The network is never switched off. Instead, the Runner points every step's and service's proxy settings at a closed local port. It refuses container starts without `--pull never` (exit 2). It fails the mode if any process the mode started connects to an address that isn't loopback or in `offline_allow`. Any mode can be airplane, `http` included |
+| `offline_allow` | `[]` | for airplane modes: address ranges (CIDRs, e.g. a container network) the app may reach, and host names added to `NO_PROXY` |
 | `note` | none | free text for people and agents |
 
 **Step keys:**
@@ -139,10 +157,10 @@ skip agent-level pauses (`always` still applies).
 
 ## steps
 
-Optional steps switched off for the whole project.
+Optional steps switched off for the whole project, and opt-in steps switched on.
 
 ```json
-"steps": { "off": ["pr", "learn"] }
+"steps": { "off": ["pr", "learn"], "on": ["e2e"] }
 ```
 
 | Step | While it is off |
@@ -155,8 +173,10 @@ Optional steps switched off for the whole project.
 | `extreme` | no strict sign-off build; the `ci` run is the last check |
 | `docs-upkeep` | docs aren't refreshed after the run (your feedback still updates them) |
 | `learn` | findings are kept but not turned into agent or doc changes |
+| `e2e` | **opt-in, off by default.** While on: if the project has no end-to-end setup, the E2E Investigator works out how to test it end to end and asks you whether to set it up. The setup itself is a run you start. Once `.fyzxsflow/e2e.md` says `ready`, the E2E Tester adds scenarios for every change, and the `e2e-*` modes must pass before shipping |
 
-Default: `[]` (everything on). The core flow (intake, locate, build, validation, and the `quick` and `ci`
+Default: everything on except opt-in steps. Turn an opt-in step on with
+`python -I .fyzxsflow/package/engine/steps.py set e2e on --reason "..."`. The core flow (intake, locate, build, validation, and the `quick` and `ci`
 checks) can't be switched off. For one run, say so in your request ("no PR this time"); it is recorded in the
 run's `steps.json`. `python -I .fyzxsflow/package/engine/steps.py list` shows where every step stands.
 
@@ -180,8 +200,8 @@ model.
 
 | Tier | Agents |
 |---|---|
-| `deep` | orchestrator, build-coordinator, validator, curator, repo-cartographer, code-indicator, reviewer-architecture, reviewer-large, reviewer-security, reviewer-iac |
-| `standard` | work-summarizer, build-test-runner, implementer, tester, http-generator, iac-implementer, gate-analyst, docs-gardener, pr-producer, pr-reviewer, reviewer-narrow, reviewer-feature-flag |
+| `deep` | orchestrator, build-coordinator, validator, curator, repo-cartographer, code-indicator, e2e-investigator, reviewer-architecture, reviewer-large, reviewer-security, reviewer-iac |
+| `standard` | work-summarizer, build-test-runner, implementer, tester, http-generator, e2e-implementer, e2e-tester, iac-implementer, gate-analyst, docs-gardener, pr-producer, pr-reviewer, reviewer-narrow, reviewer-feature-flag |
 | `fast` | none |
 
 After editing, regenerate the host agent files:

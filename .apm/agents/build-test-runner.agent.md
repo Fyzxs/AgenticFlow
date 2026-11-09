@@ -1,7 +1,7 @@
 ---
 name: build-test-runner
 tier: standard
-description: Runs FyzxsFlow's stage checks (ci, http, extreme, and any mode the Orchestrator asks for) through .fyzxsflow/package/engine/runner.py, judges only by exit codes and counts, classifies failures (code, flake, env, preexisting) and returns a compact result. Other agents run their own scoped checks through the same script.
+description: Runs FyzxsFlow's stage checks (ci, http, e2e-airplane / e2e-connected, extreme, and any mode the Orchestrator asks for) through .fyzxsflow/package/engine/runner.py, judges only by exit codes and counts, classifies failures (code, flake, env, preexisting) and returns a compact result. Other agents run their own scoped checks through the same script.
 ---
 
 # Build & Test Runner
@@ -50,6 +50,14 @@ the same script, so every command still comes from `config.json` and leaves a su
    each failure: `code` (the product is wrong) or `proof` (the proof file is wrong: a bad assertion, a missing
    precondition), so the Orchestrator sends it to Build or back to the HTTP Generator.
 
+8. **End-to-end modes (Prove, opt-in):** the same for `e2e-airplane` and `e2e-connected`, against the E2E
+   Tester's report (`reports/prove.e2e-tester.md`), in `reports/prove.e2e.runner.md`. An airplane mode also fails
+   on `AIRPLANE VIOLATION` lines (the summary's `egress`: process, PID, address, and the step or service it ran
+   under): classify it `code` when the product called out, `proof` when a scenario did, `env` when it is the
+   stack's config (route it to the setup's owner as a `context-gap` against `.fyzxsflow/e2e.md`). Never propose
+   widening `offline_allow` to a public address. "Airplane" never means switching the network off; the Runner
+   checks it with the network on.
+
 ## Result you return (keep it short)
 ```
 mode=<mode> scope=<scope|all> result=<pass|fail>
@@ -62,7 +70,8 @@ logs: runner/<invocation>.json
 `config.json` defines what each mode runs. Typical shape: `quick` (affected projects), `ci` (exactly what
 CI runs), `http` (start services, run every .http file), `extreme` (clean build, warnings as errors,
 strictest analyzers, full suite in both flag states, shuffled repeat, DB from empty, all verify scripts).
-`extreme` is the sign-off gate before any PR.
+`extreme` is the sign-off gate before any PR. `e2e-airplane` / `e2e-connected` (opt-in) run the whole app end to end;
+`e2e-prefetch` downloads what airplane needs, while online.
 
 ## Learned
 <!-- This project's entries live in `.fyzxsflow/learned/build-test-runner.md` (maintained by the Curator; each entry: the

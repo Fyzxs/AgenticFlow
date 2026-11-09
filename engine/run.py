@@ -20,10 +20,12 @@
   python -I engine/run.py models <run-dir>      -> every report with its dispatched and self-reported model
   python -I engine/run.py ship-check <run-dir>
       -> ready=yes|no: the last ci run, the last http proof run (when proofs were written), the last extreme run,
-         the extreme and pre-pr gate stages, Validator verdicts, open major findings, the acceptance-criteria
+         the end-to-end modes (when the opt-in e2e step is on and .fyzxsflow/e2e.md says ready; before that a
+         passing "not ready" row the PR description must mention), the extreme and pre-pr gate stages, Validator verdicts, open major findings, the acceptance-criteria
          evidence, open owner decisions, and a clean product tree. A Runner result counts only if the product
          files haven't changed since the commit it tested. A failure counts only when the owner accepted it (a
-         fixed owner-decision finding with target ship:<check>). The run says "Ready to push" only on ready=yes.
+         fixed owner-decision finding with target ship:<check>). A mode configured "network": "airplane" counts
+         only if its summary says it ran with the airplane check. The run says "Ready to push" only on ready=yes.
 
 Runs live in .fyzxsflow/runs/active/<id>/ while work is in flight, and move to runs/completed/<id>/ (a PR was
 delivered) or runs/abandoned/<id>/ (stopped, with the reason in the ledger) when closed. Only active runs are
@@ -373,7 +375,19 @@ def staleness(root: pathlib.Path, data: dict):
     return None
 
 
-def runner_row(root: pathlib.Path, run: pathlib.Path, mode: str, rows: list, required: bool = True):
+E2E_STATUS = re.compile(r"^Status:\s*`?(not-set-up|setup-needed|blocked|ready)`?", re.M | re.I)
+E2E_MODES = ("e2e-airplane", "e2e-connected")
+
+
+def e2e_status(root: pathlib.Path) -> str:
+    """The project's end-to-end readiness from .fyzxsflow/e2e.md; no file or no Status line means not-set-up."""
+    path = root / HOME / "e2e.md"
+    m = E2E_STATUS.search(path.read_text(encoding="utf-8")) if path.exists() else None
+    return m.group(1).lower() if m else "not-set-up"
+
+
+def runner_row(root: pathlib.Path, run: pathlib.Path, mode: str, rows: list, required: bool = True,
+               airplane: bool = False):
     f = latest(run / "runner", mode)
     if f is None:
         if required:
@@ -384,8 +398,13 @@ def runner_row(root: pathlib.Path, run: pathlib.Path, mode: str, rows: list, req
     detail = f"{f.name}" + (f"; failed: {', '.join(failed)}" if failed else "")
     detail += f"; skipped: {', '.join(data['skipped'])}" if data.get("skipped") else ""
     stale = staleness(root, data) if data.get("result") == "pass" else None
+    if data.get("network"):
+        detail += f"; network: {data['network']}"
     if stale:
         rows.append((mode, "stale", False, f"{detail}; {stale}: run it again"))
+    elif airplane and data.get("result") == "pass" and data.get("network") != "airplane":
+        rows.append((mode, "unchecked", False, f"{detail}; the mode is airplane but this run had no airplane check: "
+                                               "run it again"))
     else:
         rows.append((mode, data.get("result", "?"), data.get("result") == "pass", detail))
 
@@ -406,10 +425,31 @@ def cmd_ship_check(args) -> int:
     rows = []  # (check, status, ok, detail)
     modes = config.get("modes") or {}
 
-    runner_row(root, run, "ci", rows)
+    def airplane(mode):
+        return (modes.get(mode) or {}).get("network") == "airplane"
+
+    runner_row(root, run, "ci", rows, airplane=airplane("ci"))
     if st["http-proofs"][0] and not (modes.get("http") or {}).get("not_applicable"):
         # Required once proof files were written; otherwise only checked if one ran.
-        runner_row(root, run, "http", rows, required=(run / "reports" / "prove.http-generator.md").exists())
+        runner_row(root, run, "http", rows, required=(run / "reports" / "prove.http-generator.md").exists(),
+                   airplane=airplane("http"))
+
+    if not st["e2e"][0]:
+        rows.append(("e2e", "off", True, "opt-in step not switched on" if st["e2e"][1] == "default"
+                     else f"step switched off ({st['e2e'][1]})"))
+    else:
+        status = e2e_status(root)
+        configured = [m for m in E2E_MODES if m in modes and not modes[m].get("not_applicable")]
+        if status != "ready":
+            # The owner's rule: warn until the project's end-to-end setup is ready, block from then on.
+            rows.append(("e2e", "not ready", True, f".fyzxsflow/e2e.md status {status}: this change is not proven "
+                                                   "end to end; the PR description must say so"))
+        elif not configured:
+            rows.append(("e2e", "no modes", False, ".fyzxsflow/e2e.md says ready but config.json has no e2e-airplane "
+                                                   "or e2e-connected mode"))
+        else:
+            for m in configured:
+                runner_row(root, run, m, rows, airplane=airplane(m) or m == "e2e-airplane")
 
     extreme_mode = modes.get("extreme") or {}
     if not st["extreme"][0]:

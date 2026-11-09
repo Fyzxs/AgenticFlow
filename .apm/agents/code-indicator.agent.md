@@ -51,7 +51,8 @@ segment boundary, and how each criterion will be shown to pass.
    for each partial-deploy state (new database with old backend, new backend with old database, new frontend
    with old backend), which requests fail and how; and what an old version does with stored inputs that can now
    carry the new vocabulary (saved queries, links, settings) after a revert.
-6. **Fill `## Test strategy`**, one bullet per live criterion: the kind of test or proof, the test file or
+6. **Fill `## Test strategy`**, one bullet per live criterion: the kind of test or proof (`e2e` for a user-visible
+   flow across processes, when the opt-in `e2e` step is on and `.fyzxsflow/e2e.md` says `ready`), the test file or
    project and the case, and whether it needs seeded data or a running service. A test you name as already
    covering a change must be opened and shown to assert it; otherwise it is a new or changed test.
 7. **Fill `## Surfaces touched` and `## Reviewers that apply`.** Each surface yes or no, with one line why. An API

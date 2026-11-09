@@ -1,13 +1,15 @@
 """Optional process steps: which ones a run uses.
 
   python -I .fyzxsflow/package/engine/steps.py list [--run <dir>] [--root .]
-      -> one line per step: "<step> on|off (<source>) stage=<stage> agents=<...>", then "off: <steps|none>"
+      -> one line per step: "<step> on|off (<source>) stage=<stage> agents=<...>", then
+         "not opted in: <steps|none>" and "off: <steps|none>" (steps switched off, opt-in steps not counted)
   python -I .fyzxsflow/package/engine/steps.py enabled <step> [--run <dir>] [--root .]
       -> "step=<step> enabled=yes|no source=<default|project|run>"; exit 0 = on, 1 = off, 2 = unknown or core
   python -I .fyzxsflow/package/engine/steps.py set <step> on|off [--run <dir>] --reason "<owner's words>" [--root .]
 
-Every step is on unless switched off. The project switches steps off in config.json:
-    "steps": { "off": ["pr", "learn"] }
+Every step is on unless switched off, except the opt-in steps (OPT_IN: `e2e`), which are off until switched on.
+The project switches steps in config.json:
+    "steps": { "off": ["pr", "learn"], "on": ["e2e"] }
 A run can override that either way (only through `set --run`, which writes <run>/steps.json):
     { "off": ["http-proofs"], "on": ["pr"] }
 A group name (`reviews`) switches all its steps. The core of the flow (intake, locate, build, the validators
@@ -46,7 +48,10 @@ STEPS = {
                     "docs are not refreshed after the run; owner feedback is still applied to docs"),
     "learn": ("learn", "curator",
               "findings are kept in the run but not routed to agents or docs until the Curator runs"),
+    "e2e": ("prove", "e2e-investigator, e2e-implementer, e2e-tester, runner --e2e-airplane / --e2e-connected",
+            "no end-to-end testing: changes are proven by the tests and http proofs only"),
 }
+OPT_IN = ("e2e",)  # off unless the project or the run switches them on
 GROUPS = {"reviews": [s for s in STEPS if s.startswith("review-")]}
 CORE = ("intake", "locate", "build", "work-summarizer", "code-indicator", "build-coordinator", "implementer",
         "iac-implementer", "tester", "validator", "build-test-runner", "runner", "orchestrator")
@@ -67,10 +72,14 @@ def config_path(root: pathlib.Path) -> pathlib.Path:
     return root / HOME / "config.json"
 
 
-def project_off(root: pathlib.Path) -> list:
+def project_steps(root: pathlib.Path, key: str) -> list:
     path = config_path(root)
     data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    return list((data.get("steps") or {}).get("off") or [])
+    return list((data.get("steps") or {}).get(key) or [])
+
+
+def project_off(root: pathlib.Path) -> list:
+    return project_steps(root, "off")
 
 
 def run_overrides(run) -> dict:
@@ -81,7 +90,7 @@ def run_overrides(run) -> dict:
 
 def state(root: pathlib.Path, run) -> dict:
     """step -> (on: bool, source)"""
-    p_off = expand(project_off(root))
+    p_off, p_on = expand(project_off(root)), expand(project_steps(root, "on"))
     r = run_overrides(run)
     r_off, r_on = expand(r["off"]), expand(r["on"])
     out = {}
@@ -92,8 +101,10 @@ def state(root: pathlib.Path, run) -> dict:
             out[step] = (True, "run")
         elif step in p_off:
             out[step] = (False, "project")
+        elif step in p_on:
+            out[step] = (True, "project")
         else:
-            out[step] = (True, "default")
+            out[step] = (step not in OPT_IN, "default")
     return out
 
 
@@ -116,14 +127,17 @@ def refuse(name: str) -> int:
 
 def cmd_list(args) -> int:
     root = root_for(args)
-    bad = unknown(project_off(root)) + unknown(sum(run_overrides(args.run).values(), []))
+    bad = (unknown(project_off(root)) + unknown(project_steps(root, "on"))
+           + unknown(sum(run_overrides(args.run).values(), [])))
     for name in bad:
-        print(f"warning: unknown step '{name}' is ignored (config.json steps.off or the run's steps.json)")
+        print(f"warning: unknown step '{name}' is ignored (config.json steps.off / steps.on or the run's steps.json)")
     st = state(root, args.run)
     for step, (stage, agents, _) in STEPS.items():
         on, source = st[step]
         print(f"{step:20} {'on ' if on else 'off'} ({source:7}) stage={stage} agents={agents}")
-    off = [s for s, (on, _) in st.items() if not on]
+    waiting = [s for s, (on, source) in st.items() if not on and source == "default"]
+    off = [s for s, (on, source) in st.items() if not on and source != "default"]
+    print(f"not opted in: {', '.join(waiting) if waiting else 'none'}")
     print(f"off: {', '.join(off) if off else 'none'}")
     return 0
 
@@ -170,8 +184,16 @@ def cmd_set(args) -> int:
     else:
         path = config_path(root)
         data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-        off = without(list((data.setdefault("steps", {})).get("off") or []), args.step)
-        data["steps"]["off"] = off if turn_on else off + [args.step]
+        steps = data.setdefault("steps", {})
+        off = without(list(steps.get("off") or []), args.step)
+        on = without(list(steps.get("on") or []), args.step)
+        opt_in = set(expand([args.step])) <= set(OPT_IN)
+        steps["off"] = off if turn_on or opt_in else off + [args.step]  # an opt-in step is off by not being on
+        on = on + [args.step] if turn_on and opt_in else on
+        if on:
+            steps["on"] = on
+        else:
+            steps.pop("on", None)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8", newline="\n")
         log(root, None, entry)

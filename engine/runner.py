@@ -24,13 +24,21 @@ would otherwise be taken for it), or if the started process exits before the por
 A mode with "lock": "<name>" (e.g. "local-db") refuses to start while another mode holding that lock runs, so two
 writers never share a resource.
 
+A mode's "network" says what it may reach (recorded in the summary):
+  "connected"  it may call the external (never production) services the project approved (.fyzxsflow/e2e.md);
+  "airplane"   everything it needs lives on this machine. The network is never switched off; instead every step
+               and service gets proxy settings pointing at a closed local port, container starts must pass
+               "--pull never" (exit 2 otherwise, nothing runs), and an egress monitor (engine/egress.py) fails the
+               mode if any process the mode started connects to an address that isn't loopback or listed in the
+               mode's "offline_allow" (CIDRs, or host names for NO_PROXY). The summary lists what it saw ("egress").
+
 --run takes a run folder or a bare run id (resolved under .fyzxsflow/runs/active/).
 
 config.json shape (see templates/project/.fyzxsflow/config.json):
   { "modes": { "<mode>": { "steps": [ {"name": "build", "run": "dotnet build {scope}", "cwd": ".",
                                        "env": {"K": "V"}, "timeout_s": 1800, "fail_if_output": "..."} ],
                            "default_scope": "...", "services": ["api"], "continue_on_failure": false,
-                           "lock": "local-db" } },
+                           "lock": "local-db", "network": "airplane", "offline_allow": ["172.17.0.0/16"] } },
     "services": { "api": { "start": "...", "port": 5000, "cwd": ".", "ready_timeout_s": 90 } } }
 """
 
@@ -46,6 +54,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from layout import HOME, PACKAGE  # noqa: E402
+import egress  # noqa: E402
 import time
 
 DEFAULT_TIMEOUT_S = 3600  # a step without "timeout_s"; "timeout_s": 0 means no limit
@@ -77,15 +86,18 @@ def wait_for_port(port: int, timeout_s: float, proc=None):
     return f"not ready on port {port}"
 
 
-def start_service(name: str, spec: dict, root: pathlib.Path, logdir: pathlib.Path):
+def start_service(name: str, spec: dict, root: pathlib.Path, logdir: pathlib.Path, extra_env=None, monitor=None):
     """Returns (proc or None, log or None, error or None)."""
     port = int(spec["port"]) if spec.get("port") else None
     if port and port_open(port):
         # Something already answers: readiness would be judged on that process, not the one we start.
         return None, None, f"port {port} already in use before service '{name}' started (a stale process?)"
     log = open(logdir / f"service-{name}.log", "w", encoding="utf-8")
-    proc = subprocess.Popen(spec["start"], shell=True, cwd=root / spec.get("cwd", "."),
+    env = {**os.environ, **(extra_env or {})}
+    proc = subprocess.Popen(spec["start"], shell=True, cwd=root / spec.get("cwd", "."), env=env,
                             stdout=log, stderr=subprocess.STDOUT, **group_kwargs())
+    if monitor is not None:
+        monitor.watch(proc.pid, f"service {name}")
     error = None
     if port:
         why = wait_for_port(port, float(spec.get("ready_timeout_s", 90)), proc)
@@ -140,16 +152,19 @@ def output_check(step: dict, logpath: pathlib.Path):
     return None
 
 
-def run_step(step: dict, scope: str, root: pathlib.Path, logpath: pathlib.Path) -> dict:
+def run_step(step: dict, scope: str, root: pathlib.Path, logpath: pathlib.Path, extra_env=None, monitor=None) -> dict:
     command = step["run"].replace("{scope}", scope)
     env = os.environ.copy()
     env.update({k: str(v) for k, v in (step.get("env") or {}).items()})
+    env.update(extra_env or {})  # airplane proxy settings win over a step's own
     started = time.monotonic()
     with open(logpath, "w", encoding="utf-8") as log:
         log.write(f"$ {command}\n\n")
         log.flush()
         proc = subprocess.Popen(command, shell=True, cwd=root / step.get("cwd", "."), env=env,
                                 stdout=log, stderr=subprocess.STDOUT, **group_kwargs())
+        if monitor is not None:
+            monitor.watch(proc.pid, f"step {step['name']}")
         limit = step.get("timeout_s", DEFAULT_TIMEOUT_S) or None  # 0 = no limit
         try:
             code = proc.wait(timeout=limit)
@@ -158,6 +173,9 @@ def run_step(step: dict, scope: str, root: pathlib.Path, logpath: pathlib.Path) 
             log.write(f"\n[fyzxsflow runner] timed out after {limit}s; "
                       f"stopped process tree of PID {proc.pid}\n")
             code = 124
+        finally:
+            if monitor is not None:
+                monitor.unwatch(proc.pid)
     check = output_check(step, logpath) if code == 0 else None
     result = {"name": step["name"], "command": command, "exit": code, "passed": code == 0 and check is None,
               "seconds": round(time.monotonic() - started, 1), "log": str(logpath)}
@@ -259,6 +277,22 @@ def main(argv=None) -> int:
               "local state. Run it with --allow-destructive only after the owner approves, or the owner can set "
               "\"allow_destructive\": true on this mode in config.json.", file=sys.stderr)
         return 3
+    network = mode.get("network")
+    if network not in (None, "connected", "airplane"):
+        print(f"mode '{args.mode}': \"network\" must be \"connected\" or \"airplane\", not {network!r}",
+              file=sys.stderr)
+        return 2
+    extra_env, monitor = None, None
+    if network == "airplane":
+        commands = [(f"step '{s['name']}'", s.get("run", "")) for s in mode["steps"]]
+        commands += [(f"service '{n}'", ((config.get("services") or {}).get(n) or {}).get("start", ""))
+                     for n in mode.get("services", [])]
+        problems = [f"{where} {why}" for where, cmd in commands if (why := egress.docker_pull_problem(cmd))]
+        if problems:
+            print(f"refused: airplane mode '{args.mode}': " + "; ".join(problems), file=sys.stderr)
+            return 2
+        allow = mode.get("offline_allow") or []
+        extra_env = egress.proxy_env([a for a in allow if not egress.allowed_networks([a])])
     if mode.get("draft"):
         print(f"note: mode '{args.mode}' is marked draft in config.json; the owner has not confirmed it")
     scope = args.scope or mode.get("default_scope", "")
@@ -274,14 +308,16 @@ def main(argv=None) -> int:
     logdir = run / "runner" / invocation
     logdir.mkdir(parents=True, exist_ok=True)
 
-    services, results, service_errors = [], [], []
+    services, results, service_errors, seen = [], [], [], []
+    if network == "airplane":
+        monitor = egress.Monitor(allow=mode.get("offline_allow") or []).start()
     try:
         for name in mode.get("services", []):
             spec = (config.get("services") or {}).get(name)
             if spec is None:
                 print(f"mode '{args.mode}' lists unknown service '{name}'", file=sys.stderr)
                 return 2
-            proc, log, error = start_service(name, spec, root, logdir)
+            proc, log, error = start_service(name, spec, root, logdir, extra_env, monitor)
             if proc is not None:
                 services.append((proc, log))
             if error:
@@ -289,11 +325,13 @@ def main(argv=None) -> int:
                 break
         if not service_errors:
             for i, step in enumerate(mode.get("steps", []), start=1):
-                result = run_step(step, scope, root, logdir / f"{i:02d}-{step['name']}.log")
+                result = run_step(step, scope, root, logdir / f"{i:02d}-{step['name']}.log", extra_env, monitor)
                 results.append(result)
                 if not result["passed"] and not mode.get("continue_on_failure", False):
                     break
     finally:
+        if monitor is not None:
+            seen = monitor.stop()  # before the services stop, so their connections are still in the table
         for proc, log in services:
             stop_tree(proc)
             log.close()
@@ -301,9 +339,15 @@ def main(argv=None) -> int:
             lock.unlink(missing_ok=True)
 
     skipped = [s["name"] for s in mode.get("steps", [])[len(results):]]
-    passed = not service_errors and all(r["passed"] for r in results) and not skipped
+    airplane_ok = monitor is None or not (seen or monitor.errors)
+    passed = not service_errors and all(r["passed"] for r in results) and not skipped and airplane_ok
     summary = {"mode": args.mode, "scope": scope or "all", "result": "pass" if passed else "fail",
-               "steps": results, "skipped": skipped, "service_errors": service_errors, **tested_tree(root)}
+               "steps": results, "skipped": skipped, "service_errors": service_errors, "network": network,
+               **tested_tree(root)}
+    if monitor is not None:
+        summary["egress"] = seen
+        if monitor.errors:
+            summary["egress_errors"] = monitor.errors
     (run / "runner" / f"{invocation}.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8",
                                                          newline="\n")
 
@@ -314,6 +358,10 @@ def main(argv=None) -> int:
         print(f"  {name} skipped (an earlier step failed)")
     for err in service_errors:
         print(f"  {err}")
+    for c in seen:
+        print(f"  AIRPLANE VIOLATION: {c['process']} (PID {c['pid']}, {c['during']}) connected to {c['remote']}")
+    if monitor is not None and monitor.errors:
+        print(f"  airplane check could not run, so the mode is not verified: {'; '.join(monitor.errors)}")
     print(f"summary: {run / 'runner' / (invocation + '.json')}")
     return 0 if passed else 1
 

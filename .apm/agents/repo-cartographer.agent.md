@@ -39,6 +39,11 @@ The single Implementer is only as good as the context it is handed. You write th
    branch>` as a `ci` step. Derive `quick` (scoped) from the same commands. Draft
    `extreme` as `ci` plus the strictest options the toolchain supports, and mark it `"draft": true` for
    the owner to confirm. Define `http` only if the repo has API proof files.
+   **End-to-end testability:** if the repo already has an end-to-end or UI suite, define the end-to-end
+   modes from its own commands: `e2e-airplane` (`"network": "airplane"`) only when it needs nothing external,
+   otherwise `e2e-connected` (`"network": "connected"`), with a `note` naming what it calls. Without a suite,
+   keep both as the template's `not_applicable`. Don't write `.fyzxsflow/e2e.md`: the E2E Investigator does,
+   when the owner switches the opt-in `e2e` step on. Mention the step in your report.
 3. **Architecture.** Layers, boundaries and dependency direction, as the code shows them (project
    references, imports), not as old docs claim. Where docs and code disagree, write what the code does and
    note the disagreement.

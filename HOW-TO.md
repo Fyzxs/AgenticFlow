@@ -8,6 +8,7 @@ works, see the [README](README.md).
 - [Set up your repo](#set-up-your-repo)
 - [Run the flow](#run-the-flow)
 - [Turn steps off](#turn-steps-off)
+- [Test end to end (opt-in)](#test-end-to-end-opt-in)
 - [Models](#models)
 - [What lands in your repo](#what-lands-in-your-repo)
 - [Upgrade](#upgrade)
@@ -141,14 +142,54 @@ stands with `python -I .fyzxsflow/package/engine/steps.py list`.
 | `docs-upkeep` | docs aren't refreshed after the run (your feedback still updates them) |
 | `learn` | findings are kept but not turned into agent or doc changes |
 
+`e2e` is the one step that starts **off**; see the next section.
+
+## Test end to end (opt-in)
+
+End-to-end testing runs your whole app on one machine and drives it the way a user would. It is opt-in, because
+setting it up is real work for most repos. Turn it on for the project, or say "test this end to end" in a request
+for one run:
+
+```
+python -I .fyzxsflow/package/engine/steps.py set e2e on --reason "we want end-to-end proofs"
+```
+
+What happens next depends on `.fyzxsflow/e2e.md`:
+
+1. **No setup yet.** On the next run, the **E2E Investigator** works out how your app can run end to end
+   locally. It lists every external dependency (database, cache, queue, storage, identity, third-party APIs)
+   and picks a local substitute for each: an emulator, the real software in a container, a mock server built
+   from the API's contract, or a fake. It writes the plan to `.fyzxsflow/e2e.md` and asks its questions in one
+   review file, ending with "Start the setup run?". The run you asked for carries on; its PR says it wasn't proven
+   end to end.
+2. **Setup.** When you say "set up end to end testing", a separate run has the **E2E Implementer** build it. That
+   means the compose file and pinned images, the mock servers, a local config profile, seed data and one smoke
+   scenario. It also adds the Runner modes below, which it proves by running them, and sets `e2e.md` to `Status: ready`.
+3. **Every run after that.** The **E2E Tester** adds scenarios for the change. The end-to-end modes run in
+   Prove, and ship-check blocks until they pass on the current commit.
+
+Two modes, either or both:
+
+| Mode | Means |
+|---|---|
+| `e2e-airplane` | everything the tests need lives on this machine. Nothing calls an external service |
+| `e2e-connected` | the app runs on this machine but may call external services you approved in `e2e.md`, never production |
+| `e2e-prefetch` | downloads what airplane needs (images, packages, browsers), once, while online |
+
+**Airplane is checked, not switched on.** Your network stays on. While an airplane mode runs, the Runner points
+every process's proxy settings at a closed local port and refuses container starts that could pull an image. It
+watches the connections of every process the mode started. A connection to anything that isn't this machine (or
+an address range you allowed for containers) fails the mode and names the process and the address. One limit:
+processes inside containers aren't watched; `--pull never` proves their images are local.
+
 ## Models
 
 Each agent declares a tier, never a model name. Out of the box:
 
 | Tier | Agents | Claude Code | Copilot |
 |---|---|---|---|
-| `deep` | orchestrator, build-coordinator, validator, curator, repo-cartographer, code-indicator, reviewer-architecture, reviewer-large, reviewer-security, reviewer-iac | `opus` | inherit |
-| `standard` | work-summarizer, build-test-runner, implementer, tester, http-generator, iac-implementer, gate-analyst, docs-gardener, pr-producer, pr-reviewer, reviewer-narrow, reviewer-feature-flag | `sonnet` | inherit |
+| `deep` | orchestrator, build-coordinator, validator, curator, repo-cartographer, code-indicator, e2e-investigator, reviewer-architecture, reviewer-large, reviewer-security, reviewer-iac | `opus` | inherit |
+| `standard` | work-summarizer, build-test-runner, implementer, tester, http-generator, e2e-implementer, e2e-tester, iac-implementer, gate-analyst, docs-gardener, pr-producer, pr-reviewer, reviewer-narrow, reviewer-feature-flag | `sonnet` | inherit |
 | `fast` | none | `haiku` | inherit |
 | `auto` | none | inherit | inherit |
 
@@ -211,6 +252,7 @@ Nothing lowers a tier automatically. The Curator proposes it, and only where the
 .fyzxsflow/
   config.json, profile.md, gates.json, feature-flags.md   your project's settings (yours to edit)
   config.json.readme.md   what every config.json setting means; refreshed by each install
+  e2e.md             how the app is tested end to end (only once you opt in)
   docs/              the repo docs agents are specialised by
   feedback/          drop notes for the flow here, any time
   learned/           rules the Curator has learned for this project, per agent

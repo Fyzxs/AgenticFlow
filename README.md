@@ -27,7 +27,9 @@ request ──► Intake ──► Locate ──► Build ──► Prove ──
 - **Build.** One Implementer writes each package and a separate Tester writes its tests. A Validator
   checks each output by re-reading the agent's own instructions and acting as that agent.
 - **Prove.** The Build & Test Runner runs your build and test commands. The Gate Analyst runs your
-  linters and scanners and decides, per result, whether to send it back, correct it, or move on.
+  linters and scanners and decides, per result, whether to send it back, correct it, or move on. With the
+  opt-in end-to-end step, the whole app also runs on one machine, in airplane mode (nothing external) or
+  connected mode (approved non-production services only).
 - **Review.** Reviewers chosen by the change check it: narrow (the diff), large (its callers and
   contracts), architecture, security, feature flags, infrastructure.
 - **Deliver.** The PR Producer writes the pull request and the PR Reviewer reads it as a human would.
@@ -94,6 +96,9 @@ Claude Code and Copilot surface, turning steps off, and choosing models.
 | Build & Test Runner | Runs the stage checks and classifies failures: code, flake, environment, pre-existing |
 | Gate Analyst | Runs linters and scanners; send back, correct, or move on |
 | HTTP Generator | API proof files for changed endpoints |
+| E2E Investigator | Opt-in: works out how the app can run end to end on one machine, and what each dependency's local substitute is |
+| E2E Implementer | Opt-in: builds that setup (containers, emulators, mock servers, local config) in a run you start |
+| E2E Tester | Opt-in: end-to-end scenarios for each change, run in airplane or connected mode |
 | Reviewers (6) | Narrow, large, architecture, security, feature flag, IaC |
 | PR Producer | Writes the pull request |
 | PR Reviewer | Reviews the PR as a careful human would |

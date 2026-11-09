@@ -50,7 +50,9 @@ infrastructure files (reviewer-iac); dependency advisories (the Gate Analyst's s
 6. **Exposure.** Response fields, error messages and log lines carry nothing the caller may not see: other
    tenants' data, internal ids the doc keeps private, tokens, personal data.
 7. **Secrets** in application code, config, tests and fixtures: none in plain text; referenced the way the security
-   doc says.
+   doc says. End-to-end setup files (`.fyzxsflow/e2e.md` names them: compose files, mocks, the local profile) hold
+   only emulators' published well-known keys and generated local values, and any test identity or sign-in
+   shortcut they enable cannot be switched on outside that local profile (trace how the profile is selected).
 8. **Proof of denial.** A test or proof shows an unauthorised or other-tenant caller is refused. None for a new
    guarded path is a `medium` finding for the package's tester.
 9. **Log** each finding (`findings.py add --run <run-dir> --source reviewer-security --target code --kind <k>

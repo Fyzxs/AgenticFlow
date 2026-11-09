@@ -11,7 +11,10 @@ Fails when:
     db-reset and seed when the profile lists a Database surface; http when it lists an API. A capability that
     truly doesn't apply is declared with "not_applicable": "<why>". db-reset must be marked destructive;
     steps that look destructive but aren't marked are warnings, and UNRESOLVED steps are warnings (failures
-    with --strict).
+    with --strict);
+  - end-to-end testability: a missing e2e-airplane or e2e-connected mode is a warning (define it, or declare it
+    not_applicable); a defined one must say "network": "airplane" / "connected"; and .fyzxsflow/e2e.md saying
+    `Status: ready` needs at least one of them defined.
 Exit 0 = pass, 1 = fail.
 """
 
@@ -134,7 +137,30 @@ def config_problems(base: pathlib.Path):
             elif LOOKS_DESTRUCTIVE.search(step.get("run", "")) and not (step.get("destructive") or mode.get("destructive")):
                 warnings.append(f"config.json: mode '{name}' step '{step.get('name')}' looks destructive but is not "
                                 "marked \"destructive\": true")
+    failures += e2e_problems(base, modes, warnings)
     return failures, warnings
+
+
+E2E_NETWORK = {"e2e-airplane": "airplane", "e2e-connected": "connected"}
+
+
+def e2e_problems(base: pathlib.Path, modes: dict, warnings: list) -> list:
+    failures = []
+    for name, network in E2E_NETWORK.items():
+        mode = modes.get(name)
+        if mode is None:
+            warnings.append(f"config.json: no '{name}' mode (end-to-end testing; define it, or add it with "
+                            "\"not_applicable\": \"<why>\")")
+        elif not mode.get("not_applicable") and mode.get("network") != network:
+            failures.append(f"config.json: mode '{name}' must declare \"network\": \"{network}\"")
+    e2e = base / "e2e.md"
+    if e2e.exists():
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+        from run import e2e_status  # noqa: E402
+        if e2e_status(base.parent) == "ready" and not any(
+                m in modes and not modes[m].get("not_applicable") for m in E2E_NETWORK):
+            failures.append("e2e.md says Status: ready, but config.json defines no e2e-airplane or e2e-connected mode")
+    return failures
 
 
 def main(argv=None) -> int:
@@ -156,7 +182,7 @@ def main(argv=None) -> int:
     failures, warnings = [], []
     # Only the project's own docs: the installed package (agents/, context/, engine/, skills/, templates/)
     # and run folders are not project documentation.
-    docs = [base / n for n in ("profile.md", "feature-flags.md", "gates.md") if (base / n).exists()]
+    docs = [base / n for n in ("profile.md", "feature-flags.md", "gates.md", "e2e.md") if (base / n).exists()]
     if (base / "docs").is_dir():
         docs += [d for d in (base / "docs").rglob("*.md") if not d.name.startswith("_")]
     for doc in docs:

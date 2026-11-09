@@ -47,7 +47,24 @@ class StepsTests(unittest.TestCase):
         code, out = self.enabled("pr")
         self.assertEqual(code, 0)
         self.assertEqual(out, "step=pr enabled=yes source=default")
-        self.assertTrue(self.st("list")[1].endswith("off: none"))
+        self.assertTrue(self.st("list")[1].endswith("not opted in: e2e\noff: none"))
+
+    def test_an_opt_in_step_is_off_until_switched_on(self):
+        self.assertEqual(self.enabled("e2e"), (1, "step=e2e enabled=no source=default\n"
+                                                  "while off: no end-to-end testing: changes are proven by the "
+                                                  "tests and http proofs only"))
+        code, out = self.st("set", "e2e", "on", "--reason", "we want end to end")
+        self.assertEqual(code, 0, out)
+        steps = json.loads(self.config.read_text(encoding="utf-8"))["steps"]
+        self.assertEqual(steps, {"off": [], "on": ["e2e"]})
+        self.assertEqual(self.enabled("e2e"), (0, "step=e2e enabled=yes source=project"))
+        self.st("set", "e2e", "off", "--run", str(self.run_dir), "--reason", "not this time")
+        self.assertEqual(self.enabled("e2e")[0], 1)
+        self.st("set", "e2e", "off", "--reason", "too slow")
+        self.assertEqual(json.loads(self.config.read_text(encoding="utf-8"))["steps"], {"off": []})
+        self.assertEqual(self.enabled("e2e", run=False), (1, "step=e2e enabled=no source=default\n"
+                                                             "while off: no end-to-end testing: changes are "
+                                                             "proven by the tests and http proofs only"))
 
     def test_project_setting_switches_a_step_off_and_says_what_that_means(self):
         self.set_off(["pr"])

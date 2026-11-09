@@ -414,6 +414,46 @@ class ShipCheckTests(TempRepo):
         self.assertEqual(code, 0, out)
         self.assertIn("step switched off (run)", out)
 
+    def test_e2e_is_opt_in_warns_until_ready_then_blocks(self):
+        self.all_green()
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 0, out)
+        self.assertIn("e2e              off       ok  opt-in step not switched on", out)
+        # Switched on, but the project's end-to-end setup isn't ready: the owner's rule is warn, not block.
+        run("steps.py", "set", "e2e", "on", "--run", str(self.r), "--reason", "prove it end to end")
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 0, out)
+        self.assertIn("e2e              not ready ok  .fyzxsflow/e2e.md status not-set-up", out)
+        # Ready: every configured e2e mode must pass, and the airplane one must have run with its check.
+        home = self.root / ".fyzxsflow"
+        (home / "e2e.md").write_text("# End to end\n\nStatus: ready\n", encoding="utf-8")
+        modes = {"e2e-airplane": {"network": "airplane", "steps": [{"name": "e2e", "run": "x"}]},
+                 "e2e-connected": {"not_applicable": "no approved external services"}}
+        (home / "config.json").write_text(json.dumps({"modes": modes}), encoding="utf-8")
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 1, out)
+        self.assertIn("no e2e-airplane run in runner/", out)
+        self.assertNotIn("e2e-connected", out)
+        self.write_json("runner/e2e-airplane-20260101-000000-1.json",
+                        {"result": "pass", "steps": [{"name": "e2e", "exit": 0, "passed": True}], "skipped": []})
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 1, out)
+        self.assertIn("e2e-airplane     unchecked NO", out)
+        self.write_json("runner/e2e-airplane-20260102-000000-1.json",
+                        {"result": "pass", "steps": [{"name": "e2e", "exit": 0, "passed": True}], "skipped": [],
+                         "network": "airplane", "egress": []})
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 0, out)
+        self.assertIn("network: airplane", out)
+
+    def test_e2e_ready_without_any_e2e_mode_blocks(self):
+        self.all_green()
+        run("steps.py", "set", "e2e", "on", "--run", str(self.r), "--reason", "prove it end to end")
+        (self.root / ".fyzxsflow" / "e2e.md").write_text("Status: `ready`\n", encoding="utf-8")
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 1, out)
+        self.assertIn("e2e              no modes  NO", out)
+
 
 BRIEF_OK = """# Goal
 
@@ -657,6 +697,30 @@ class DocsCheckTests(TempRepo):
         self.write_segment("Provider: UNRESOLVED")
         self.assertEqual(run("docs_check.py", "--root", str(self.root))[0], 0)
         self.assertEqual(run("docs_check.py", "--root", str(self.root), "--strict")[0], 1)
+
+    def test_e2e_modes_warn_when_absent_and_must_declare_their_network(self):
+        self.write_segment("ok")
+        code, out = run("docs_check.py", "--root", str(self.root), "--strict")
+        self.assertEqual(code, 0, out)  # absent e2e modes are a warning even with --strict: e2e is opt-in
+        self.assertIn("WARN config.json: no 'e2e-airplane' mode", out)
+        self.modes["e2e-airplane"] = {"steps": [{"name": "e2e", "run": "npx playwright test"}]}
+        self.modes["e2e-connected"] = {"not_applicable": "no approved external services"}
+        self.write_cfg()
+        code, out = run("docs_check.py", "--root", str(self.root))
+        self.assertEqual(code, 1, out)
+        self.assertIn("mode 'e2e-airplane' must declare \"network\": \"airplane\"", out)
+        self.modes["e2e-airplane"]["network"] = "airplane"
+        self.write_cfg()
+        self.assertEqual(run("docs_check.py", "--root", str(self.root))[0], 0)
+
+    def test_e2e_ready_needs_a_defined_e2e_mode(self):
+        self.write_segment("ok")
+        self.modes["e2e-airplane"] = {"not_applicable": "not set up yet"}
+        self.write_cfg()
+        (self.root / ".fyzxsflow" / "e2e.md").write_text("Status: ready\n", encoding="utf-8")
+        code, out = run("docs_check.py", "--root", str(self.root))
+        self.assertEqual(code, 1, out)
+        self.assertIn("e2e.md says Status: ready", out)
 
 
 class RunnerTests(TempRepo):

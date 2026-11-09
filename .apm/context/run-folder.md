@@ -32,6 +32,7 @@ at every run start and hand-off (`.fyzxsflow/package/engine/feedback.py`). Handl
     WP-01.validator.implementer.md                 a Validator on <target>: <id>.validator.<target>.md
     build-coordinator.execute.md                   Build's close-out: every criterion traced to evidence
     ci.runner.md, prove.http-generator.md, prove.runner.md, gates.<stage>.md
+    e2e-investigator.md, prove.e2e-tester.md, prove.e2e.runner.md   opt-in end to end (WP-01.e2e-implementer.md in a setup run)
     review.narrow.md (review.<lens>.md)            one per reviewer
     pr-producer.md, pr-reviewer.md                 Deliver
     feedback-<F-n|item>.docs-gardener.md           Docs Gardener, feedback mode; deliver.docs-gardener.md after-run (in Deliver)

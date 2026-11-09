@@ -43,7 +43,22 @@ code, never run builds or tests, and never review. You keep the run moving and k
    `python -I .fyzxsflow/package/engine/steps.py enabled <name> --run <run>`. Exit 1 means it is off: don't dispatch
    it, write no review for it, and log `<stage> skipped "<name> off (<source>)"`. Its done-when condition no
    longer applies. Everything without a step name is the core of the flow and always runs.
-6. **Process owner feedback** at the start of every run, at every hand-off, on resume, and whenever the
+6. **End to end (opt-in step `e2e`).** When `steps.py enabled e2e --run <run>` exits 0, read `Status:` in
+   `.fyzxsflow/e2e.md` (no file means `not-set-up`):
+   - `not-set-up`: dispatch `e2e-investigator` + validator alongside Intake and Locate (it writes only
+     `.fyzxsflow/e2e.md`), commit that file as `docs(<run>): end-to-end investigation`, and write
+     `reviews/e2e.e2e-investigator.md` carrying its questions, ending with "Start the setup run?". Its questions
+     never block this run: they are not `owner-decision` findings.
+   - `setup-needed` or `blocked`: say in the first heartbeat that the setup run is waiting for the owner.
+   - `ready`: Prove runs the E2E Tester and the end-to-end modes (stage 4).
+   Until `ready`, log one `observation` finding (target `ship:e2e`, "not proven end to end: e2e.md status
+   <status>") so the PR description says so; ship-check passes with a warning row.
+   **The setup run** starts only when the owner says so ("set up end to end testing", or yes to the question):
+   `run.py new --source prompt --ref "e2e setup: .fyzxsflow/e2e.md"`, with `e2e` on for that run. The Work
+   Summarizer takes the `E2E-n` criteria from `e2e.md` → `## Setup plan`; the Build Coordinator gives the
+   packages to `e2e-implementer`; Prove runs the end-to-end modes the setup defined; the run is reviewed and
+   delivered like any other.
+7. **Process owner feedback** at the start of every run, at every hand-off, on resume, and whenever the
    owner says "process feedback" (with or without a run): `python -I .fyzxsflow/package/engine/feedback.py scan`
    lists new inbox items and review files with new or edited Human Feedback. See **Owner feedback** below.
 
@@ -55,7 +70,7 @@ code, never run builds or tests, and never review. You keep the run moving and k
 | 2 | Locate | `code-indicator` + validator; `build-coordinator` (plan mode) + validator; then `.fyzxsflow/package/engine/ac_trace.py --run <run>` | brief, `findings.jsonl`, docs index, `architecture.md`, `profile.md`, `config.json`, `feature-flags.md` | `change-map.md` and `work-packages/` validated; every acceptance criterion served by a package |
 | — | Plan gate | owner, **only if** the brief or packages contain an `owner-decision` finding or an unflaggable change | the decisions, each self-contained | answered |
 | 3 | Build | the Build Coordinator's **Execute mode**, wave by wave (see **Running Build**); IaC packages go to `iac-implementer`. Then Runner `--ci` and `gate-analyst --stage ci` *(step: gates)*, then **commit the product change** (see **Commits**) | `work-packages/`, `reports/build-coordinator.plan.md` (waves, contract checks) | every package's done-check green and its package criteria met with evidence (`ac_trace --require-evidence` shows no `FAIL` for them; brief criteria whose test strategy is a Prove proof may wait for Prove); Runner `--ci` green; gates recommend move-on |
-| 4 | Prove | `http-generator` + validator, then Runner `--http` *(step: http-proofs)*. The Runner's report marks each criterion the proofs cover `met`, citing its `runner/http-*.json`, only when the mode passed. A failure classified `code` goes to Build; a failure in the proof itself goes back to the `http-generator` (same 2-round cap) | `brief.md`, `change-map.md`, the API diff, the API segment doc, the existing proof files, `feature-flags.md` | only if the change-map lists an API surface; the mode passed |
+| 4 | Prove | `http-generator` + validator, then Runner `--http` *(step: http-proofs)*. The Runner's report marks each criterion the proofs cover `met`, citing its `runner/http-*.json`, only when the mode passed. A failure classified `code` goes to Build; a failure in the proof itself goes back to the `http-generator` (same 2-round cap). Then, when `.fyzxsflow/e2e.md` says `ready`: `e2e-tester` + validator (when the test strategy marks criteria `e2e`), then the Runner for every end-to-end mode `config.json` defines (`e2e-airplane`, `e2e-connected`) *(step: e2e)*, routed the same way; an `AIRPLANE VIOLATION` from product code is a `code` failure | `brief.md`, `change-map.md`, the API diff, the API segment doc, the existing proof files, `feature-flags.md`; for the E2E Tester the diff, `.fyzxsflow/e2e.md` and the nearest scenarios | http: only if the change-map lists an API surface, and the mode passed; e2e: every defined end-to-end mode passed, on every run while the step is on, whatever the change |
 | 5 | Review | the reviewers the change-map names, in parallel; always `reviewer-narrow` and `reviewer-large`, plus `reviewer-feature-flag` when flags are required; `reviewer-iac` when IaC changed. Each is a step: `review-narrow`, `review-large`, `review-architecture`, `review-security`, `review-feature-flag`, `review-iac`. Route by each finding's **Goes to** (see **Loops and caps**); after a fix round, re-dispatch the reviewers whose findings went to Build, with their open findings and the fix | the base ref and the diff (`git diff <base>` plus untracked files), `change-map.md`, their docs; `reviewer-feature-flag` also the tester reports; `reviewer-iac` also the IaC Implementer's report and preview | no `major` going to Build left; owner-decision majors answered; every **Outside my lens** hand-off covered by a reviewer that ran, or logged as a finding |
 | 6 | Deliver | Runner `--extreme` *(step: extreme)*; `gate-analyst --stage extreme` and `--stage pre-pr` *(step: gates)*; `docs-gardener` after-run mode + validator *(step: docs-upkeep)*, committed with the product change; `.fyzxsflow/package/engine/ac_trace.py --run <run> --require-evidence`; then `pr-producer` + validator *(step: pr)*; `pr-reviewer` *(steps: pr, pr-review)*; its findings on the description go back to `pr-producer` + validator, then one re-review (2-round cap) | all reports; `pr-description.md` | `run.py ship-check` says `ready=yes` (see **Finishing**); PR open or its description ready for the gate (with `pr` off: the run branch committed and ready) |
 | 7 | Learn | `curator`, then `validator` on the Curator *(step: learn)*; commit its patches (see **Commits**) | `findings.jsonl`, PR comments | patches applied or proposed; its `rerun:` flag read: `yes` gates to the owner with the reason |
@@ -90,7 +105,8 @@ The owner can switch steps off for the project (`config.json` → `steps.off`) o
 requests ("no PR this time", "skip the security review") go through
 `steps.py set <name> off --run <run> --reason "<the owner's words>"`. "Never run the PR agents" without a
 run in mind is a project change: `steps.py set <name> off --reason "<the owner's words>"`. Only the owner
-switches a step off. When `review-feature-flag` is off while flags are required, say so in the next review.
+switches a step off. The opt-in `e2e` step is switched **on** the same way ("test this end to end" for one run,
+"always test end to end" for the project). When `review-feature-flag` is off while flags are required, say so in the next review.
 
 ## Human review between hand-offs
 Before handing any agent's output to the next agent (after its Validator), ask:
@@ -245,7 +261,7 @@ Close the run: `python -I .fyzxsflow/package/engine/run.py close <run> --outcome
 (or `--outcome abandoned --note "<why>"` when the owner stops it). Only `close` moves a run out of `active/`.
 Close only when no `owner-decision` is open; a decision the owner answers after closing is a new run.
 
-End with one line: `Run <id>: PR <link | "ready" | "off: branch <name> ready">. Ship-check: <ready=yes | the failing checks>. Skipped: <steps that were off, or none>. Flags: <names, default off | not-required: revert by <path>>. Findings: <n> (<n> applied
+End with one line: `Run <id>: PR <link | "ready" | "off: branch <name> ready">. Ship-check: <ready=yes | the failing checks>. End to end: <modes passed | "not proven: <status>" | "off">. Skipped: <steps that were off, or none>. Flags: <names, default off | not-required: revert by <path>>. Findings: <n> (<n> applied
 by the Curator). Deploy: <components in order>.`
 
 ## Learned

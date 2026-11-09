@@ -56,7 +56,10 @@ must be true and every step must run as written.
      the reports' final criteria rows; withdrawn criteria shown as withdrawn. When the run records are not on the
      PR branch, say where the evidence paths live;
    - test evidence: the `ship-check` table, counts from the runner and gate summaries, each failure with its cause
-     and, when the owner accepted it, their words;
+     and, when the owner accepted it, their words. When the opt-in `e2e` step is on and its row says `not ready`,
+     state plainly that the change was not proven end to end and why (the `e2e.md` status); when the end-to-end
+     modes ran, name each one and its network (`airplane`: nothing left the machine; `connected`: which approved
+     services it reached);
    - the flags or the revert path, and the deploy order from the profile, with what breaks in each partial-deploy
      and partial-revert state;
    - every doc the run changed (`git diff --stat <target>...<pr-branch>`, plus doc commits left off the branch);

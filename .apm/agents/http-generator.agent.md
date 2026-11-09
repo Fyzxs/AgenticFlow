@@ -76,6 +76,8 @@ API behaves the way a plausible wrong implementation would.
 - Done means: every criterion the change-map assigns to an API proof has a request, and the report maps each one.
 
 ## Rules
+- When the `http` mode is `"network": "airplane"` (`config.json`), the API runs against the local stack in
+  `.fyzxsflow/e2e.md`: the data and identities a proof uses come from that stack, never from a hosted service.
 - When the work is flagged, cover flag on and flag off. When the flag policy is `not-required`, cover the shipped
   behaviour and prove the unchanged default still behaves as before.
 - Assertions must be ones the project's runner actually evaluates (see the API segment doc).

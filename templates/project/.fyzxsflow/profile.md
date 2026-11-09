@@ -78,7 +78,8 @@ UNRESOLVED (e.g. infrastructure → database → backend → frontend)
      (e.g. ["pr"] to end every run with a ready branch instead of a PR), or for one run by saying so in your
      request ("no PR this time"). Steps: http-proofs, gates, reviews (or review-narrow, review-large,
      review-architecture, review-security, review-feature-flag, review-iac), extreme, pr, pr-review,
-     docs-upkeep, learn. See them: python -I .fyzxsflow/package/engine/steps.py list -->
+     docs-upkeep, learn. One step is opt-in, off until switched on (config.json -> steps.on, or "test this end
+     to end" in a request): e2e (see .fyzxsflow/e2e.md). See them: python -I .fyzxsflow/package/engine/steps.py list -->
 
 ## Runs
 - Runs: commit
