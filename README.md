@@ -62,150 +62,20 @@ host or model. Each run is committed at every stage, so you can read it, edit it
 9. **Models by tier, moved on evidence.** Agents declare `deep`, `standard`, `fast` or `auto`, and each
    project maps tiers to its host's models. An agent that keeps failing moves up a tier for that run.
    An optional model compare shadows a cheaper tier, so a tier is only lowered once the cheaper model
-   has proven itself.
+   has proven itself. See [Models](HOW-TO.md#models).
 10. **Bounded everything.** Fix loops stop after two rounds, docs and agent files have size budgets, and
     the Curator's own changes are validated before they land.
 
 ## Getting started
 
-Requirements: Python 3 (the engine uses the standard library only), git, and Claude Code and/or GitHub
-Copilot.
-
-1. **Install into your repo**, either with [APM](#install-with-apm) (below) or from a clone of this repo:
-
-   ```
-   python -I engine/install.py --target <path to your repo> --host claude --host copilot
-   ```
-
-   Use only the `--host` flags you need.
-
-2. **Describe your repo** with `/fyzxsflow-init` (see [Running the flow](#running-the-flow) for your tool).
-   The Repo Cartographer drafts `.fyzxsflow/` (profile, build and test commands, gates, feature-flag rules
-   and per-segment docs) from your code and CI, and asks only for what it cannot find. Review what it wrote.
-
-3. **Run it** with `/flow <request>`:
-
-   ```
-   /flow Add sorting by release date to the collection page
-   /flow 12345        (an Azure DevOps work item id)
-   ```
-
-   Answer each review with `approve`, `redo: <what to change>` or `stop`.
-
-Install again at any time to upgrade. Your project's files are never overwritten.
-
-### Running the flow
-
-The flow is two entry points: **`flow`** (run a request through the Orchestrator) and **`fyzxsflow-init`**
-(bootstrap the repo with the Repo Cartographer). Install for the host you use (`--host claude`, `--host
-copilot`, or both), open your repo, and start them like this:
-
-| Where | Bootstrap | Run a request |
-|---|---|---|
-| **Claude Code** (CLI, VS Code or JetBrains extension, desktop app) | `/fyzxsflow-init` | `/flow <request>` |
-| **VS Code, GitHub Copilot Chat** | `/fyzxsflow-init` in the Chat view | `/flow <request>`, or pick **orchestrator** in the agents dropdown and type the request |
-| **GitHub Copilot CLI** | `copilot --agent=repo-cartographer --prompt "Bootstrap FyzxsFlow in this repo (bootstrap mode)"` | `copilot --agent=orchestrator --prompt "<request>"`, or `/agent` → **orchestrator** in an interactive session |
-| **GitHub Copilot app** (desktop) | start a local session on the repo: `Act as the FyzxsFlow repo-cartographer in bootstrap mode (.fyzxsflow/package/agents/repo-cartographer.agent.md).` | `Act as the FyzxsFlow orchestrator (.fyzxsflow/package/agents/orchestrator.agent.md) and run the flow on: <request>` |
-
-- **Claude Code** reads the commands from `.claude/commands/` and dispatches each agent as a subagent.
-- **VS Code** runs `.github/prompts/*.prompt.md` as slash commands. The prompts open in the right custom agent
-  (`.github/agents/`), and the Orchestrator dispatches the others as subagents (the `agent` tool). Use agent
-  mode with the Local harness.
-- **Copilot CLI** has no prompt files; start the custom agent directly. Restart the CLI after installing so it
-  loads the agents from `.github/agents/`.
-- **Copilot app** documents no support for a repository's custom agents yet, so ask the session to act as the
-  agent by its file, which works in any agent that can read files and run commands. Use a local session: the
-  flow runs `python` and your build and test commands.
-
-Where a host can't dispatch one agent from another, the Orchestrator runs that agent's step itself from its
-file and says so in the ledger. The run is the same, but the Validator's check is less independent.
-
-Reply to reviews in the same conversation. If a session ends mid-run, start a new one and say `/flow resume`
-(or ask the Orchestrator to resume): it picks the run up from `.fyzxsflow/runs/active/`.
-
-> **Copilot surfaces are not yet verified end to end.** The steps follow the
-> [VS Code prompt files](https://code.visualstudio.com/docs/copilot/customization/prompt-files),
-> [subagents](https://code.visualstudio.com/docs/copilot/agents/subagents),
-> [Copilot CLI custom agents](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/invoke-custom-agents)
-> and [Copilot app](https://docs.github.com/en/copilot/concepts/agents/github-copilot-app) docs. Claude Code is
-> the host the flow has been trialled on.
-
-### Install with APM
-
-> **Not yet verified end to end.** These steps follow [APM's documentation](https://microsoft.github.io/apm/);
-> if one doesn't behave as described, please open an issue.
-
-[APM](https://github.com/microsoft/apm) (Agent Package Manager) installs agent packages from GitHub and pins
-them in `apm.yml` and `apm.lock.yaml`. Install the CLI (for example `pip install apm-cli`, `brew install apm`,
-or `winget install --id Microsoft.APM --exact --source winget`), then, in your repo:
-
 ```
-apm install Fyzxs/AgenticFlow --target claude,copilot
-python -I apm_modules/Fyzxs/AgenticFlow/engine/install.py --target . --host claude --host copilot
+python -I engine/install.py --target <path to your repo> --host claude   # or install with APM
+/fyzxsflow-init                                                          # draft .fyzxsflow/ from your code
+/flow <request>                                                          # run a request
 ```
 
-The first command downloads FyzxsFlow into `apm_modules/` (keep that gitignored) and deploys its agents,
-prompts, instructions and skills into `.claude/` and `.github/`. The second sets up `.fyzxsflow/`: the engine
-the agents call, the templates, the kill-by-name hook, and host files that include what the Curator has learned
-for your project. APM can't run a package's installer itself, so the second command is needed, after every
-`apm install` or `apm update` of FyzxsFlow. Pin a version with `apm install Fyzxs/AgenticFlow#<tag or commit>`.
-
-To have APM run the installer for you, add this to **your** repo's `apm.yml` and trust it once with
-`apm lifecycle trust` (APM never runs a project's lifecycle scripts until you do, and re-asks after any change
-to them):
-
-```yaml
-lifecycle:
-  post-install:
-    - type: command
-      description: "Set up FyzxsFlow (.fyzxsflow/ and host files)"
-      command: "python -I apm_modules/Fyzxs/AgenticFlow/engine/install.py --target . --host claude --host copilot"
-      timeoutSec: 120
-  post-update:
-    - type: command
-      description: "Set up FyzxsFlow (.fyzxsflow/ and host files)"
-      command: "python -I apm_modules/Fyzxs/AgenticFlow/engine/install.py --target . --host claude --host copilot"
-      timeoutSec: 120
-```
-
-The installer rewrites some files APM deployed (each agent file gets your project's Learned entries), so
-`apm audit` reports those files as changed. That is expected.
-
-### Turning steps off
-
-Everything outside the core (intake, planning, build, validation, build and test checks) can be switched
-off. For the whole project, list the steps in `.fyzxsflow/config.json`:
-
-```json
-"steps": { "off": ["pr", "learn"] }
-```
-
-For one run, say it in your request ("no PR this time", "skip the security review"). See where every step
-stands with `python -I .fyzxsflow/package/engine/steps.py list`.
-
-| Step | While it is off |
-|---|---|
-| `pr` | no pull request; the run ends with its branch committed and ready |
-| `pr-review` | the PR opens without the agent's whole-PR review |
-| `reviews` | no reviewers (or one at a time: `review-narrow`, `review-large`, `review-architecture`, `review-security`, `review-feature-flag`, `review-iac`) |
-| `http-proofs` | API changes are proven by tests only |
-| `gates` | the flow doesn't run your linters and scanners (CI still does) |
-| `extreme` | no strict sign-off build; the CI-equivalent run is the last check |
-| `docs-upkeep` | docs aren't refreshed after the run (your feedback still updates them) |
-| `learn` | findings are kept but not turned into agent or doc changes |
-
-### What lands in your repo
-
-```
-.fyzxsflow/
-  config.json, profile.md, gates.json, feature-flags.md   your project's settings (yours to edit)
-  docs/              the repo docs agents are specialised by
-  feedback/          drop notes for the flow here, any time
-  learned/           rules the Curator has learned for this project, per agent
-  runs/              every run: brief, plans, reports, reviews, findings
-  package/           the installed engine and agents; replaced on every install, never edited
-.claude/  .github/   host files generated from package/ + learned/
-```
+[HOW-TO.md](HOW-TO.md) has the full steps: installing (from a clone or with APM), setting up, running on each
+Claude Code and Copilot surface, turning steps off, and choosing models.
 
 ## The agents
 
@@ -246,6 +116,7 @@ templates/           shapes of the project files and run artifacts
 adapters/            host-specific notes for Claude Code and Copilot
 docs/                design summary, decisions, and plans
 apm.yml              APM manifest
+HOW-TO.md            install, set up, run, and tune
 ```
 
 ## Roadmap
