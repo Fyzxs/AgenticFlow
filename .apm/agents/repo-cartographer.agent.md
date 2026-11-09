@@ -24,7 +24,8 @@ The single Implementer is only as good as the context it is handed. You write th
    steps into the `ci` mode verbatim, so local `ci` means what CI means. CI always starts from a fresh
    environment, so it never shows how to work against a **local, stateful** one: also inventory the repo's
    own dev-loop tooling (`scripts/`, start/setup/infra scripts, package scripts, Makefile, the README's
-   getting-started steps) and fill every Runner capability in the template from it:
+   getting-started steps) and fill every Runner capability in the template from it (every key is described in
+   `.fyzxsflow/config.json.readme.md`):
    - `db-migrate`: apply pending migrations in place, **keeping the data** (never a reset);
    - `db-verify`: the database verify or check scripts;
    - `db-reset`: rebuild from empty, always `"destructive": true`;

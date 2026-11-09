@@ -8,6 +8,7 @@ Inside a repo where FyzxsFlow is installed (after the Curator edits .fyzxsflow/l
 Installed layout (engine/layout.py):
   .fyzxsflow/                the project's own files; an install never overwrites them
     config.json profile.md gates.json feature-flags.md docs/ feedback/ runs/ baselines/
+    config.json.readme.md (installer-owned: rewritten on every install)
     learned/<agent>.md       the Curator's Learned entries for this project, one file per agent
   .fyzxsflow/package/        installer-owned: deleted and rewritten by every install; never edit it
     engine/ (no tests)  agents/  context/  templates/  skills/  instructions/  prompts/  INSTALLED.json
@@ -90,6 +91,9 @@ def install_package(source: pathlib.Path, target: pathlib.Path, written: list):
     written.append(pkg)
     ensure_gitignore(target, written)
     ensure_feedback_inbox(source, target, written)
+    # The config reference describes the installed engine, so it is installer-owned like package/.
+    ref = "config.json.readme.md"
+    write(target / HOME / ref, (source / "templates" / "project" / HOME / ref).read_text(encoding="utf-8"), written)
 
 
 def ensure_feedback_inbox(source: pathlib.Path, target: pathlib.Path, written: list):

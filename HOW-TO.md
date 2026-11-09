@@ -156,7 +156,8 @@ its model picker; it applies to every agent because Copilot's model names and it
 verified yet. `auto` is for hosts whose harness chooses the model itself. Claude Code has no such mode, so
 it inherits there as well.
 
-Map tiers to models in `.fyzxsflow/config.json`. A host's map replaces the defaults for that host entirely,
+Map tiers to models in `.fyzxsflow/config.json` (every setting is described in
+`.fyzxsflow/config.json.readme.md`). A host's map replaces the defaults for that host entirely,
 so give all four keys:
 
 ```json
@@ -208,6 +209,7 @@ Nothing lowers a tier automatically. The Curator proposes it, and only where the
 ```
 .fyzxsflow/
   config.json, profile.md, gates.json, feature-flags.md   your project's settings (yours to edit)
+  config.json.readme.md   what every config.json setting means; refreshed by each install
   docs/              the repo docs agents are specialised by
   feedback/          drop notes for the flow here, any time
   learned/           rules the Curator has learned for this project, per agent

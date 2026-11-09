@@ -43,6 +43,11 @@ class InstallTests(unittest.TestCase):
         self.assertNotIn("agent: orchestrator", flow_cmd)  # Copilot's routing key; Claude commands don't take it
         self.assertIn("agent: orchestrator", (self.root / ".github/prompts/flow.prompt.md").read_text(encoding="utf-8"))
         self.assertTrue((self.root / ".github/agents/implementer.agent.md").exists())
+        ref = self.root / ".fyzxsflow/config.json.readme.md"
+        self.assertIn("# config.json reference", ref.read_text(encoding="utf-8"))
+        ref.write_text("stale", encoding="utf-8")
+        self.install("--host", "claude")
+        self.assertIn("# config.json reference", ref.read_text(encoding="utf-8"))  # installer-owned: refreshed
         wa = (self.root / ".github/instructions/fyzxsflow-working-agreement.instructions.md").read_text(encoding="utf-8")
         self.assertTrue(wa.startswith('---\napplyTo: "**"'))
         settings = json.loads((self.root / ".claude/settings.json").read_text(encoding="utf-8"))
