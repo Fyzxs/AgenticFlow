@@ -17,17 +17,25 @@ at every run start and hand-off (`.fyzxsflow/package/engine/feedback.py`). Handl
 
 ```
 <run-id>/
-  input.md             the raw request: prompt text, or the work item id and its fetched content
+  input.md             the raw request: prompt text, or the work item id; the Work Summarizer appends the fetched
+                       items under "## Fetched work items"
   brief.md             Work Summarizer output (.fyzxsflow/package/templates/run/brief.md)
   change-map.md        Code Indicator output (.fyzxsflow/package/templates/run/change-map.md)
   work-packages/       Build Coordinator plan: one file per package (.fyzxsflow/package/templates/run/work-package.md)
-    WP-01-<segment>-<what>.md    e.g. WP-04-adapter-postgresql-exi-contract.md (status: in frontmatter)
+    WP-01-<segment>-<what>.md    e.g. WP-04-api-orders-export-contract.md (status: in frontmatter)
   reports/             one report per agent invocation (.fyzxsflow/package/templates/run/report.md); each records
                        its tier, dispatched model and self-reported model (run.py stamp / run.py models)
-    WP-01.implementer.md
-    WP-01.tester.md
-    WP-01.validator.implementer.md
-    review.narrow.md
+    work-summarizer.md, code-indicator.md          Intake, Locate
+    build-coordinator.plan.md                      the plan: packages with their waves, contract checks
+    WP-01.implementer.md, WP-01.tester.md          per package (WP-01.iac-implementer.md for IaC)
+    WP-01.validator.implementer.md                 a Validator on <target>: <id>.validator.<target>.md
+    build-coordinator.execute.md                   Build's close-out: every criterion traced to evidence
+    ci.runner.md, prove.http-generator.md, prove.runner.md, gates.<stage>.md
+    review.narrow.md (review.<lens>.md)            one per reviewer
+    pr-producer.md, pr-reviewer.md                 Deliver
+    feedback-<F-n|item>.docs-gardener.md           Docs Gardener, feedback mode; deliver.docs-gardener.md after-run (in Deliver)
+    curator.md                                     Learn
+  pr-description.md    the PR Producer's description (the PR body), read by the PR Reviewer and the owner's gate
   runner/              Build & Test Runner summaries (<invocation>.json); raw logs in <invocation>/ stay local
   gates/               Gate Analyst summaries (<invocation>.json); raw tool output in <invocation>/ stays local
   findings.jsonl       every finding from every agent (.fyzxsflow/package/engine/findings.py)

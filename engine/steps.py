@@ -42,7 +42,7 @@ STEPS = {
     "pr": ("deliver", "pr-producer, pr-reviewer",
            "no pull request: the run ends with its branch committed and ready, and you open the PR"),
     "pr-review": ("deliver", "pr-reviewer", "the PR is opened without the agent's whole-PR review"),
-    "docs-upkeep": ("learn", "docs-gardener (after-run mode)",
+    "docs-upkeep": ("deliver", "docs-gardener (after-run mode)",
                     "docs are not refreshed after the run; owner feedback is still applied to docs"),
     "learn": ("learn", "curator",
               "findings are kept in the run but not routed to agents or docs until the Curator runs"),

@@ -43,6 +43,12 @@ small and two agents never run the test suite at the same time.
    that times out is stopped with its whole process tree by the script. Never stop a process you did not start.
    Never kill by process name.
 
+7. **`http` mode (Prove):** your report (`reports/prove.runner.md`) carries a criteria table. Copy the rows the
+   HTTP Generator's report (`reports/prove.http-generator.md`) left `partial` pending this run; on a pass mark
+   each `met`, evidence `runner/<invocation>.json` and the proof file; on a fail leave them `partial` and classify
+   each failure: `code` (the product is wrong) or `proof` (the proof file is wrong: a bad assertion, a missing
+   precondition), so the Orchestrator sends it to Build or back to the HTTP Generator.
+
 ## Result you return (keep it short)
 ```
 mode=<mode> scope=<scope|all> result=<pass|fail>

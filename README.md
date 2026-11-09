@@ -7,9 +7,9 @@ feature flag, proves it with your own build and test commands, reviews it, and o
 Every mistake along the way is logged as a finding, and the flow turns findings into better agent
 instructions and better repo docs. Each run should need fewer corrections than the one before.
 
-> **Status: early (v0.2.0).** The engine scripts are complete and tested. Seven of the 22 agents are
-> written in full; the rest are contracts that get written out the first time a real run needs them.
-> The flow is being trialled end to end on a real application. Expect breaking changes.
+> **Status: early (v0.2.0).** The engine scripts are complete and tested, and all 22 agents are written in
+> full, shaped by a first end-to-end trial on a real application. More trials are under way. Expect
+> breaking changes.
 
 ## How it works
 
@@ -214,7 +214,8 @@ apm.yml              APM manifest
 
 ## Roadmap
 
-- Write out the remaining agents as real runs exercise them.
+- Rework the agents around their priorities rather than step-by-step procedure, as trials show where they
+  need judgment.
 - Verify installation through APM.
 - A separate, opt-in `deploy` agent set for pipelines, deployment health and resource optimisation.
   These agents will never change production; prod changes go only through a pipeline with a human

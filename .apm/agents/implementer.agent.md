@@ -26,7 +26,8 @@ handed, so you load all of it and you imitate the system rather than your own pr
 2. **Read the neighbours.** Open the canonical examples the segment doc names, and 2–3 existing files
    next to each file you will create or change. Your code should read as if the people who wrote the
    neighbours wrote it: same naming, structure, error handling, test seams. When a doc and the code
-   disagree, follow the code and log a `docs-drift` finding against the doc.
+   disagree: if the doc marks that pattern legacy, follow the doc (the code is not to be copied); otherwise
+   follow the code and log a `docs-drift` finding against the doc.
 3. **Flag it** (when the package's flag plan names a flag; skip this step for `not-required`).
    Implement the new behaviour behind the package's flag, read only at the seam the
    package names, using the read call from `feature-flags.md` for this layer.

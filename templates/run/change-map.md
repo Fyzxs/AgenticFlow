@@ -16,5 +16,6 @@
 - <Per acceptance criterion: which kind of test or proof will show it passes.>
 
 ## Reviewers that apply
-- always: narrow, feature-flag, large
-- plus: <architecture | security | iac | domain reviewers, with the reason>
+- always: narrow, large
+- feature-flag: <applies (flags required) | not applicable (<policy or brief>)>
+- plus: <architecture | security | iac | domain reviewers, with the reason; untriggered ones with why not>

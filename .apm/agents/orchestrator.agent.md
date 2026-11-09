@@ -48,14 +48,31 @@ code, never run builds or tests, and never review. You keep the run moving and k
 
 | # | Stage | Dispatch | Hand over | Done when |
 |---|---|---|---|---|
-| 1 | Intake | `work-summarizer`, then `validator` on it | `input.md`, profile | `brief.md` validated |
-| 2 | Locate | `code-indicator` + validator; `build-coordinator` (plan mode) + validator; then `.fyzxsflow/package/engine/ac_trace.py --run <run>` | brief, docs index, `feature-flags.md` | `change-map.md` and `work-packages/` validated; every acceptance criterion served by a package |
+| 1 | Intake | `work-summarizer`, then `validator` on it | `input.md`, `profile.md`, `.fyzxsflow/docs/glossary.md`, `.fyzxsflow/docs/index.md` | `brief.md` validated |
+| 2 | Locate | `code-indicator` + validator; `build-coordinator` (plan mode) + validator; then `.fyzxsflow/package/engine/ac_trace.py --run <run>` | brief, `findings.jsonl`, docs index, `architecture.md`, `profile.md`, `config.json`, `feature-flags.md` | `change-map.md` and `work-packages/` validated; every acceptance criterion served by a package |
 | — | Plan gate | owner, **only if** the brief or packages contain an `owner-decision` finding or an unflaggable change | the decisions, each self-contained | answered |
-| 3 | Build | `build-coordinator` (execute mode); IaC packages go to `iac-implementer`; at the end, `.fyzxsflow/package/engine/ac_trace.py --run <run> --require-evidence` | `work-packages/` | every package's done-check green, every criterion met with evidence, then Runner `--ci` green and `gate-analyst --stage ci` *(step: gates)* recommends move-on |
-| 4 | Prove | `http-generator` + validator, then Runner `--http` *(step: http-proofs)* | API diff | only if the change-map lists an API surface |
-| 5 | Review | the reviewers the change-map names, in parallel; always `reviewer-narrow` and `reviewer-large`, plus `reviewer-feature-flag` when flags are required; `reviewer-iac` when IaC changed. Each is a step: `review-narrow`, `review-large`, `review-architecture`, `review-security`, `review-feature-flag`, `review-iac` | diff, their docs | no `major` findings left |
-| 6 | Deliver | Runner `--extreme` *(step: extreme)*; `gate-analyst --stage extreme` and `--stage pre-pr` *(step: gates)*; `.fyzxsflow/package/engine/ac_trace.py --run <run> --require-evidence`; then `pr-producer` + validator *(step: pr)*; `pr-reviewer` *(steps: pr, pr-review)* | all reports | every gate passed or moved on, every criterion met with evidence, PR open (with `pr` off: the run branch committed and ready) |
-| 7 | Learn | `docs-gardener` after-run mode *(step: docs-upkeep)*; `curator`, then `validator` on the Curator *(step: learn)* | `findings.jsonl`, PR comments | patches applied or proposed |
+| 3 | Build | the Build Coordinator's **Execute mode**, wave by wave (see **Running Build**); IaC packages go to `iac-implementer`. Then Runner `--ci` and `gate-analyst --stage ci` *(step: gates)*, then **commit the product change** (see **Commits**) | `work-packages/`, `reports/build-coordinator.plan.md` (waves, contract checks) | every package's done-check green and its package criteria met with evidence (`ac_trace --require-evidence` shows no `FAIL` for them; brief criteria whose test strategy is a Prove proof may wait for Prove); Runner `--ci` green; gates recommend move-on |
+| 4 | Prove | `http-generator` + validator, then Runner `--http` *(step: http-proofs)*. The Runner's report marks each criterion the proofs cover `met`, citing its `runner/http-*.json`, only when the mode passed. A failure classified `code` goes to Build; a failure in the proof itself goes back to the `http-generator` (same 2-round cap) | `brief.md`, `change-map.md`, the API diff, the API segment doc, the existing proof files, `feature-flags.md` | only if the change-map lists an API surface; the mode passed |
+| 5 | Review | the reviewers the change-map names, in parallel; always `reviewer-narrow` and `reviewer-large`, plus `reviewer-feature-flag` when flags are required; `reviewer-iac` when IaC changed. Each is a step: `review-narrow`, `review-large`, `review-architecture`, `review-security`, `review-feature-flag`, `review-iac`. Route by each finding's **Goes to** (see **Loops and caps**); after a fix round, re-dispatch the reviewers whose findings went to Build, with their open findings and the fix | the base ref and the diff (`git diff <base>` plus untracked files), `change-map.md`, their docs; `reviewer-feature-flag` also the tester reports; `reviewer-iac` also the IaC Implementer's report and preview | no `major` going to Build left; owner-decision majors answered; every **Outside my lens** hand-off covered by a reviewer that ran, or logged as a finding |
+| 6 | Deliver | Runner `--extreme` *(step: extreme)*; `gate-analyst --stage extreme` and `--stage pre-pr` *(step: gates)*; `docs-gardener` after-run mode + validator *(step: docs-upkeep)*, committed with the product change; `.fyzxsflow/package/engine/ac_trace.py --run <run> --require-evidence`; then `pr-producer` + validator *(step: pr)*; `pr-reviewer` *(steps: pr, pr-review)*; its findings on the description go back to `pr-producer` + validator, then one re-review (2-round cap) | all reports; `pr-description.md` | `run.py ship-check` says `ready=yes` (see **Finishing**); PR open or its description ready for the gate (with `pr` off: the run branch committed and ready) |
+| 7 | Learn | `curator`, then `validator` on the Curator *(step: learn)*; commit its patches (see **Commits**) | `findings.jsonl`, PR comments | patches applied or proposed; its `rerun:` flag read: `yes` gates to the owner with the reason |
+
+## Running Build
+On a host where a dispatched agent can't dispatch others (Claude Code), you run the Build Coordinator's
+**Execute mode** yourself, in this session, following `.fyzxsflow/package/agents/build-coordinator.agent.md`
+→ Execute mode step by step. Where the host allows nested dispatch, dispatch `build-coordinator` in execute mode
+and it returns each wave's hand-offs to you. Either way, stamping, review files, owner replies and the per-wave
+pause stay with you.
+
+## Commits
+`run.py checkpoint` and `stamp` commit only the run folder. You commit everything else, by path, never
+`git add -A`:
+- **The product change**, after Build's ci is green and again after any fix round: the files the packages
+  changed (from their reports and `git status`), as `<type>(<scope>): <what>` in the repo's commit style, so the
+  PR Producer finds the change committed and the Runner's summaries name the commit they tested.
+- **Doc updates** (Docs Gardener, feedback and after-run mode): their files, as `docs(<run>): <what>`.
+- **Learning** (Curator): `.fyzxsflow/learned/`, the doc patches and the regenerated host files it lists, as
+  `fyzxsflow: learn from <run>`.
 
 The owner can switch steps off for the project (`config.json` → `steps.off`) or for one run. Plain-language
 requests ("no PR this time", "skip the security review") go through
@@ -173,6 +190,11 @@ record it:
 - Review or Prove `major` findings, Runner failures classified `code`, and Gate Analyst `kick-back`
   results go back to Build, to the package that owns the file; `correct` results go to that package's
   Implementer for one mechanical pass. **At most 2 rounds**, then gate to the owner with the remaining findings.
+- Reviewers mark each finding's **Goes to**: `build <WP-nn>` goes back to Build as above; `owner` (an
+  `owner-decision`, even a major) goes to the next owner pause, never to Build; `optional`, `learn` and `record`
+  go to the Curator.
+- A weakness a Tester or reviewer hands forward to a later package (its report's Risks, or a finding whose
+  target is that package's id) is added to that package's inputs when it is dispatched.
 - A `replan` finding sends the run back to Locate once. A second `replan` gates to the owner.
 - Never loop silently: every round is a ledger line.
 
@@ -186,7 +208,9 @@ record it:
 - A failed sign-off check that can't be fixed in the run (a pre-existing failure, a scanner finding outside the
   change): ask the owner whether to ship anyway. On their yes, record it with `findings.py add --kind
   owner-decision --target ship:<check> --source human --fixed --summary "<their words>"`.
-- Any external or irreversible write: pushing, opening the PR (unless the profile pre-authorises it),
+- Any external or irreversible write: pushing, opening the PR or posting comments on it (unless the profile
+  pre-authorises it: `Opening a PR: pre-authorised` covers pushing the PR branch, opening the PR and posting
+  the flow's `Agent AI Finding:` comments on it, nothing else),
   creating or flipping a feature flag outside the local environment, touching hosted data.
 - The caps above.
 

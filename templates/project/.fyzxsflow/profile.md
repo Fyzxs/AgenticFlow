@@ -16,17 +16,22 @@ UNRESOLVED: one paragraph.
 | IaC / pipelines | | `.fyzxsflow/docs/iac-architecture.md` |
 
 ## Reviewers that apply here
-- always: reviewer-narrow, reviewer-feature-flag, reviewer-large
+- always: reviewer-narrow, reviewer-large; reviewer-feature-flag whenever flags are required
 - by surface: reviewer-architecture (structure), reviewer-security (auth, tenancy, input), reviewer-iac
   (IaC), plus any domain reviewers: UNRESOLVED
+- Security docs: UNRESOLVED (the doc reviewer-security judges against; otherwise the "Security and tenancy"
+  section of architecture.md)
 
 ## Work items
 - Source: prompt only | Azure DevOps (organisation: UNRESOLVED, project: UNRESOLVED)
 - Read-only access for agents: yes
 
 ## Pull requests
-- Opening a PR: gated | pre-authorised
+- Opening a PR: gated | pre-authorised (pre-authorised covers pushing the PR branch, opening the PR and posting
+  the flow's comments on it, nothing else)
 - Target branch: UNRESOLVED
+- PR contents: product commits | + run records | + doc updates (what the PR branch carries besides the product
+  change; never the flow's install or bootstrap history)
 - Description template:
   ```
   ## What and why

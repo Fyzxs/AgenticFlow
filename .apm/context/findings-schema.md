@@ -1,14 +1,15 @@
 # Findings
 
 A finding is one JSON object per line in `findings.jsonl`. Write findings with
-`python -I .fyzxsflow/package/engine/findings.py add ...`, which validates them. Never hand-edit the file.
+`python -I .fyzxsflow/package/engine/findings.py add ...`, which validates them, and change one with
+`findings.py amend <F-n> --note "..." [--fixed]`. Never hand-edit the file.
 
 | Field | Required | Meaning |
 |---|---|---|
 | `id` | auto | `F-<n>` within the run |
 | `run` | auto | run id |
 | `source` | yes | agent that found it (`validator`, `reviewer-narrow`, `runner`, `human`, ...) |
-| `target` | yes | what it is about: an agent name (`implementer`), a doc path, or `code` |
+| `target` | yes | what it is about: an agent name (`implementer`), a doc path, `code`, a package id (`WP-06`: a weakness handed forward to that package, added to its inputs when it is dispatched), or `ship:<check>` (the owner accepting a failed sign-off check) |
 | `kind` | yes | see below |
 | `severity` | yes | `major` (must fix before merge), `medium` (judgment call), `minor`, `observation` |
 | `summary` | yes | one sentence |
