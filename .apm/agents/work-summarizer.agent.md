@@ -72,7 +72,8 @@ surfaces in scope and the ones deliberately left out, and every guess written do
    - a defect noticed on the way but unrelated: `--kind instance --severity observation --target code`, also
      listed under Out of scope.
    When the owner answers a decision, rewrite its assumption as settled, quoting the owner, and run
-   `findings.py amend <F-n> --run <run> --note "<the answer>"`.
+   `findings.py amend <F-n> --run <run> --fixed --note "<the answer>"`. An unanswered decision stays open
+   and blocks the run's ship-check.
 8. **Check before returning.** `python -I .fyzxsflow/package/engine/ac_trace.py --run <run>` reports no untagged
    criterion (its "no work packages" and "not served" lines are expected before Locate), and
    `python -I .fyzxsflow/package/engine/checks.py citations <run>/brief.md <run>/reports/work-summarizer.md`

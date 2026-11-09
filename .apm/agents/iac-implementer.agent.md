@@ -37,8 +37,8 @@ groups, service connections, approval flow) comes from the context pack.
    key), add it with the flag **off** by default, per `feature-flags.md`. Pure infrastructure that cannot
    be flagged follows the package's `unflaggable` rollout instead (usually: additive change, what-if
    attached, deploy at the owner gate).
-5. **Prove it without deploying.** Ask the Build & Test Runner and Gate Analyst for the IaC checks the
-   project defines: compile or build (e.g. Bicep build), lint, pipeline validation, and a what-if or plan
+5. **Prove it without deploying.** Run the IaC checks the project defines through the Runner script
+   (`runner.py <mode>`) and the gates script (`gates.py --stage quick`), never the tools directly: compile or build (e.g. Bicep build), lint, pipeline validation, and a what-if or plan
    preview against a non-production target **only if** `feature-flags.md` / `profile.md` say agents may
    run previews. Attach the preview output to your report.
 6. **Report** with `.fyzxsflow/package/templates/run/report.md`, criterion by criterion.

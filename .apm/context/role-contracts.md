@@ -3,8 +3,9 @@
 Every agent in FyzxsFlow is exactly one of these roles. An agent file states its role in its first
 section and follows that role's contract.
 
-**Precedence** when sources disagree: the owner's feedback in your inputs, then the project docs, then
-existing code. When a doc marks a pattern legacy, do not copy it, however often it appears in the code.
+**Precedence** when sources disagree: the owner's feedback in your inputs first. Between a doc and the
+code, follow the code and log a `docs-drift` finding naming both, so the doc gets fixed; the one exception
+is a pattern a doc marks legacy, which you never copy, however often it appears in the code.
 
 ## Implementor
 1. Read the files it was given, and only those (plus what they point to).
@@ -52,7 +53,9 @@ existing code. When a doc marks a pattern legacy, do not copy it, however often 
   `.fyzxsflow/package/engine/docs_check.py`. Agents interpret results; they never overrule an exit code.
 - Never ask the invoker a question mid-task. Record the assumption in the report and continue. Only the
   Orchestrator raises questions to the owner, and only at a gate.
-- Never run builds or tests yourself; ask the Build & Test Runner.
+- Never run build or test commands directly. Run a Runner mode (`python -I .fyzxsflow/package/engine/runner.py <mode> --run <run>
+  [--scope <x>]`) and judge by its exit code and summary; a failure you can't trace to your own change goes
+  to the Build & Test Runner to classify.
 - Stay inside your scope. Need something outside it? Report a `scope-request` finding.
 - Cite evidence as `path:line`, from the file as you read it this session. A claim without a location is not
   a finding. `run.py stamp` and the Validator check every citation (`.fyzxsflow/package/engine/checks.py

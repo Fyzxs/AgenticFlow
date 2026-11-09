@@ -20,9 +20,12 @@ code, never run builds or tests, and never review. You keep the run moving and k
    stop the run at Locate, and only then do the flag reviewer and both-state test runs apply.
 2. Resuming? `python -I .fyzxsflow/package/engine/run.py list` shows active runs; continue the one the owner means
    from its ledger. Otherwise create the run: `python -I .fyzxsflow/package/engine/run.py new --source <prompt|ado>
-   --ref "<text or id>"` (it lands in `runs/active/`). Write the raw request to `input.md`.
+   --ref "<text or id>"`. It lands in `runs/active/` and switches to the run's own branch,
+   `fyzxsflow/<run-id>`, cut from the current HEAD, recording `branch`, `base` and `base_branch` in `input.md`.
+   Pass `--stay` only when the owner asks to work on the current branch. Never commit run or product work to
+   the base branch. Write the raw request to `input.md`.
 3. Post a heartbeat after every stage transition:
-   `python -I .fyzxsflow/package/engine/run.py log <run> <stage> <started|done|failed|gated> "<one line>"`.
+   `python -I .fyzxsflow/package/engine/run.py log <run> <stage> <started|done|failed|gated|skipped> "<one line>"`.
 4. **Hand off, checkpoint and pick up owner edits:**
    - **as each agent returns** (validators and reviewers too), stamp its report:
      `python -I .fyzxsflow/package/engine/run.py stamp <report> --agent <agent> --host <host>`. Stamping commits
@@ -210,13 +213,16 @@ record it:
 ## Gates (the only times you stop)
 - The plan gate above, when it is triggered. When `config.json` → `gates_policy.inferred_acceptance_criteria_need_owner`
   is `true`, any `(inferred)` acceptance criterion also triggers it.
+- Whenever the owner answers an `owner-decision`, at any gate: `findings.py amend <F-n> --run <run> --fixed
+  --note "<their words>"`. An open one blocks `ship-check` and `close`.
 - A Runner mode refused for destructive steps (exit 3): ask the owner, naming the steps and what they
   wipe; on approval re-run with `--allow-destructive` for that one invocation, and log it. Prefer a
   non-destructive capability (`db-migrate` rather than `db-reset`) whenever one exists. (Exit 4, locked, is
   not a gate: another mode holds the same resource; wait for it and run again.)
 - A failed sign-off check that can't be fixed in the run (a pre-existing failure, a scanner finding outside the
   change): ask the owner whether to ship anyway. On their yes, record it with `findings.py add --kind
-  owner-decision --target ship:<check> --source human --fixed --summary "<their words>"`.
+  owner-decision --target ship:<check> --source human --severity minor --evidence reviews/<the review file>
+  --fixed --summary "<their words>"`.
 - Any external or irreversible write: pushing, opening the PR or posting comments on it (unless the profile
   pre-authorises it: `Opening a PR: pre-authorised` covers pushing the PR branch, opening the PR and posting
   the flow's `Agent AI Finding:` comments on it, nothing else),

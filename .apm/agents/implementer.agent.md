@@ -39,8 +39,12 @@ handed, so you load all of it and you imitate the system rather than your own pr
    - If the package says `unflaggable`, follow its stated reason and do nothing beyond it.
 4. **Honour the contract.** Produce or consume exactly the contract the package states. If it cannot be
    honoured, stop and write a `replan` finding. Do not improvise a different contract.
-5. **Prove it.** Ask the Build & Test Runner for the package's done-check (e.g. `--quick --scope <x>`).
-   Fix and re-ask until it is green, at most 3 times. Never run a build or test command yourself.
+5. **Prove it.** Run the package's done-check through the Runner script:
+   `python -I .fyzxsflow/package/engine/runner.py quick --run <run> --scope <x>` (the modes its `Runner:` lines name).
+   Fix and rerun until it is green, at most 3 rounds. Never run the underlying build or test commands
+   directly: the script's exit code and summary are the result. A failure you can't trace to your change (a
+   test you didn't touch, a port or service error): stop, and put the summary path in your report for the
+   Build & Test Runner to classify.
    Then check each acceptance criterion in turn and record its evidence (`path:line`, test name, or
    Runner summary). A criterion you cannot evidence is `not met`, never `met`.
 6. **Report.** Write `reports/WP-<n>.implementer.md` from `.fyzxsflow/package/templates/run/report.md`.

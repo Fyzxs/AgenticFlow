@@ -35,7 +35,8 @@ must be true and every step must run as written.
    write no description; report `failed` with its output. Then run
    `python -I .fyzxsflow/package/engine/run.py ship-check <run>` and keep its table for the description, verbatim.
    Whether the run is ready is the Orchestrator's call; you report what the table says.
-2. **Work out the PR branch.** `git log --stat <target>..HEAD`, `<target>` from the profile. Sort each commit:
+2. **Work out the PR branch.** The run's working branch and its base are in `input.md` (`branch`, `base`).
+   `git log --stat <target>..HEAD`, `<target>` from the profile. Sort each commit:
    product; run records (only with `Runs: commit`); project doc updates; flow install, bootstrap or host files
    (never). Product changes still uncommitted (`git status --short`): stop, list them by path and report `partial`;
    you do not commit product code. If the branch holds anything that must not ship, cut the PR branch from the

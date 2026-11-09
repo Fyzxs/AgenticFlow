@@ -1,33 +1,27 @@
 # Claude Code adapter
 
-`apm install` with target `claude` writes agents, rules (from `.apm/instructions`) and commands (from
-`.apm/prompts`) into `.claude/`. This folder holds what APM does not cover yet, or what needs verifying.
+How FyzxsFlow maps onto Claude Code. Claude Code is the host the flow has been trialled on.
+
+## What the installer writes
+`engine/install.py --host claude` (also run after `apm install`) writes, from `.fyzxsflow/package/`:
+- `.claude/agents/<name>.md`: each agent, with `model:` set from its tier (`config.json` → `models.claude`)
+  and the project's Learned entries from `.fyzxsflow/learned/<name>.md` appended;
+- `.claude/commands/<prompt>.md`: `/flow` and `/fyzxsflow-init`, with the user's text as `$ARGUMENTS`;
+- `.claude/rules/fyzxsflow-working-agreement.md`: the always-on working agreement;
+- the kill-by-name guard, merged into `.claude/settings.json` as a `PreToolUse` hook on `Bash|PowerShell`:
+  `python -I "$CLAUDE_PROJECT_DIR/.fyzxsflow/package/engine/hooks/block_kill_by_name.py"` (`python3` where
+  only that exists). Reinstalling updates the entry in place; it is never duplicated.
+
+`install.py --sync` regenerates these from the installed package after the Curator edits `learned/`.
 
 ## Dispatch
-The Orchestrator dispatches agents through Claude Code's Agent tool (subagents). Each dispatch passes
-file paths from the run folder, never pasted context.
+The Orchestrator dispatches agents with Claude Code's Agent tool (subagents), passing file paths from the run
+folder, never pasted context. A subagent can't dispatch further agents, so:
+- the Orchestrator runs the Build Coordinator's Execute mode itself (`orchestrator.agent.md` → **Running Build**);
+- Implementers, Testers and the IaC Implementer run their own checks through
+  `.fyzxsflow/package/engine/runner.py` instead of asking the Build & Test Runner agent, which the Orchestrator
+  dispatches for the stage checks (ci, http, extreme) and for classifying failures.
 
-## Hooks
-Tool-call guards are Claude Code hooks. Add to `.claude/settings.json` (or ship as `.apm/hooks/*.json`
-once the APM hook format is confirmed in the PoC):
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      { "matcher": "Bash|PowerShell",
-        "hooks": [ { "type": "command",
-                     "command": "python -I \"$CLAUDE_PROJECT_DIR/engine/hooks/block_kill_by_name.py\"" } ] }
-    ]
-  }
-}
-```
-
-Adjust the path to wherever the engine is installed in the target repo.
-
-## To verify in the PoC
-- [ ] Which folder APM writes `.agent.md` files to for Claude, and whether frontmatter maps cleanly
-      (`name`, `description`).
-- [ ] Whether `.apm/context/*` fragments are reachable by agents after install, or must be inlined.
-- [ ] Whether `engine/` and `templates/` ship with the package (`includes: auto`) or need listing.
-- [ ] The `.apm/hooks/*.json` schema and how APM merges it into `settings.json`.
+## Open questions
+- [ ] Whether APM's `.apm/hooks/*.json` format can ship the hook, so `install.py` no longer has to merge it.
+- [ ] APM end to end: `apm install` then `install.py` in a clean repo (see `HOW-TO.md` → **With APM**).

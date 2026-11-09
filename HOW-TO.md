@@ -98,7 +98,8 @@ The flow is two entry points: **`flow`** (run a request through the Orchestrator
 Where a host can't dispatch one agent from another, the Orchestrator runs that agent's step itself from its
 file and says so in the ledger. The run is the same, but the Validator's check is less independent.
 
-Reply to reviews in the same conversation. If a session ends mid-run, start a new one and say `/flow resume`
+Each run works on its own branch, `fyzxsflow/<run-id>`, cut from whatever you had checked out; nothing lands on
+your base branch. Reply to reviews in the same conversation. If a session ends mid-run, start a new one and say `/flow resume`
 (or ask the Orchestrator to resume): it picks the run up from `.fyzxsflow/runs/active/`.
 
 > **Copilot surfaces are not yet verified end to end.** The steps follow the
@@ -147,8 +148,8 @@ Each agent declares a tier, never a model name. Out of the box:
 | Tier | Agents | Claude Code | Copilot |
 |---|---|---|---|
 | `deep` | orchestrator, build-coordinator, validator, curator, repo-cartographer, code-indicator, reviewer-architecture, reviewer-large, reviewer-security, reviewer-iac | `opus` | inherit |
-| `standard` | work-summarizer, implementer, tester, http-generator, iac-implementer, gate-analyst, docs-gardener, pr-producer, pr-reviewer, reviewer-narrow, reviewer-feature-flag | `sonnet` | inherit |
-| `fast` | build-test-runner | `haiku` | inherit |
+| `standard` | work-summarizer, build-test-runner, implementer, tester, http-generator, iac-implementer, gate-analyst, docs-gardener, pr-producer, pr-reviewer, reviewer-narrow, reviewer-feature-flag | `sonnet` | inherit |
+| `fast` | none | `haiku` | inherit |
 | `auto` | none | inherit | inherit |
 
 *Inherit* means the agent runs on whatever model the session uses. On Copilot that is the model you pick in

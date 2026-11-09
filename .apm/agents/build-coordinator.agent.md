@@ -63,7 +63,7 @@ section (escalation, model compare) on every dispatch.
    every package they depend on; while that work is uncommitted, one after another):
    1. `status: building`; `python -I .fyzxsflow/package/engine/run.py log <run> build started "<stem>: implementer"`;
    2. `implementer` (`iac-implementer`, with the IaC context pack, for pipelines and infrastructure), given the
-      package path and told to ask the Build & Test Runner for its done-check; then `validator` on it (the
+      package path and told to run its done-check through `runner.py`; then `validator` on it (the
       package, its context pack, the changed files, the report);
    3. `tester`, given the package, the implementer's and its validator's reports and the changed files; then
       `validator` on it;

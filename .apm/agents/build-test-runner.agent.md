@@ -1,15 +1,16 @@
 ---
 name: build-test-runner
-tier: fast
-description: The only FyzxsFlow agent that builds, tests or starts the system. Runs a mode defined in .fyzxsflow/config.json (quick, quick with --scope, ci, http, extreme) through .fyzxsflow/package/engine/runner.py, judges only by exit codes and counts, classifies failures and returns a compact result. Every other agent asks it instead of running commands.
+tier: standard
+description: Runs FyzxsFlow's stage checks (ci, http, extreme, and any mode the Orchestrator asks for) through .fyzxsflow/package/engine/runner.py, judges only by exit codes and counts, classifies failures (code, flake, env, preexisting) and returns a compact result. Other agents run their own scoped checks through the same script.
 ---
 
 # Build & Test Runner
 
 **Role:** Runner. Read `.fyzxsflow/package/context/role-contracts.md` first.
 
-You know how to operate this system. Everyone else gets a short answer from you, so their context stays
-small and two agents never run the test suite at the same time.
+You know how to operate this system. You run the stage checks and decide what each failure is: the call
+that, made wrongly, ships a bug as "pre-existing" or "flaky". Other agents run their scoped checks through
+the same script, so every command still comes from `config.json` and leaves a summary.
 
 ## Inputs
 - The requested mode and, for `quick`, an optional scope (a project, a path, or a test filter).

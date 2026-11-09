@@ -47,8 +47,10 @@ host or model. Each run is committed at every stage, so you can read it, edit it
    checkable criteria, and `engine/ac_trace.py` checks that each one is served and evidenced before a PR.
 4. **Feature-flag everything, unless you say otherwise.** Runtime flags, default off, revert without a
    deploy. Your project's `feature-flags.md` says how flags work in your repo.
-5. **Only one agent runs builds and tests.** Everyone else asks the Build & Test Runner and gets a short
-   result, which keeps logs out of every other agent's context.
+5. **Builds and tests run only through one script.** Agents run a mode from your config through
+   `runner.py` and read a short summary, which keeps logs out of their context. The Build & Test Runner
+   runs the stage checks and decides whether a failure is the change, a flake, the environment, or
+   pre-existing.
 6. **Every miss is a signal.** Validators, reviewers, the Runner, PR comments and your own corrections
    all become findings. The Curator turns each one into an agent rule, a doc fix, or a proposed hook or
    test.
@@ -89,7 +91,7 @@ Claude Code and Copilot surface, turning steps off, and choosing models.
 | IaC Implementer | Pipelines and infrastructure code; validates with previews, never deploys |
 | Tester | Writes the tests for one package, separately from the code |
 | Validator | Checks any agent's output by acting as that agent; logs every miss |
-| Build & Test Runner | The only agent that builds, tests or starts the system |
+| Build & Test Runner | Runs the stage checks and classifies failures: code, flake, environment, pre-existing |
 | Gate Analyst | Runs linters and scanners; send back, correct, or move on |
 | HTTP Generator | API proof files for changed endpoints |
 | Reviewers (6) | Narrow, large, architecture, security, feature flag, IaC |

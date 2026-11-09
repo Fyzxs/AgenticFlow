@@ -17,7 +17,8 @@ at every run start and hand-off (`.fyzxsflow/package/engine/feedback.py`). Handl
 
 ```
 <run-id>/
-  input.md             the raw request: prompt text, or the work item id; the Work Summarizer appends the fetched
+  input.md             the raw request: prompt text, or the work item id, with the run's working branch, base commit
+                       and base branch in its frontmatter (run.py new); the Work Summarizer appends the fetched
                        items under "## Fetched work items"
   brief.md             Work Summarizer output (.fyzxsflow/package/templates/run/brief.md)
   change-map.md        Code Indicator output (.fyzxsflow/package/templates/run/change-map.md)
