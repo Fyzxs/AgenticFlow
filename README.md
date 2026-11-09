@@ -79,11 +79,11 @@ Copilot.
 
    Use only the `--host` flags you need.
 
-2. **Describe your repo.** In your repo, run the `fyzxsflow-init` prompt. The Repo Cartographer drafts
-   `.fyzxsflow/` (profile, build and test commands, gates, feature-flag rules and per-segment docs) from
-   your code and CI, and asks only for what it cannot find. Review what it wrote.
+2. **Describe your repo** with `/fyzxsflow-init` (see [Running the flow](#running-the-flow) for your tool).
+   The Repo Cartographer drafts `.fyzxsflow/` (profile, build and test commands, gates, feature-flag rules
+   and per-segment docs) from your code and CI, and asks only for what it cannot find. Review what it wrote.
 
-3. **Run it.** Run the `flow` prompt with a request:
+3. **Run it** with `/flow <request>`:
 
    ```
    /flow Add sorting by release date to the collection page
@@ -93,6 +93,42 @@ Copilot.
    Answer each review with `approve`, `redo: <what to change>` or `stop`.
 
 Install again at any time to upgrade. Your project's files are never overwritten.
+
+### Running the flow
+
+The flow is two entry points: **`flow`** (run a request through the Orchestrator) and **`fyzxsflow-init`**
+(bootstrap the repo with the Repo Cartographer). Install for the host you use (`--host claude`, `--host
+copilot`, or both), open your repo, and start them like this:
+
+| Where | Bootstrap | Run a request |
+|---|---|---|
+| **Claude Code** (CLI, VS Code or JetBrains extension, desktop app) | `/fyzxsflow-init` | `/flow <request>` |
+| **VS Code, GitHub Copilot Chat** | `/fyzxsflow-init` in the Chat view | `/flow <request>`, or pick **orchestrator** in the agents dropdown and type the request |
+| **GitHub Copilot CLI** | `copilot --agent=repo-cartographer --prompt "Bootstrap FyzxsFlow in this repo (bootstrap mode)"` | `copilot --agent=orchestrator --prompt "<request>"`, or `/agent` → **orchestrator** in an interactive session |
+| **GitHub Copilot app** (desktop) | start a local session on the repo: `Act as the FyzxsFlow repo-cartographer in bootstrap mode (.fyzxsflow/package/agents/repo-cartographer.agent.md).` | `Act as the FyzxsFlow orchestrator (.fyzxsflow/package/agents/orchestrator.agent.md) and run the flow on: <request>` |
+
+- **Claude Code** reads the commands from `.claude/commands/` and dispatches each agent as a subagent.
+- **VS Code** runs `.github/prompts/*.prompt.md` as slash commands. The prompts open in the right custom agent
+  (`.github/agents/`), and the Orchestrator dispatches the others as subagents (the `agent` tool). Use agent
+  mode with the Local harness.
+- **Copilot CLI** has no prompt files; start the custom agent directly. Restart the CLI after installing so it
+  loads the agents from `.github/agents/`.
+- **Copilot app** documents no support for a repository's custom agents yet, so ask the session to act as the
+  agent by its file, which works in any agent that can read files and run commands. Use a local session: the
+  flow runs `python` and your build and test commands.
+
+Where a host can't dispatch one agent from another, the Orchestrator runs that agent's step itself from its
+file and says so in the ledger. The run is the same, but the Validator's check is less independent.
+
+Reply to reviews in the same conversation. If a session ends mid-run, start a new one and say `/flow resume`
+(or ask the Orchestrator to resume): it picks the run up from `.fyzxsflow/runs/active/`.
+
+> **Copilot surfaces are not yet verified end to end.** The steps follow the
+> [VS Code prompt files](https://code.visualstudio.com/docs/copilot/customization/prompt-files),
+> [subagents](https://code.visualstudio.com/docs/copilot/agents/subagents),
+> [Copilot CLI custom agents](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/invoke-custom-agents)
+> and [Copilot app](https://docs.github.com/en/copilot/concepts/agents/github-copilot-app) docs. Claude Code is
+> the host the flow has been trialled on.
 
 ### Install with APM
 

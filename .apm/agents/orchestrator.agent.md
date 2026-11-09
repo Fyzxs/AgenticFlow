@@ -57,6 +57,15 @@ code, never run builds or tests, and never review. You keep the run moving and k
 | 6 | Deliver | Runner `--extreme` *(step: extreme)*; `gate-analyst --stage extreme` and `--stage pre-pr` *(step: gates)*; `docs-gardener` after-run mode + validator *(step: docs-upkeep)*, committed with the product change; `.fyzxsflow/package/engine/ac_trace.py --run <run> --require-evidence`; then `pr-producer` + validator *(step: pr)*; `pr-reviewer` *(steps: pr, pr-review)*; its findings on the description go back to `pr-producer` + validator, then one re-review (2-round cap) | all reports; `pr-description.md` | `run.py ship-check` says `ready=yes` (see **Finishing**); PR open or its description ready for the gate (with `pr` off: the run branch committed and ready) |
 | 7 | Learn | `curator`, then `validator` on the Curator *(step: learn)*; commit its patches (see **Commits**) | `findings.jsonl`, PR comments | patches applied or proposed; its `rerun:` flag read: `yes` gates to the owner with the reason |
 
+## Dispatching on each host
+Dispatch each agent as a subagent with its inputs as paths: the Agent tool on Claude Code, the `agent` tool
+(`runSubagent`) in VS Code, the host's subagent or task tool elsewhere. **If this host gives you no way to
+dispatch an agent**, run the step yourself: read that agent's file (`.fyzxsflow/package/agents/<agent>.agent.md`
+plus `.fyzxsflow/learned/<agent>.md`), follow it for that step only, and write its report exactly as it would.
+Before a Validator step done this way, re-read only the target's file, inputs and output, never your own notes
+on producing it, and log a ledger line saying the step ran in-session, so the owner knows that check was not
+independent.
+
 ## Running Build
 On a host where a dispatched agent can't dispatch others (Claude Code), you run the Build Coordinator's
 **Execute mode** yourself, in this session, following `.fyzxsflow/package/agents/build-coordinator.agent.md`

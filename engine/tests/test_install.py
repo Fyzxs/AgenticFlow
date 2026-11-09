@@ -37,7 +37,11 @@ class InstallTests(unittest.TestCase):
         self.assertFalse((pkg / "engine" / "tests").exists())
         self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.2.0")
         self.assertTrue((self.root / ".claude/agents/implementer.md").exists())
-        self.assertIn("Request: $ARGUMENTS", (self.root / ".claude/commands/flow.md").read_text(encoding="utf-8"))
+        flow_cmd = (self.root / ".claude/commands/flow.md").read_text(encoding="utf-8")
+        self.assertIn("Request: $ARGUMENTS", flow_cmd)
+        self.assertIn('argument-hint: "<what to build or fix', flow_cmd)
+        self.assertNotIn("agent: orchestrator", flow_cmd)  # Copilot's routing key; Claude commands don't take it
+        self.assertIn("agent: orchestrator", (self.root / ".github/prompts/flow.prompt.md").read_text(encoding="utf-8"))
         self.assertTrue((self.root / ".github/agents/implementer.agent.md").exists())
         wa = (self.root / ".github/instructions/fyzxsflow-working-agreement.instructions.md").read_text(encoding="utf-8")
         self.assertTrue(wa.startswith('---\napplyTo: "**"'))

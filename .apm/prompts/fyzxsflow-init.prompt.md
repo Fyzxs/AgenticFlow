@@ -1,5 +1,6 @@
 ---
 description: Bootstrap FyzxsFlow in this repo — the Repo Cartographer writes .fyzxsflow/ (profile, runner config, feature-flag source, docs) from the code and CI, and asks only what it cannot find.
+agent: repo-cartographer
 ---
 
 Act as the FyzxsFlow **repo-cartographer** in **bootstrap** mode

@@ -175,7 +175,8 @@ def sync_hosts(target: pathlib.Path, hosts: list, written: list):
                   + agreement_body, written)
             for p in prompts:
                 fm, body = split_frontmatter(p.read_text(encoding="utf-8"))
-                text = f"---\ndescription: {fm.get('description', '')}\n---\n{body.rstrip()}\n\nRequest: $ARGUMENTS\n"
+                hint = f"argument-hint: {fm['argument-hint']}\n" if fm.get("argument-hint") else ""
+                text = f"---\ndescription: {fm.get('description', '')}\n{hint}---\n{body.rstrip()}\n\nRequest: $ARGUMENTS\n"
                 write(target / ".claude" / "commands" / p.name.replace(".prompt.md", ".md"), text, written)
             merge_claude_hook(target / ".claude" / "settings.json", written)
         elif host == "copilot":
