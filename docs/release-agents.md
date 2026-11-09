@@ -47,6 +47,18 @@ the repo's design and constraints.
   only from the repo's release docs, never improvised), Health Monitor (KQL, resource health and metrics
   against a baseline), Release Analyst (healthy / watch / recommend rollback), Release Cartographer
   (writes the context below).
+- **Optimizer** (owner, 2026-11-08): looks at a running resource and suggests optimizations (cost, sizing,
+  scaling, configuration, performance). One agent, specialised by a per-resource-type context doc (App
+  Service, Functions, PostgreSQL, Storage, ...), the same way one Implementer is specialised by its
+  context pack; what it can suggest depends almost entirely on the resource type. Read-only, so it fits
+  Phase 0. Evidence: metrics over a stated window, Azure Advisor recommendations, cost data. Each
+  suggestion states the evidence, expected impact, risk, and how to revert. It changes nothing itself: an
+  accepted suggestion becomes new work for the dev flow (usually an IaC change), entering through the
+  feedback inbox as a queued run whose brief the owner approves, then reaching production only through
+  the approved pipeline.
+- Naming: the set now covers release, monitoring and optimization, so `ops` may fit better than
+  `release` (decide in the design doc).
 - Repo context, `.fyzxsflow/release/`: environments and promotion order (which are production);
   pipelines (ids, parameters, per-environment configuration); health signals (named KQL queries,
-  thresholds, resources to watch); rollback per component; approvals (who approves what in ADO).
+  thresholds, resources to watch); rollback per component; approvals (who approves what in ADO);
+  resource types (`resources/<type>.md`: what to measure, known optimization levers, what never to touch).
