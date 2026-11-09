@@ -221,5 +221,32 @@ Nothing lowers a tier automatically. The Curator proposes it, and only where the
 
 ## Upgrade
 
-Install again at any time, the same way you installed. `package/` and the host files are rewritten; your
-project's files (settings, docs, feedback, learned rules, runs) are never overwritten.
+Upgrading is the install command again, run against the newer FyzxsFlow.
+
+**From a clone:** update the clone, then re-run the installer for each repo you installed into, with the same
+`--host` flags as before:
+
+```
+cd <your FyzxsFlow clone>
+git pull
+python -I engine/install.py --target <path to repo A> --host claude --host copilot
+python -I engine/install.py --target <path to repo B> --host claude
+```
+
+**With APM:** in your repo, `apm update`, then the second command from [With APM](#with-apm) (or let the
+`post-update` lifecycle hook run it).
+
+The installer replaces `.fyzxsflow/package/` and regenerates the host files (`.claude/`, `.github/`) from it,
+adding your project's Learned entries back in. It never overwrites your project's files: settings, docs,
+feedback, learned rules and runs. New settings take their defaults until you add them to `config.json`;
+`.fyzxsflow/config.json.readme.md` is refreshed by the same install and lists every one.
+
+Then, in the upgraded repo:
+
+1. **Upgrade between runs.** The installer doesn't stop you mid-run, but a paused run in
+   `.fyzxsflow/runs/active/` would continue on the new agents and engine, and checks added since it started can
+   fail it. Finish or close the run first.
+2. **Check the docs still pass:** `python -I .fyzxsflow/package/engine/docs_check.py` and
+   `python -I .fyzxsflow/package/engine/pointers.py --check`.
+3. **Commit the upgrade** on its own: the changed files under `.fyzxsflow/`, `.claude/` and `.github/`.
+   `.fyzxsflow/package/INSTALLED.json` records the version and the FyzxsFlow commit it came from.
