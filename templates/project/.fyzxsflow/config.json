@@ -101,7 +101,8 @@
           "name": "migrate",
           "run": "UNRESOLVED: apply pending migrations to the LOCAL database in place, keeping its data"
         }
-      ]
+      ],
+      "lock": "local-db"
     },
     "db-verify": {
       "steps": [
@@ -109,7 +110,8 @@
           "name": "verify",
           "run": "UNRESOLVED: run the database verify scripts"
         }
-      ]
+      ],
+      "lock": "local-db"
     },
     "db-reset": {
       "destructive": true,
@@ -118,7 +120,8 @@
           "name": "reset",
           "run": "UNRESOLVED: rebuild the LOCAL database from empty (wipes its data)"
         }
-      ]
+      ],
+      "lock": "local-db"
     },
     "seed": {
       "steps": [
@@ -126,7 +129,8 @@
           "name": "seed",
           "run": "UNRESOLVED: load the data the proofs need (fixtures or ingestion), or set not_applicable"
         }
-      ]
+      ],
+      "lock": "local-db"
     },
     "extreme": {
       "draft": true,
@@ -169,7 +173,8 @@
           "name": "pointers-check",
           "run": "python -I .fyzxsflow/package/engine/pointers.py --check"
         }
-      ]
+      ],
+      "lock": "local-db"
     }
   }
 }

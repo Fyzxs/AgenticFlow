@@ -475,6 +475,72 @@ class RunnerTests(TempRepo):
         self.write_config([self.step("build", 0)])
         self.assertEqual(run("runner.py", "extreme", "--root", str(self.root))[0], 2)
 
+    def test_output_checks_fail_a_step_that_exits_zero(self):
+        lossy = dict(self.step("ingest", 0, text="done: 120 ok, 4202 failed"), fail_if_output=r"\b[1-9][0-9]* failed")
+        self.write_config([lossy, self.step("after", 0)])
+        r = self.new_run()
+        code, out = run("runner.py", "quick", "--run", str(r), "--root", str(self.root))
+        self.assertEqual(code, 1, out)
+        self.assertIn("ingest exit=0", out)
+        self.assertIn("FAILED CHECK: output matched fail_if_output", out)
+        self.assertIn("after skipped", out)
+        clean = dict(self.step("ingest", 0, text="done: 120 ok, 0 failed"), fail_if_output=r"\b[1-9][0-9]* failed",
+                     expect_output=r"[0-9]+ ok")
+        self.write_config([clean])
+        self.assertEqual(run("runner.py", "quick", "--root", str(self.root))[0], 0)
+        self.write_config([dict(self.step("ingest", 0, text="nothing"), expect_output=r"[0-9]+ ok")])
+        code, out = run("runner.py", "quick", "--root", str(self.root))
+        self.assertEqual(code, 1)
+        self.assertIn("no output line matched expect_output", out)
+
+    def test_timeout_stops_the_whole_process_tree(self):
+        pidfile = self.root / "grandchild.pid"
+        script = self.root / "spawn.py"
+        script.write_text(
+            "import subprocess, sys\n"
+            "p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'])\n"
+            f"open(r'{pidfile}', 'w').write(str(p.pid))\n"
+            "p.wait()\n", encoding="utf-8")
+        self.write_config([{"name": "hang", "run": f'"{PY}" -I "{script}"', "timeout_s": 3}])
+        code, out = run("runner.py", "quick", "--root", str(self.root))
+        self.assertEqual(code, 1, out)
+        self.assertIn("hang exit=124", out)
+        sys.path.insert(0, str(ENGINE))
+        from runner import pid_alive
+        pid = int(pidfile.read_text(encoding="utf-8"))
+        for _ in range(20):  # the OS may take a moment to reap it
+            if not pid_alive(pid):
+                break
+            import time
+            time.sleep(0.25)
+        self.assertFalse(pid_alive(pid), "the grandchild outlived the timed-out step")
+
+    def test_a_held_lock_refuses_and_a_stale_one_is_taken_over(self):
+        import os
+        self.write_config([self.step("migrate", 0)], lock="local-db")
+        locks = self.root / ".fyzxsflow" / "runs" / "_adhoc" / "locks"
+        locks.mkdir(parents=True)
+        (locks / "local-db.json").write_text(json.dumps({"pid": os.getpid(), "mode": "seed", "since": "now"}),
+                                             encoding="utf-8")
+        code, out = run("runner.py", "quick", "--root", str(self.root))
+        self.assertEqual(code, 4, out)
+        self.assertIn("lock 'local-db' is held by mode 'seed'", out)
+        dead = subprocess.run([PY, "-c", "import os; print(os.getpid())"], capture_output=True, text=True).stdout
+        (locks / "local-db.json").write_text(json.dumps({"pid": int(dead), "mode": "seed"}), encoding="utf-8")
+        code, out = run("runner.py", "quick", "--root", str(self.root))
+        self.assertEqual(code, 0, out)
+        self.assertFalse((locks / "local-db.json").exists())  # released after the run
+
+    def test_bare_run_id_resolves_under_active(self):
+        self.write_config([self.step("build", 0)])
+        r = self.new_run()
+        code, out = run("runner.py", "quick", "--run", r.name, "--root", str(self.root))
+        self.assertEqual(code, 0, out)
+        self.assertTrue(list((r / "runner").glob("quick-*.json")))
+        code, out = run("runner.py", "quick", "--run", "no-such-run", "--root", str(self.root))
+        self.assertNotEqual(code, 0)
+        self.assertIn("not an active run id", out)
+
 
 if __name__ == "__main__":
     unittest.main()

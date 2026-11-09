@@ -5,16 +5,27 @@
 For each step in the mode: run its command, write its output to a log, record its exit code. Services the
 mode lists are started first (their PIDs recorded) and stopped by PID afterwards, never by name.
 Prints a compact summary and writes runner/<invocation>.json in the run folder.
-Exit code: 0 if every step exited 0, 1 otherwise, 2 on a configuration error, 3 when the mode has destructive
-steps and neither --allow-destructive nor the mode's owner-set "allow_destructive" permits them (nothing runs).
+Exit code: 0 if every step passed, 1 otherwise, 2 on a configuration error, 3 when the mode has destructive
+steps and neither --allow-destructive nor the mode's owner-set "allow_destructive" permits them (nothing runs),
+4 when another mode holding the same "lock" is still running (nothing runs).
+
+A step passes when it exits 0 and its output checks hold. Tools that exit 0 while reporting failures need them:
+  "fail_if_output": "<regex>"   the step fails if any output line matches (e.g. "[1-9][0-9]* failed")
+  "expect_output":  "<regex>"   the step fails unless some output line matches
+A step that runs past "timeout_s" is stopped with its whole process tree (by PID) and fails with exit 124.
 
 A step (or a whole mode) marked "destructive": true wipes or replaces local state: a database reset, dropping
 seeded data. A mode marked "not_applicable": "<why>" is a declared non-capability and exits 0 without running.
+A mode with "lock": "<name>" (e.g. "local-db") refuses to start while another mode holding that lock runs, so two
+writers never share a resource.
+
+--run takes a run folder or a bare run id (resolved under .fyzxsflow/runs/active/).
 
 config.json shape (see templates/project/.fyzxsflow/config.json):
   { "modes": { "<mode>": { "steps": [ {"name": "build", "run": "dotnet build {scope}", "cwd": ".",
-                                       "env": {"K": "V"}, "timeout_s": 1800} ],
-                           "default_scope": "...", "services": ["api"], "continue_on_failure": false } },
+                                       "env": {"K": "V"}, "timeout_s": 1800, "fail_if_output": "..."} ],
+                           "default_scope": "...", "services": ["api"], "continue_on_failure": false,
+                           "lock": "local-db" } },
     "services": { "api": { "start": "...", "port": 5000, "cwd": ".", "ready_timeout_s": 90 } } }
 """
 
@@ -23,6 +34,7 @@ import datetime
 import json
 import os
 import pathlib
+import re
 import socket
 import subprocess
 import sys
@@ -51,21 +63,23 @@ def wait_for_port(port: int, timeout_s: float) -> bool:
 
 def start_service(name: str, spec: dict, root: pathlib.Path, logdir: pathlib.Path):
     log = open(logdir / f"service-{name}.log", "w", encoding="utf-8")
-    kwargs = {}
-    if os.name == "nt":
-        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-    else:
-        kwargs["start_new_session"] = True
     proc = subprocess.Popen(spec["start"], shell=True, cwd=root / spec.get("cwd", "."),
-                            stdout=log, stderr=subprocess.STDOUT, **kwargs)
+                            stdout=log, stderr=subprocess.STDOUT, **group_kwargs())
     ready = True
     if spec.get("port"):
         ready = wait_for_port(int(spec["port"]), float(spec.get("ready_timeout_s", 90)))
     return proc, log, ready
 
 
-def stop_service(proc) -> None:
-    """Stop a service we started, by its PID (and its child processes)."""
+def group_kwargs() -> dict:
+    """Start a child in its own process group, so its whole tree can be stopped by its PID."""
+    if os.name == "nt":
+        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+    return {"start_new_session": True}
+
+
+def stop_tree(proc) -> None:
+    """Stop a process we started, by its PID, with every process it started."""
     if proc.poll() is not None:
         return
     if os.name == "nt":
@@ -82,6 +96,27 @@ def stop_service(proc) -> None:
         proc.kill()
 
 
+def output_check(step: dict, logpath: pathlib.Path):
+    """None when the step's output checks hold, else why not. Reads the log line by line (logs can be huge)."""
+    fail_rx = re.compile(step["fail_if_output"]) if step.get("fail_if_output") else None
+    expect_rx = re.compile(step["expect_output"]) if step.get("expect_output") else None
+    if not (fail_rx or expect_rx):
+        return None
+    seen_expected = False
+    with open(logpath, encoding="utf-8", errors="replace") as log:
+        next(log, None)  # the "$ command" header line
+        for n, line in enumerate(log, start=2):
+            if fail_rx and fail_rx.search(line):
+                return f"output matched fail_if_output at log line {n}: {line.strip()[:160]}"
+            if expect_rx and not seen_expected and expect_rx.search(line):
+                seen_expected = True
+                if not fail_rx:
+                    break
+    if expect_rx and not seen_expected:
+        return f"no output line matched expect_output /{step['expect_output']}/"
+    return None
+
+
 def run_step(step: dict, scope: str, root: pathlib.Path, logpath: pathlib.Path) -> dict:
     command = step["run"].replace("{scope}", scope)
     env = os.environ.copy()
@@ -90,15 +125,72 @@ def run_step(step: dict, scope: str, root: pathlib.Path, logpath: pathlib.Path) 
     with open(logpath, "w", encoding="utf-8") as log:
         log.write(f"$ {command}\n\n")
         log.flush()
+        proc = subprocess.Popen(command, shell=True, cwd=root / step.get("cwd", "."), env=env,
+                                stdout=log, stderr=subprocess.STDOUT, **group_kwargs())
         try:
-            code = subprocess.run(command, shell=True, cwd=root / step.get("cwd", "."), env=env,
-                                  stdout=log, stderr=subprocess.STDOUT,
-                                  timeout=step.get("timeout_s")).returncode
+            code = proc.wait(timeout=step.get("timeout_s"))
         except subprocess.TimeoutExpired:
-            log.write(f"\n[fyzxsflow runner] timed out after {step.get('timeout_s')}s\n")
+            stop_tree(proc)
+            log.write(f"\n[fyzxsflow runner] timed out after {step.get('timeout_s')}s; "
+                      f"stopped process tree of PID {proc.pid}\n")
             code = 124
-    return {"name": step["name"], "command": command, "exit": code,
-            "seconds": round(time.monotonic() - started, 1), "log": str(logpath)}
+    check = output_check(step, logpath) if code == 0 else None
+    result = {"name": step["name"], "command": command, "exit": code, "passed": code == 0 and check is None,
+              "seconds": round(time.monotonic() - started, 1), "log": str(logpath)}
+    if check:
+        result["check"] = check
+    return result
+
+
+def pid_alive(pid: int) -> bool:
+    if os.name == "nt":
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return False
+        try:
+            code = ctypes.c_ulong()
+            kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+            return code.value == 259  # STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)  # signal 0 only checks; never sent on POSIX
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def take_lock(root: pathlib.Path, name: str, mode: str):
+    """Returns the lock file on success, or the holder's description when another live runner holds it."""
+    path = root / HOME / "runs" / "_adhoc" / "locks" / f"{name}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        try:
+            holder = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            holder = {}
+        if holder.get("pid") and holder["pid"] != os.getpid() and pid_alive(int(holder["pid"])):
+            return None, f"mode '{holder.get('mode')}' (runner PID {holder['pid']}, since {holder.get('since')})"
+    path.write_text(json.dumps({"pid": os.getpid(), "mode": mode,
+                                "since": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")}),
+                    encoding="utf-8")
+    return path, None
+
+
+def resolve_run(root: pathlib.Path, value):
+    if not value:
+        return root / HOME / "runs" / "_adhoc"
+    path = pathlib.Path(value)
+    if path.exists() or len(path.parts) > 1:
+        return path
+    active = root / HOME / "runs" / "active" / value
+    if active.is_dir():
+        return active
+    raise SystemExit(f"--run {value}: not a folder and not an active run id (see run.py list)")
 
 
 def main(argv=None) -> int:
@@ -131,7 +223,14 @@ def main(argv=None) -> int:
     if mode.get("draft"):
         print(f"note: mode '{args.mode}' is marked draft in config.json; the owner has not confirmed it")
     scope = args.scope or mode.get("default_scope", "")
-    run = pathlib.Path(args.run) if args.run else root / HOME / "runs" / "_adhoc"
+    run = resolve_run(root, args.run)
+    lock = None
+    if mode.get("lock"):
+        lock, holder = take_lock(root, mode["lock"], args.mode)
+        if lock is None:
+            print(f"refused: lock '{mode['lock']}' is held by {holder}. Wait for it to finish; never run two "
+                  f"'{mode['lock']}' modes at once.", file=sys.stderr)
+            return 4
     invocation = f"{args.mode}-{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d-%H%M%S-%f')}"
     logdir = run / "runner" / invocation
     logdir.mkdir(parents=True, exist_ok=True)
@@ -151,22 +250,24 @@ def main(argv=None) -> int:
             for i, step in enumerate(mode.get("steps", []), start=1):
                 result = run_step(step, scope, root, logdir / f"{i:02d}-{step['name']}.log")
                 results.append(result)
-                if result["exit"] != 0 and not mode.get("continue_on_failure", False):
+                if not result["passed"] and not mode.get("continue_on_failure", False):
                     break
     finally:
         for proc, log in services:
-            stop_service(proc)
+            stop_tree(proc)
             log.close()
+        if lock is not None:
+            lock.unlink(missing_ok=True)
 
     skipped = [s["name"] for s in mode.get("steps", [])[len(results):]]
-    passed = not service_errors and all(r["exit"] == 0 for r in results) and not skipped
+    passed = not service_errors and all(r["passed"] for r in results) and not skipped
     summary = {"mode": args.mode, "scope": scope or "all", "result": "pass" if passed else "fail",
                "steps": results, "skipped": skipped, "service_errors": service_errors}
     (run / "runner" / f"{invocation}.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
     print(f"mode={args.mode} scope={summary['scope']} result={summary['result']}")
     for r in results:
-        print(f"  {r['name']} exit={r['exit']} ({r['seconds']}s)")
+        print(f"  {r['name']} exit={r['exit']} ({r['seconds']}s)" + (f" FAILED CHECK: {r['check']}" if r.get("check") else ""))
     for name in skipped:
         print(f"  {name} skipped (an earlier step failed)")
     for err in service_errors:
