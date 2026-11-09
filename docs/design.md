@@ -1,10 +1,9 @@
 # FyzxsFlow design
 
-Full design with diagrams: https://claude.ai/artifact/SzJwCgeAbqtwCeWJLSAGhd (private to the owner).
-This file records the decisions so the repo stands on its own.
+This file records the design decisions and why they were made.
 
 ## Origin
-Built from three months of TcgHoard sessions. The most expensive corrections were about process, not code:
+Built from three months of agent sessions on a real application. The most expensive corrections were about process, not code:
 re-asking for approval (~14), unclear ship state (~15), silence on long runs (~16), handing verification
 back to the owner (~10). The MicroObjects coder and reviewer pair (Quill and Loupe) was the first "micro
 loop"; FyzxsFlow is the same loop, generalised and portable across Claude Code and GitHub Copilot.

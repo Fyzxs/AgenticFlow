@@ -43,7 +43,7 @@ ALLOW = [
     "Get-NetTCPConnection -LocalPort 5175",
     "git commit -m 'stop the reaper from killing tenants'",
     "grep -rn killall docs/",
-    "dotnet test csharp/src/TcgHoard.CI.slnf",
+    "dotnet test csharp/src/App.CI.slnf",
 ]
 
 

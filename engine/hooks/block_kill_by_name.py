@@ -2,7 +2,7 @@
 
 Killing by image name (taskkill /IM dotnet.exe, Stop-Process -Name node, pkill vite, ...) kills every
 process with that name: the owner's own dev servers, other worktrees' builds, other sessions' test runs.
-Origin: in TcgHoard it took down the owner's running API (2026-09-30) after the written "kill by PID"
+Origin: it once took down the owner's running API after the written "kill by PID"
 rule had already recurred, so it is mechanized here.
 
 Kill only processes you started, by PID: record the PID when you start a process, then

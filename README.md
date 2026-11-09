@@ -1,116 +1,169 @@
 # FyzxsFlow
 
-A self-correcting agentic development flow that works on more than one agent host. You give it a prompt,
-a story or an Azure DevOps work item. An orchestrator splits the work, a single Implementer writes it
-behind a feature flag, a Build & Test Runner proves it, reviewers check it, and a PR comes out. Every
-miss along the way becomes a finding, and a Curator turns findings into better agent files and better
-repo docs, so each run needs fewer corrections than the last.
+**A self-correcting agentic development flow for Claude Code and GitHub Copilot.**
 
-Design: https://claude.ai/artifact/SzJwCgeAbqtwCeWJLSAGhd (private to the owner) — summarised in
-[`docs/design.md`](docs/design.md).
+Give it a prompt, a story or an Azure DevOps work item. It plans the change, implements it behind a
+feature flag, proves it with your own build and test commands, reviews it, and opens a pull request.
+Every mistake along the way is logged as a finding, and the flow turns findings into better agent
+instructions and better repo docs. Each run should need fewer corrections than the one before.
 
-> **Status: scaffold (v0.1.0).** Seven agents are drafted in full (Orchestrator, Implementer, IaC
-> Implementer, Validator, Build & Test Runner, Gate Analyst, Repo Cartographer). The rest are contract
-> stubs. The engine scripts work and are tested. Nothing has been run end to end yet.
+> **Status: early (v0.2.0).** The engine scripts are complete and tested. Seven of the 22 agents are
+> written in full; the rest are contracts that get written out the first time a real run needs them.
+> The flow is being trialled end to end on a real application. Expect breaking changes.
+
+## How it works
+
+```
+request ──► Intake ──► Locate ──► Build ──► Prove ──► Review ──► Deliver ──► PR
+             brief     change map  code +    builds,   reviewers  PR text
+             + criteria + packages tests     gates     + fixes
+                                        │
+                     findings from every stage ──► Curator ──► better agents and docs
+```
+
+- **Intake.** The Work Summarizer turns the request into `brief.md` with numbered acceptance criteria.
+- **Locate.** The Code Indicator maps what changes and where. The Build Coordinator splits it into work
+  packages, one per segment of the codebase, each naming the docs it needs.
+- **Build.** One Implementer writes each package and a separate Tester writes its tests. A Validator
+  checks each output by re-reading the agent's own instructions and acting as that agent.
+- **Prove.** The Build & Test Runner runs your build and test commands. The Gate Analyst runs your
+  linters and scanners and decides, per result, whether to send it back, correct it, or move on.
+- **Review.** Reviewers chosen by the change check it: narrow (the diff), large (its callers and
+  contracts), architecture, security, feature flags, infrastructure.
+- **Deliver.** The PR Producer writes the pull request and the PR Reviewer reads it as a human would.
+  The Curator then routes every finding of the run.
+
+Agents hand off through files in a run folder, never through pasted context, so each one can run on any
+host or model. Each run is committed at every stage, so you can read it, edit it, or resume it.
 
 ## Principles
 
-1. **Gates are scripts, never prompts.** Anything that must hold on every host is a script with an exit
-   code or a git hook. Prompts carry judgment; scripts carry guarantees.
-2. **The run folder is the API between agents.** Agents hand off files with fixed shapes, never pasted
-   context, so any agent can run on any host or model without the next one noticing.
-3. **One Implementer, specialised by context.** Expertise lives in the repo docs, which the Build
-   Coordinator names per work package. Agent files hold portable craft.
-4. **Only the Build & Test Runner runs builds or tests; only the Gate Analyst runs scanners.** Everyone
-   else asks them and gets a compact result.
-5. **No acceptance criteria, no implementation.** Every brief and work package carries numbered,
-   checkable criteria, and `engine/ac_trace.py` proves each is served and evidenced before a PR.
-6. **Deterministic gates are declared, not prompted.** Linters, scanners and custom checks live in
-   `.fyzxsflow/gates.json`; `engine/gates.py` runs them and normalises SARIF; baselines keep known results
-   from blocking.
-7. **Everything is feature-flagged, unless the owner says otherwise.** Runtime flags, default off, revert
-   without a deploy. The project's `feature-flags.md` says how, and its `Policy` (`required` or
-   `not-required`) or the owner's per-run instruction decides whether. Either way every work package
-   records its choice and revert path, and `ac_trace.py` checks it.
-8. **Every miss is a signal.** Validators, reviewers, the Runner, PR comments and chat corrections all
-   write findings. The Curator routes each to the agent file, a repo doc, or a hook or test.
-9. **Runs are kept and editable.** Each run is committed at every stage checkpoint (`runs/active/` →
-   `runs/completed/` or `runs/abandoned/`). Edit any artifact between stages and the next stage reads it;
-   your edits become the Curator's strongest signal.
-10. **Models by tier, moved on evidence.** Agents declare `deep`, `standard`, `fast` or `auto` (the harness
-    decides); each project maps tiers to its host's models. Repeated Validator failures move an agent up for
-    that run. Optional model compare (off by default; it doubles shadowed tokens) runs a tier below as a
-    shadow, so the Curator can propose moving down only when the cheaper tier has proven itself.
-11. **Human review between hand-offs, earned down.** Every agent's output pauses for the owner by default.
-    Reply `approve`, `continue`, `redo: ...` or `stop`, adding `-less-review` or `-more-review` to change that agent's
-    level (on → notify → off). Only the owner lowers it; risky segments and per-run requests always pause.
-    The level only decides whether the run waits: every hand-off still writes its review file.
-    Write anything in a review file's `## Human Feedback` section (now, or days later), or drop a file in `.fyzxsflow/feedback/`
-    at any time: the flow routes it (docs updated, agents told, rework or new work queued) and shows you what
-    it did in your next review. You never edit docs or agent files to make feedback stick.
-12. **Bounded everything.** Review-fix loops stop after 2 rounds, context packs and agent files have size
-   budgets, and the Curator's patches are validated before they land.
+1. **Gates are scripts, not prompts.** Anything that must always hold is a script with an exit code or
+   a git hook. Prompts carry judgment; scripts carry guarantees.
+2. **One Implementer, specialised by context.** There are no per-language agents. Expertise lives in
+   your repo's docs, and each work package names the ones that apply. The Repo Cartographer drafts those
+   docs from your code; the Docs Gardener keeps them current.
+3. **No acceptance criteria, no implementation.** Every brief and work package carries numbered,
+   checkable criteria, and `engine/ac_trace.py` checks that each one is served and evidenced before a PR.
+4. **Feature-flag everything, unless you say otherwise.** Runtime flags, default off, revert without a
+   deploy. Your project's `feature-flags.md` says how flags work in your repo.
+5. **Only one agent runs builds and tests.** Everyone else asks the Build & Test Runner and gets a short
+   result, which keeps logs out of every other agent's context.
+6. **Every miss is a signal.** Validators, reviewers, the Runner, PR comments and your own corrections
+   all become findings. The Curator turns each one into an agent rule, a doc fix, or a proposed hook or
+   test.
+7. **You review, and you decide when to review less.** Every agent's output pauses for you at first.
+   When an agent has earned it, reply `-less-review` to move it from `on` to `notify` to `off`. Only you
+   can lower a level; the flow can raise it after a mistake. Every hand-off writes a review file either
+   way, so you can comment on it later.
+8. **Feedback, not hand edits.** Write in a review file's `## Human Feedback` section, or drop a note in
+   `.fyzxsflow/feedback/`, at any time. The flow routes it to the right doc, agent or new piece of work,
+   and shows you what it did in your next review.
+9. **Models by tier, moved on evidence.** Agents declare `deep`, `standard`, `fast` or `auto`, and each
+   project maps tiers to its host's models. An agent that keeps failing moves up a tier for that run.
+   An optional model compare shadows a cheaper tier, so a tier is only lowered once the cheaper model
+   has proven itself.
+10. **Bounded everything.** Fix loops stop after two rounds, docs and agent files have size budgets, and
+    the Curator's own changes are validated before they land.
 
-## Layout
+## Getting started
+
+Requirements: Python 3 (the engine uses the standard library only), git, and Claude Code and/or GitHub
+Copilot.
+
+1. **Install into your repo.** From a clone of this repo:
+
+   ```
+   python -I engine/install.py --target <path to your repo> --host claude --host copilot
+   ```
+
+   Use only the `--host` flags you need. Install through [APM](https://github.com/microsoft/apm) is
+   planned but not yet verified.
+
+2. **Describe your repo.** In your repo, run the `fyzxsflow-init` prompt. The Repo Cartographer drafts
+   `.fyzxsflow/` (profile, build and test commands, gates, feature-flag rules and per-segment docs) from
+   your code and CI, and asks only for what it cannot find. Review what it wrote.
+
+3. **Run it.** Run the `flow` prompt with a request:
+
+   ```
+   /flow Add sorting by release date to the collection page
+   /flow 12345        (an Azure DevOps work item id)
+   ```
+
+   Answer each review with `approve`, `continue`, `redo: <what to change>` or `stop`.
+
+Install again at any time to upgrade. Your project's files are never overwritten.
+
+### What lands in your repo
 
 ```
-apm.yml                      APM manifest (targets: copilot, claude)
+.fyzxsflow/
+  config.json, profile.md, gates.json, feature-flags.md   your project's settings (yours to edit)
+  docs/              the repo docs agents are specialised by
+  feedback/          drop notes for the flow here, any time
+  learned/           rules the Curator has learned for this project, per agent
+  runs/              every run: brief, plans, reports, reviews, findings
+  package/           the installed engine and agents; replaced on every install, never edited
+.claude/  .github/   host files generated from package/ + learned/
+```
+
+## The agents
+
+| Agent | Does |
+|---|---|
+| Orchestrator | Drives the run through every stage; the entry point |
+| Work Summarizer | Request → `brief.md` with acceptance criteria |
+| Code Indicator | Brief → change map: files, segments, contracts, test strategy |
+| Build Coordinator | Splits the change map into work packages and runs them in order |
+| Implementer | Writes one work package, specialised by its docs |
+| IaC Implementer | Pipelines and infrastructure code; validates with previews, never deploys |
+| Tester | Writes the tests for one package, separately from the code |
+| Validator | Checks any agent's output by acting as that agent; logs every miss |
+| Build & Test Runner | The only agent that builds, tests or starts the system |
+| Gate Analyst | Runs linters and scanners; send back, correct, or move on |
+| HTTP Generator | API proof files for changed endpoints |
+| Reviewers (6) | Narrow, large, architecture, security, feature flag, IaC |
+| PR Producer | Writes the pull request |
+| PR Reviewer | Reviews the PR as a careful human would |
+| Repo Cartographer | Drafts the repo docs from code and CI |
+| Docs Gardener | Applies your feedback to docs and keeps them in step with the code |
+| Curator | Turns findings into agent rules, doc fixes and proposed checks |
+
+## Repository layout
+
+```
 .apm/
-  agents/*.agent.md          the agent suite (compiled to .github/agents or .claude/agents)
-  instructions/              always-on instructions (working agreement)
-  prompts/                   entry points: flow, init
-  skills/correction-mining/  mine past transcripts for corrections
-  context/                   shared fragments: role contracts, run folder, findings schema
-engine/                      host-neutral Python 3 scripts (stdlib only)
-  run.py                     create a run folder, append to the ledger, print status and package progress, record each report's model
-  findings.py                append and validate findings
-  feedback.py                the owner's feedback inbox: scan for new or edited items, record how each was handled
-  runner.py                  execute a Build & Test Runner mode from .fyzxsflow/config.json (destructive steps refused without approval)
-  gates.py                   run declared linters/scanners, normalise SARIF, apply baselines
-  ac_trace.py                acceptance-criteria traceability (plan check; evidence check before PR)
-  docs_check.py              cited paths exist, segment globs match, packs within budget
-  pointers.py                write/check host-native pointers (.claude/rules, .github/instructions) per segment
-  install.py                 install into a repo (.fyzxsflow/package/ + host files; migrates .agentflow/), or --sync
-  layout.py                  the folder names (.fyzxsflow/, package/, learned/)
-  models.py                  agent tier -> model per host (config.json models), escalation (--up), shadow (--down)
-  compare.py                 model compare: whether to shadow a dispatch, record and score it, summarise
-  review.py                  human review between hand-offs: needed?, reply parsing (-less-review/-more-review), levels,
-                             ## Human Feedback -> owner-feedback findings
-  hooks/                     tool-call guards (Claude Code adapter today)
-  tests/                     python -I engine/tests/run_all.py
-templates/
-  project/.fyzxsflow/        what the Cartographer writes into a repo
-  run/                       the shapes of brief, change-map, work package, report
-adapters/claude, adapters/copilot   host-specific wiring and the open questions per host
-docs/design.md               design summary and decisions
+  agents/            the agents (*.agent.md)
+  prompts/           entry points: flow, fyzxsflow-init
+  instructions/      the always-on working agreement
+  context/           shared contracts: roles, run folder, findings schema
+  skills/            reusable skills (e.g. mining past transcripts for corrections)
+engine/              host-neutral Python scripts: runs, findings, reviews, feedback, runner, gates,
+                     acceptance-criteria tracing, docs checks, model tiers, install
+  hooks/             tool-call guards
+  tests/             python -I engine/tests/run_all.py
+templates/           shapes of the project files and run artifacts
+adapters/            host-specific notes for Claude Code and Copilot
+docs/                design summary, decisions, and plans
+apm.yml              APM manifest
 ```
 
-## Using it in a repo
+## Roadmap
 
-FyzxsFlow installs into one folder in the target repo, split by who owns what (`engine/layout.py`):
-
-```
-.fyzxsflow/            the project's own files; an install never overwrites them
-  config.json  profile.md  gates.json  feature-flags.md  docs/  feedback/  runs/
-  learned/<agent>.md   the Curator's Learned entries for this project
-  package/             installer-owned (engine, agents, context, templates, skills); replaced whole on
-                       every install, never edited by hand
-```
-
-Host files (`.claude/`, `.github/`) are generated from `package/` plus `learned/`. An install over an earlier
-`.agentflow/` folder migrates it (not while a run is active).
-
-1. Until the APM route is verified: `python -I engine/install.py --target <repo> --host claude [--host copilot]`.
-   Later: `apm install <you>/agentflow`.
-2. Run the `fyzxsflow-init` prompt. The Repo Cartographer drafts `.fyzxsflow/` from the repo and asks only
-   what it can't find (usually the feature-flag provider).
-3. Run the `flow` prompt with a request or a work item id.
+- Write out the remaining agents as real runs exercise them.
+- Verify installation through APM.
+- A separate, opt-in `deploy` agent set for pipelines, deployment health and resource optimisation.
+  These agents will never change production; prod changes go only through a pipeline with a human
+  approval gate. See [`docs/deploy-agents.md`](docs/deploy-agents.md).
 
 ## Development
 
 ```
 python -I engine/tests/run_all.py
 ```
+
+The design and its decisions are summarised in [`docs/design.md`](docs/design.md).
 
 ## License
 

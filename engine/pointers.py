@@ -29,7 +29,7 @@ TARGETS = {
     "copilot": (pathlib.Path(".github/instructions"), "fyzxsflow-{seg}.instructions.md"),
 }
 # Written by engine/install.py into the same fyzxsflow-* namespace; not segment pointers, never managed here.
-# (Found in the TcgHoard PoC: the Cartographer's first pointers run deleted them as "stale".)
+# (Found in a trial run: the Cartographer's first pointers run deleted them as "stale".)
 INSTALLER_OWNED = {"fyzxsflow-working-agreement.md", "fyzxsflow-working-agreement.instructions.md"}
 
 
