@@ -275,9 +275,8 @@ def main(argv=None) -> int:
     passed = not service_errors and all(r["passed"] for r in results) and not skipped
     summary = {"mode": args.mode, "scope": scope or "all", "result": "pass" if passed else "fail",
                "steps": results, "skipped": skipped, "service_errors": service_errors, **tested_tree(root)}
-    (run / "runner" / f"{invocation}.json").write_text(json.dumps(summary, indent=2) + "
-", encoding="utf-8", newline="
-")
+    (run / "runner" / f"{invocation}.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8",
+                                                         newline="\n")
 
     print(f"mode={args.mode} scope={summary['scope']} result={summary['result']}")
     for r in results:

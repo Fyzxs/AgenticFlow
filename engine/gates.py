@@ -171,9 +171,8 @@ def main(argv=None) -> int:
     declared = [g["name"] for g in gates if g.get("enabled", True) and args.stage in g.get("stages", [])]
     result = {"stage": args.stage, "result": outcome, "gates": summary, "not_selected": skipped,
               "declared_for_stage": declared}
-    (run / "gates" / f"{invocation}.json").write_text(json.dumps(result, indent=2) + "
-", encoding="utf-8", newline="
-")
+    (run / "gates" / f"{invocation}.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8",
+                                                      newline="\n")
     print(f"stage={args.stage} result={result['result']} gates={len(summary)}")
     if outcome == "empty":
         why = (f"{len(declared)} gate(s) declare this stage but none matched the changed paths: {', '.join(declared)}"

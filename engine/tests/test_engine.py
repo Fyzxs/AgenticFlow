@@ -558,7 +558,9 @@ class RunnerTests(TempRepo):
         code, out = run("runner.py", "quick", "--run", str(r), "--scope", "Lib.Cards", "--root", str(self.root))
         self.assertEqual(code, 0, out)
         self.assertIn("result=pass", out)
-        summary = json.loads(next((r / "runner").glob("*.json")).read_text(encoding="utf-8"))
+        summary_file = next((r / "runner").glob("*.json"))
+        self.assertNotIn(b"\r\n", summary_file.read_bytes())  # LF on every platform
+        summary = json.loads(summary_file.read_text(encoding="utf-8"))
         self.assertEqual([s["exit"] for s in summary["steps"]], [0, 0])
         log = pathlib.Path(summary["steps"][0]["log"]).read_text(encoding="utf-8")
         self.assertIn("hello Lib.Cards", log)
