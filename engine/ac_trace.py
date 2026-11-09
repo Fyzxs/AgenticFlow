@@ -30,6 +30,8 @@ ANY_BRIEF_AC = re.compile(r"\*\*(AC-\d+)\*\*")
 SERVES = re.compile(r"^\s*-\s*Serves:\s*(.+)$", re.M | re.I)
 AC_ID = re.compile(r"\bAC-\d+\b")
 WP_CRIT = re.compile(r"\*\*(WP-\d+\.\d+)\*\*")
+BAD_WP_CRIT = re.compile(r"\*\*(WP-\d+\.\d+[^\d*\s][^*]*|WP-\d+\.\d+\s*\([^)]*\))\*\*")
+RANGE = re.compile(r"AC-\d+\s*(?:\.\.|–|—|-|to)\s*(?:AC-)?\d+\b", re.I)
 REPORT_ROW = re.compile(r"^\|\s*((?:AC|WP)-[\d.]+)\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|", re.M)
 
 
@@ -106,8 +108,14 @@ def check(run: pathlib.Path, require_evidence: bool, root: pathlib.Path = None):
     for wp in packages:
         text = strip_comments(wp.read_text(encoding="utf-8"))
         sec = section(text, "Acceptance criteria")
+        for m in SERVES.finditer(sec):
+            if RANGE.search(m.group(1)):
+                problems.append(f"{wp.name}: 'Serves: {m.group(1).strip()}' uses a range; list every id "
+                                "(a range counts only its two ends)")
         serves = [a.upper() for m in SERVES.finditer(sec) for a in AC_ID.findall(m.group(1))]
         crits = WP_CRIT.findall(sec)
+        for bad in BAD_WP_CRIT.findall(sec):
+            problems.append(f"{wp.name}: criterion id **{bad}** is not traced: ids are digits only (WP-nn.n)")
         if not serves and not crits:
             problems.append(f"{wp.name}: acceptance criteria section is missing or empty")
         for a in serves:

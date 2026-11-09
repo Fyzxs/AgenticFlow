@@ -411,6 +411,17 @@ class AcTraceTests(TempRepo):
             self.assertEqual(code, 1, flag)
             self.assertIn(msg, out, flag)
 
+    def test_ranges_and_suffixed_ids_fail_instead_of_being_skipped(self):
+        code, out = run("ac_trace.py", "--run", str(self.setup_run(serves="AC-1..AC-2")))
+        self.assertEqual(code, 1)
+        self.assertIn("uses a range", out)
+        r = self.setup_run()
+        wp = r / "work-packages" / "WP-01-mapper.md"
+        wp.write_text(wp.read_text(encoding="utf-8").replace("**WP-01.1**", "**WP-01.1b**"), encoding="utf-8")
+        code, out = run("ac_trace.py", "--run", str(r))
+        self.assertEqual(code, 1)
+        self.assertIn("**WP-01.1b** is not traced", out)
+
     def test_plan_passes(self):
         code, out = run("ac_trace.py", "--run", str(self.setup_run()))
         self.assertEqual(code, 0, out)
@@ -646,6 +657,23 @@ class RunnerTests(TempRepo):
         code, out = run("runner.py", "quick", "--root", str(self.root))
         self.assertEqual(code, 0, out)
         self.assertFalse((locks / "local-db.json").exists())  # released after the run
+
+    def test_summary_records_the_tested_commit_and_dirty_state(self):
+        for a in (["init", "-q", "-b", "main"], ["config", "user.name", "T"], ["config", "user.email", "t@x"]):
+            subprocess.run(["git", *a], cwd=self.root, check=True)
+        self.write_config([self.step("build", 0)])
+        (self.root / "app.txt").write_text("v1", encoding="utf-8")
+        subprocess.run(["git", "add", "app.txt"], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=self.root, check=True)
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.root, capture_output=True, text=True).stdout.strip()
+        r = self.new_run()  # the run folder itself is not product code
+        run("runner.py", "quick", "--run", str(r), "--root", str(self.root))
+        first = json.loads(sorted((r / "runner").glob("*.json"))[-1].read_text(encoding="utf-8"))
+        self.assertEqual((first["commit"], first["dirty"]), (head, False))
+        (self.root / "app.txt").write_text("v2", encoding="utf-8")
+        run("runner.py", "quick", "--run", str(r), "--root", str(self.root))
+        second = json.loads(sorted((r / "runner").glob("*.json"))[-1].read_text(encoding="utf-8"))
+        self.assertTrue(second["dirty"])
 
     def test_bare_run_id_resolves_under_active(self):
         self.write_config([self.step("build", 0)])

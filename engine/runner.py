@@ -4,7 +4,8 @@
 
 For each step in the mode: run its command, write its output to a log, record its exit code. Services the
 mode lists are started first (their PIDs recorded) and stopped by PID afterwards, never by name.
-Prints a compact summary and writes runner/<invocation>.json in the run folder.
+Prints a compact summary and writes runner/<invocation>.json in the run folder, with the commit it tested and
+whether product files had uncommitted changes ("commit", "dirty"), so a PR can show its evidence covers it.
 Exit code: 0 if every step passed, 1 otherwise, 2 on a configuration error, 3 when the mode has destructive
 steps and neither --allow-destructive nor the mode's owner-set "allow_destructive" permits them (nothing runs),
 4 when another mode holding the same "lock" is still running (nothing runs).
@@ -181,6 +182,17 @@ def take_lock(root: pathlib.Path, name: str, mode: str):
     return path, None
 
 
+def tested_tree(root: pathlib.Path) -> dict:
+    """What was tested: the commit, and whether product files outside the flow's own folders had uncommitted changes."""
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True)
+    if head.returncode != 0:
+        return {"commit": None, "dirty": None}
+    status = subprocess.run(["git", "status", "--porcelain", "--untracked-files=all", "--", ".",
+                             f":(exclude){HOME}", ":(exclude).claude", ":(exclude).github"],
+                            cwd=root, capture_output=True, text=True)
+    return {"commit": head.stdout.strip(), "dirty": bool(status.stdout.strip())}
+
+
 def resolve_run(root: pathlib.Path, value):
     if not value:
         return root / HOME / "runs" / "_adhoc"
@@ -262,7 +274,7 @@ def main(argv=None) -> int:
     skipped = [s["name"] for s in mode.get("steps", [])[len(results):]]
     passed = not service_errors and all(r["passed"] for r in results) and not skipped
     summary = {"mode": args.mode, "scope": scope or "all", "result": "pass" if passed else "fail",
-               "steps": results, "skipped": skipped, "service_errors": service_errors}
+               "steps": results, "skipped": skipped, "service_errors": service_errors, **tested_tree(root)}
     (run / "runner" / f"{invocation}.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
     print(f"mode={args.mode} scope={summary['scope']} result={summary['result']}")
