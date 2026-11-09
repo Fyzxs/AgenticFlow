@@ -11,8 +11,14 @@
       -> the plan with each package's status; with --current, "Package n of N: <title>", done packages, the next
          package, and (with --agent) the readable review file name reviews/<package file stem>.<agent>.md
   python -I engine/run.py stamp <report> --agent <a> [--host claude] [--up N | --down] [--model <override>]
-      -> writes tier, model (host:model or host:inherit) and escalated into the report's frontmatter
+      -> writes tier, model (host:model or host:inherit) and escalated into the report's frontmatter, warns on a
+         missing model_reported or a criteria row that isn't a bare id, and commits the run folder: the agent's
+         output is handed off the moment it returns
   python -I engine/run.py models <run-dir>      -> every report with its dispatched and self-reported model
+  python -I engine/run.py ship-check <run-dir>
+      -> ready=yes|no: the last extreme run, the extreme and pre-pr gate stages, the acceptance-criteria evidence
+         and open owner decisions. A failure counts only when the owner accepted it (a fixed owner-decision
+         finding with target ship:<check>). The run says "Ready to push" only on ready=yes.
 
 Runs live in .fyzxsflow/runs/active/<id>/ while work is in flight, and move to runs/completed/<id>/ (a PR was
 delivered) or runs/abandoned/<id>/ (stopped, with the reason in the ledger) when closed. Only active runs are
@@ -22,9 +28,11 @@ Runs are kept in git by default, so humans can review the brief, plan, reports a
 between stages: the next stage reads the edited files. .fyzxsflow/profile.md `Runs: local` turns commits
 off. Raw step logs (runner/<invocation>/, gates/<invocation>/) are never committed; their JSON summaries are.
 
-`edits --record` treats every change since the last checkpoint as an owner edit: it writes a ledger line, a
+`edits --record` treats changes since the last checkpoint as owner edits: it writes a ledger line, a
 `human-edit` finding per file (the Curator diffs them against the checkpoint to learn what the agent got
-wrong), and checkpoints the edits. Call it only at stage boundaries, right after the previous checkpoint.
+wrong), and checkpoints the edits. Files the engine writes (ledger, *.jsonl, runner/gates summaries) and review
+files are never owner edits. It refuses (exit 3) while any agent report is unstamped: that output hasn't been
+handed off, so it can't be told apart from an owner's change. Call it when the owner replies or a run resumes.
 
 The run folder layout is described in .fyzxsflow/package/context/run-folder.md.
 """
@@ -210,9 +218,51 @@ def cmd_stamp(args) -> int:
         values["model"] += " (owner override)"
     if "model_reported" not in report_meta(text):
         values["model_reported"] = "unknown"
+        print(f"warning: {report.name} does not say which model did the work (model_reported); ask the agent to "
+              "write it, or note why it can't")
     report.write_text(set_frontmatter(text, values), encoding="utf-8", newline="\n")
     print(f"stamped {report.name}: tier={values['tier']} model={values['model']} escalated={values['escalated']}")
+    for problem in criteria_row_problems(report.read_text(encoding="utf-8")):
+        print(f"warning: {report.name}: {problem}")
+    run = run_of(report)
+    import checks  # noqa: E402  (same engine folder)
+    cite_root = repo_root(run) if run is not None and HOME in run.resolve().parts else pathlib.Path.cwd()
+    for problem in checks.citation_problems(report, cite_root):
+        print(f"warning: {report.name}: citation {problem}")
+    if run is not None and not args.no_checkpoint:
+        # The agent's output is committed the moment it returns, so nothing it wrote can later be taken for an owner edit.
+        print(f"checkpoint: {checkpoint(run, f'{args.agent} output')}")
     return 0
+
+
+def run_of(path: pathlib.Path):
+    for parent in path.resolve().parents:
+        if (parent / "ledger.md").exists():
+            return parent
+    return None
+
+
+CRITERIA_HEADER = re.compile(r"^\|\s*Criterion\s*\|", re.I)
+CRITERION_ID = re.compile(r"^(AC-\d+|WP-\d+\.\d+)$")
+
+
+def criteria_row_problems(text: str) -> list:
+    """Rows of a report's criteria table whose first cell is not a bare AC-n / WP-nn.n id (ac_trace can't read them)."""
+    problems, in_table = [], False
+    for n, line in enumerate(text.splitlines(), start=1):
+        if CRITERIA_HEADER.match(line):
+            in_table = True
+            continue
+        if in_table:
+            if not line.startswith("|"):
+                in_table = False
+                continue
+            first = line.strip().strip("|").split("|")[0].strip().strip("*`")
+            if set(first) <= set("-: "):
+                continue  # the separator row
+            if not CRITERION_ID.match(first):
+                problems.append(f"line {n}: criteria row starts with '{first[:40]}', not a bare AC-n or WP-nn.n id")
+    return problems
 
 
 def cmd_models(args) -> int:
@@ -274,6 +324,85 @@ def cmd_close(args) -> int:
     return 0
 
 
+def latest(folder: pathlib.Path, prefix: str):
+    files = sorted(folder.glob(f"{prefix}-*.json")) if folder.is_dir() else []
+    files = [f for f in files if f.name[len(prefix) + 1:len(prefix) + 2].isdigit()]
+    return files[-1] if files else None
+
+
+def cmd_ship_check(args) -> int:
+    """Whether the run may say "Ready to push": every sign-off check passed, or the owner accepted its failure."""
+    run = pathlib.Path(args.run)
+    root = repo_root(run)
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    import findings as fmod  # noqa: E402
+    import steps as smod  # noqa: E402
+    found = fmod.load(run)
+    accepted = {f["target"][len("ship:"):]: f["id"] for f in found
+                if f.get("kind") == "owner-decision" and f.get("fixed") and str(f.get("target", "")).startswith("ship:")}
+    st = smod.state(root, run)
+    config_path = root / HOME / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+    rows = []  # (check, status, ok, detail)
+
+    extreme_mode = (config.get("modes") or {}).get("extreme") or {}
+    if not st["extreme"][0]:
+        rows.append(("extreme", "off", True, f"step switched off ({st['extreme'][1]})"))
+    elif extreme_mode.get("not_applicable"):
+        rows.append(("extreme", "n/a", True, extreme_mode["not_applicable"]))
+    else:
+        f = latest(run / "runner", "extreme")
+        if f is None:
+            rows.append(("extreme", "missing", False, "no extreme run in runner/"))
+        else:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            failed = [s["name"] for s in data.get("steps", []) if not s.get("passed", s.get("exit") == 0)]
+            detail = f"{f.name}" + (f"; failed: {', '.join(failed)}" if failed else "")
+            detail += f"; skipped: {', '.join(data['skipped'])}" if data.get("skipped") else ""
+            rows.append(("extreme", data.get("result", "?"), data.get("result") == "pass", detail))
+
+    for stage in ("extreme", "pre-pr"):
+        check = f"gates:{stage}"
+        if not st["gates"][0]:
+            rows.append((check, "off", True, f"step switched off ({st['gates'][1]})"))
+            continue
+        f = latest(run / "gates", stage)
+        if f is None:
+            rows.append((check, "missing", False, f"gates.py --stage {stage} was not run"))
+            continue
+        data = json.loads(f.read_text(encoding="utf-8"))
+        result = data.get("result", "?")
+        detail = f.name
+        if result == "empty" and data.get("declared_for_stage"):
+            detail += f"; declared but not selected: {', '.join(data['declared_for_stage'])}"
+            rows.append((check, "empty", False, detail))
+        else:
+            failed = [g["gate"] for g in data.get("gates", []) if not g.get("passed")]
+            rows.append((check, result, result in ("pass", "empty"), detail + (f"; failed: {', '.join(failed)}" if failed else "")))
+
+    trace = subprocess.run([sys.executable, "-I", str(pathlib.Path(__file__).resolve().parent / "ac_trace.py"),
+                            "--run", str(run), "--require-evidence"], capture_output=True, text=True)
+    last = (trace.stdout.strip().splitlines() or ["(no output)"])[-1]
+    rows.append(("criteria", "pass" if trace.returncode == 0 else "fail", trace.returncode == 0, last))
+
+    open_decisions = [f["id"] for f in found if f.get("kind") == "owner-decision" and not f.get("fixed")]
+    rows.append(("owner-decisions", "none open" if not open_decisions else "open", not open_decisions,
+                 ", ".join(open_decisions)))
+
+    ready = True
+    for check, status, ok, detail in rows:
+        note = ""
+        if not ok and check in accepted:
+            ok, note = True, f" (accepted by the owner: {accepted[check]})"
+        ready = ready and ok
+        print(f"{check:16} {status:9} {'ok ' if ok else 'NO '} {detail}{note}")
+    print(f"ready={'yes' if ready else 'no'}")
+    if not ready:
+        print("A failed or missing check needs fixing, or the owner's acceptance recorded as a fixed owner-decision "
+              "finding with target ship:<check> (e.g. ship:extreme) quoting their words.")
+    return 0 if ready else 1
+
+
 def cmd_list(args) -> int:
     runs = pathlib.Path(args.root).resolve() / HOME / "runs"
     for state in ("active", "completed", "abandoned"):
@@ -319,6 +448,8 @@ def checkpoint(run: pathlib.Path, stage: str) -> str:
     root = repo_root(run)
     if runs_mode(root) == "local":
         return "runs are local (profile Runs: local); nothing committed"
+    if git(root, "rev-parse", "--git-dir").returncode != 0:
+        return "not a git repository; nothing committed"
     rel = run.resolve().relative_to(root).as_posix()
     if not changed_files(root, run):
         return "nothing new to checkpoint"
@@ -341,27 +472,49 @@ def cmd_checkpoint(args) -> int:
     return 0
 
 
+ENGINE_WRITTEN = re.compile(r"(^|/)(ledger\.md|[^/]+\.jsonl|runner/[^/]+\.json|gates/[^/]+\.json|reviews/[^/]+)$")
+
+
+def unstamped_report(root: pathlib.Path, rel: str) -> bool:
+    """An agent report that run.py stamp hasn't seen yet: agent output still in flight, never an owner edit."""
+    if "/reports/" not in f"/{rel}" or not rel.endswith(".md"):
+        return False
+    path = root / rel
+    return path.exists() and "model" not in report_meta(path.read_text(encoding="utf-8"))
+
+
 def cmd_edits(args) -> int:
     run = pathlib.Path(args.run)
     root = repo_root(run)
     files = changed_files(root, run)
-    for f in files:
-        print(f)
     if not files:
         print("no edits since the last checkpoint")
         return 0
-    if args.record:
-        append(run, "owner-edit", "resumed", "edited since last checkpoint: " + ", ".join(files))
+    # Engine-written files (ledger, findings, runner and gate summaries) and review files (their ## Human Feedback
+    # is read by review.py decide) are never owner edits of agent output.
+    engine = [f for f in files if ENGINE_WRITTEN.search(f)]
+    pending = [f for f in files if f not in engine and unstamped_report(root, f)]
+    owner = [f for f in files if f not in engine and f not in pending]
+    for f in owner:
+        print(f)
+    for f in pending:
+        print(f"{f}  (agent report not stamped yet)")
+    if not args.record:
+        return 0
+    if pending:
+        print("refused: these reports are agent output that hasn't been handed off. Run "
+              "`run.py stamp <report> --agent <agent>` for each (it commits the agent's output), then record edits "
+              "again; nothing an agent wrote may be recorded as an owner edit.", file=sys.stderr)
+        return 3
+    if owner:
+        append(run, "owner-edit", "resumed", "edited since last checkpoint: " + ", ".join(owner))
         sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
         import findings  # noqa: E402
-        for f in files:
-            # Review files are read by review.py decide (## Human Feedback -> owner-feedback); no duplicate here.
-            if f.endswith(("ledger.md", "findings.jsonl")) or "/reviews/" in f:
-                continue
+        for f in owner:
             findings.cmd_add(argparse.Namespace(
                 run=str(run), source="human", target=f, kind="human-edit", severity="observation",
                 summary=f"the owner edited {f} after the last checkpoint", evidence=[f], rule=None, fixed=False))
-        print(checkpoint(run, "owner edits"))
+    print(checkpoint(run, "owner edits" if owner else "engine output"))
     return 0
 
 
@@ -394,11 +547,15 @@ def main(argv=None) -> int:
     st.add_argument("--up", type=int, default=0, help="the escalation the agent was dispatched with")
     st.add_argument("--down", action="store_true", help="a model-compare shadow output")
     st.add_argument("--model", help="an owner override for this run: the model actually used")
+    st.add_argument("--no-checkpoint", action="store_true",
+                    help="don't commit the run folder (e.g. stamping a shadow output mid-dispatch)")
     md = sub.add_parser("models")
     md.add_argument("run")
+    sc = sub.add_parser("ship-check")
+    sc.add_argument("run")
     args = p.parse_args(argv)
     return {"new": cmd_new, "log": cmd_log, "status": cmd_status, "packages": cmd_packages,
-            "stamp": cmd_stamp, "models": cmd_models,
+            "stamp": cmd_stamp, "models": cmd_models, "ship-check": cmd_ship_check,
             "checkpoint": cmd_checkpoint, "edits": cmd_edits, "close": cmd_close, "list": cmd_list}[args.cmd](args)
 
 

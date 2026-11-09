@@ -14,7 +14,8 @@ off (don't pause or post). Every agent starts at review.default ("on"). The leve
 waits: every hand-off writes a review file, so the owner can read any output later and comment under its
 `## Human Feedback` (picked up by feedback.py scan / record-review).
 
-An owner reply starts with approve | continue | redo | stop, and may carry -less-review or -more-review anywhere:
+An owner reply starts with approve | continue | redo | stop (approve and continue mean the same: go on; edits the
+owner made are found by `run.py edits`, never declared by the word), and may carry -less-review or -more-review anywhere:
 it moves the reviewed agent's level one step (on <-> notify <-> off). Only the owner lowers a level; the
 system may raise one on evidence (regress), never lower it.
 

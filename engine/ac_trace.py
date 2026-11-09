@@ -1,4 +1,4 @@
-"""Acceptance-criteria traceability gate for a run.
+r"""Acceptance-criteria traceability gate for a run.
 
   python -I engine/ac_trace.py --run <dir>                     # plan check (after Locate)
   python -I engine/ac_trace.py --run <dir> --require-evidence  # delivery check (before Deliver)

@@ -103,6 +103,18 @@ class RunTests(TempRepo):
         run("run.py", "stamp", str(val), "--agent", "validator", "--model", "fable")
         self.assertIn("model: claude:fable (owner override)", val.read_text(encoding="utf-8"))
         self.assertIn("model_reported: unknown", val.read_text(encoding="utf-8"))
+        silent = r / "reports" / "WP-02.tester.md"
+        silent.write_text("---\nagent: tester\nresult: done\n---\n", encoding="utf-8")
+        self.assertIn("does not say which model did the work",
+                      run("run.py", "stamp", str(silent), "--agent", "implementer")[1])
+        bad = r / "reports" / "WP-02.implementer.md"
+        bad.write_text("---\nagent: implementer\nmodel_reported: m\n---\n| Criterion | Status | Evidence |\n|---|---|---|\n"
+                       "| WP-02.1 | met | x |\n| **WP-02.2** the mapper | met | y |\n\nSee src/Nope.cs:4.\n",
+                       encoding="utf-8")
+        code, out = run("run.py", "stamp", str(bad), "--agent", "implementer")
+        self.assertEqual(code, 0, out)
+        self.assertIn("criteria row starts with 'WP-02.2** the mapper'", out)
+        self.assertIn("citation src/Nope.cs:4: no such file", out)
         code, out = run("run.py", "models", str(r))
         self.assertEqual(code, 0, out)
         self.assertIn("| WP-01.implementer.md | implementer | deep | claude:opus | claude-sonnet-5-5 | from standard | done |", out)
@@ -155,6 +167,30 @@ class CheckpointTests(TempRepo):
         self.assertEqual([f["kind"] for f in found], ["human-edit"])
         self.assertIn("owner edits", self.git("log", "-1", "--format=%s"))
         self.assertEqual(self.git("status", "--porcelain", "--", ".fyzxsflow"), "")
+
+    def test_agent_output_is_never_recorded_as_an_owner_edit(self):
+        r = self.new_run()
+        run("run.py", "checkpoint", str(r), "build")
+        # an agent returned: its report is not stamped yet, and the runner wrote a summary
+        (r / "reports" / "ci.runner.md").write_text("---\nagent: build-test-runner\nmodel_reported: m\n---\n# ci\n",
+                                                   encoding="utf-8")
+        (r / "runner" / "ci-20260101-000000-1.json").write_text("{}", encoding="utf-8")
+        code, out = run("run.py", "edits", str(r), "--record")
+        self.assertEqual(code, 3, out)
+        self.assertIn("agent report not stamped yet", out)
+        self.assertEqual((r / "findings.jsonl").read_text(encoding="utf-8"), "")
+        code, out = run("run.py", "stamp", str(r / "reports" / "ci.runner.md"), "--agent", "build-test-runner")
+        self.assertEqual(code, 0, out)
+        self.assertIn("build-test-runner output", self.git("log", "-1", "--format=%s"))
+        self.assertEqual(self.git("status", "--porcelain", "--", ".fyzxsflow"), "")
+        self.assertIn("no edits", run("run.py", "edits", str(r), "--record")[1])
+        # engine-written files alone are checkpointed, never attributed to the owner
+        (r / "gates" ).mkdir()
+        (r / "gates" / "ci-20260101-000000-2.json").write_text("{}", encoding="utf-8")
+        code, out = run("run.py", "edits", str(r), "--record")
+        self.assertEqual(code, 0, out)
+        self.assertEqual((r / "findings.jsonl").read_text(encoding="utf-8"), "")
+        self.assertIn("engine output", self.git("log", "-1", "--format=%s"))
 
     def test_close_moves_active_to_completed_with_a_recorded_rename(self):
         r = self.new_run()
@@ -214,6 +250,86 @@ class FindingsTests(TempRepo):
     def test_rejects_unknown_kind(self):
         r = self.new_run()
         self.assertEqual(self.add(r, "--kind", "oops")[0], 2)
+
+    def test_amend_updates_in_place_with_a_dated_note(self):
+        r = self.new_run()
+        self.add(r, "--kind", "instance")
+        self.add(r, "--kind", "instance")
+        code, out = run("findings.py", "amend", "F-1", "--run", str(r), "--fixed", "--severity", "minor",
+                        "--evidence", "src/b.cs:3", "--note", "validator corrected it in place")
+        self.assertEqual(code, 0, out)
+        found = [json.loads(l) for l in (r / "findings.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(len(found), 2)
+        self.assertTrue(found[0]["fixed"])
+        self.assertEqual(found[0]["severity"], "minor")
+        self.assertEqual(found[0]["evidence"], ["src/a.cs:12", "src/b.cs:3"])
+        self.assertEqual(found[0]["amendments"][0]["note"], "validator corrected it in place")
+        self.assertEqual(run("findings.py", "list", "--run", str(r), "--open")[1].count("F-"), 1)
+        self.assertEqual(run("findings.py", "amend", "F-9", "--run", str(r), "--note", "x")[0], 2)
+
+
+class ShipCheckTests(TempRepo):
+    def setUp(self):
+        super().setUp()
+        self.r = self.new_run()
+        (self.r / "brief.md").write_text(BRIEF_OK, encoding="utf-8")
+        (self.r / "work-packages" / "WP-01-mapper.md").write_text(WP.format(serves="AC-1, AC-2", flag=FLAG_ON),
+                                                                  encoding="utf-8")
+        rows = "| AC-1 | met | t1 |\n| AC-2 | met | t2 |\n| WP-01.1 | met | src/Mapper.cs:10 |"
+        (self.r / "reports" / "WP-01.implementer.md").write_text(REPORT.format(rows=rows), encoding="utf-8")
+        (self.r / "gates").mkdir()
+
+    def write_json(self, rel, data):
+        (self.r / rel).write_text(json.dumps(data), encoding="utf-8")
+
+    def all_green(self):
+        self.write_json("runner/extreme-20260101-000000-1.json",
+                        {"result": "pass", "steps": [{"name": "build-strict", "exit": 0, "passed": True}], "skipped": []})
+        self.write_json("gates/extreme-20260101-000000-1.json", {"result": "pass", "gates": []})
+        self.write_json("gates/pre-pr-20260101-000000-1.json", {"result": "pass", "gates": []})
+
+    def test_ready_only_when_every_check_holds(self):
+        self.all_green()
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 0, out)
+        self.assertIn("ready=yes", out)
+
+    def test_a_failed_extreme_blocks_until_the_owner_accepts_it(self):
+        self.all_green()
+        self.write_json("runner/extreme-20260102-000000-1.json",
+                        {"result": "fail", "steps": [{"name": "web-validate", "exit": 1, "passed": False}], "skipped": []})
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 1, out)
+        self.assertIn("failed: web-validate", out)
+        self.assertIn("ready=no", out)
+        run("findings.py", "add", "--run", str(self.r), "--source", "human", "--target", "ship:extreme",
+            "--kind", "owner-decision", "--severity", "minor", "--summary", "pnpm audit is pre-existing; ship it",
+            "--evidence", "reviews/deliver.md", "--fixed")
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 0, out)
+        self.assertIn("accepted by the owner: F-1", out)
+
+    def test_empty_pre_pr_with_declared_gates_and_open_decisions_block(self):
+        self.all_green()
+        self.write_json("gates/pre-pr-20260102-000000-1.json",
+                        {"result": "empty", "gates": [], "declared_for_stage": ["dependency-audit"]})
+        run("findings.py", "add", "--run", str(self.r), "--source", "pr-reviewer", "--target", "owner",
+            "--kind", "owner-decision", "--severity", "minor", "--summary", "which branch?", "--evidence", "x")
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 1, out)
+        self.assertIn("declared but not selected: dependency-audit", out)
+        self.assertIn("owner-decisions  open", out)
+
+    def test_missing_extreme_blocks_unless_the_step_is_off(self):
+        self.write_json("gates/extreme-20260101-000000-1.json", {"result": "pass", "gates": []})
+        self.write_json("gates/pre-pr-20260101-000000-1.json", {"result": "pass", "gates": []})
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 1, out)
+        self.assertIn("no extreme run", out)
+        run("steps.py", "set", "extreme", "off", "--run", str(self.r), "--reason", "docs-only change")
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 0, out)
+        self.assertIn("step switched off (run)", out)
 
 
 BRIEF_OK = """# Goal

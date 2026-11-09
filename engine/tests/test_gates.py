@@ -78,6 +78,19 @@ class GatesTests(unittest.TestCase):
         self.assertNotIn("sql", out.split("summary:")[0])
         self.assertEqual(self.gates("--stage", "extreme")[0], 0)
 
+    def test_a_stage_that_selects_nothing_is_empty_not_pass(self):
+        self.write([{"name": "audit", "stages": ["pre-pr"], "run": f'"{PY}" -I -c "raise SystemExit(1)"',
+                     "format": "exit", "paths": ["package.json"]}])
+        run = self.root / "run"
+        code, out = self.gates("--stage", "pre-pr", "--changed", "src/app.py", "--run", str(run))
+        self.assertEqual(code, 0, out)
+        self.assertIn("result=empty", out)
+        self.assertIn("none matched the changed paths: audit", out)
+        summary = json.loads(next((run / "gates").glob("pre-pr-*.json")).read_text(encoding="utf-8"))
+        self.assertEqual((summary["result"], summary["declared_for_stage"]), ("empty", ["audit"]))
+        code, out = self.gates("--stage", "quick")
+        self.assertIn("no gate declares this stage", out)
+
     def test_missing_registry_is_not_an_error(self):
         self.assertEqual(self.gates("--stage", "ci")[0], 0)
 

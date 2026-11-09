@@ -35,8 +35,8 @@ picked up at the next hand-off (or say "process feedback").>
 |---|---|---|
 
 **Reply with one of**
-- `approve` — continue
-- `continue` — after editing any of the files above (your edits are picked up and recorded)
+- `approve` (or `continue`) — go on. If you edited any of the files above, your edits are found and recorded
+  automatically; you don't need to say so.
 - `redo: <what's wrong>` — the agent re-runs with your note (and anything you wrote under Human Feedback)
 - `stop` — abandon the run
 

@@ -9,7 +9,11 @@ changed path matches. Each gate's output is normalised into one shape:
 Results whose fingerprint is in .fyzxsflow/baselines/<gate>.json are counted as baseline, not new.
 A gate fails when its process could not run correctly, or when it has a new result at or above `fail_on`.
 Writes gates/<invocation>.json (summary) and gates/<invocation>/<gate>.log in the run folder.
-Exit 0 = every selected gate passed, 1 = at least one failed, 2 = configuration error.
+result: pass | fail | empty (no gate was selected, so nothing was checked; never reported as a pass).
+Exit 0 = every selected gate passed (or none was selected), 1 = at least one failed, 2 = configuration error.
+
+Dependency and advisory scanners read a live feed, so their results change without any file changing: don't
+scope them with `paths`; run them at every pre-pr, report-only (`fail_on: never`) or baselined.
 
 gates.json shape (see templates/project/.fyzxsflow/gates.md):
   { "gates": [ { "name": "semgrep", "enabled": true, "stages": ["extreme", "pre-pr"],
@@ -162,9 +166,17 @@ def main(argv=None) -> int:
         summary.append(entry)
 
     skipped = [g["name"] for g in gates if g not in chosen]
-    result = {"stage": args.stage, "result": "fail" if failed else "pass", "gates": summary, "not_selected": skipped}
+    # A stage that selected nothing proved nothing: it is "empty", never "pass".
+    outcome = "fail" if failed else "pass" if summary else "empty"
+    declared = [g["name"] for g in gates if g.get("enabled", True) and args.stage in g.get("stages", [])]
+    result = {"stage": args.stage, "result": outcome, "gates": summary, "not_selected": skipped,
+              "declared_for_stage": declared}
     (run / "gates" / f"{invocation}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(f"stage={args.stage} result={result['result']} gates={len(summary)}")
+    if outcome == "empty":
+        why = (f"{len(declared)} gate(s) declare this stage but none matched the changed paths: {', '.join(declared)}"
+               if declared else "no gate declares this stage")
+        print(f"  nothing ran: {why}")
     for e in summary:
         counts = {lvl: sum(1 for r in e["new"] if r["level"] == lvl) for lvl in ("error", "warning", "note")}
         status = "pass" if e["passed"] else "FAIL"
