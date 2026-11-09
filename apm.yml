@@ -1,7 +1,8 @@
 name: fyzxsflow
-version: "0.1.0"
+version: "0.2.0"
 description: Self-correcting agentic development flow. A prompt or work item goes in, a feature-flagged, reviewed PR comes out, and every finding sharpens the agents and the repo docs.
 author: Quinn Gil
+license: MIT
 type: hybrid
 targets:
   - copilot

@@ -111,3 +111,7 @@ Host files (`.claude/`, `.github/`) are generated from `package/` plus `learned/
 ```
 python -I engine/tests/run_all.py
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
