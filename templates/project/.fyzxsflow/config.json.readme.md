@@ -63,7 +63,7 @@ You can add other modes; agents use them when a work package names them.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `steps` | `[]` | the commands, run in order (see the step keys below) |
+| `steps` | required | the commands, run in order (see the step keys below). A mode with no steps is a configuration error (exit 2) unless it is `not_applicable` |
 | `default_scope` | `""` | what `{scope}` becomes when the caller passes no `--scope` |
 | `services` | `[]` | names from `services` to start before the steps and stop (by PID) afterwards |
 | `continue_on_failure` | `false` | keep running later steps after one fails (useful for `extreme`, to see every failure at once) |
@@ -82,7 +82,7 @@ You can add other modes; agents use them when a work package names them.
 | `run` | required | shell command, run from `cwd`. `{scope}` is replaced by the scope |
 | `cwd` | `"."` | folder to run in, relative to the repo root |
 | `env` | none | extra environment variables, e.g. `{ "ASPNETCORE_ENVIRONMENT": "Test" }` |
-| `timeout_s` | none | seconds before the step's whole process tree is stopped. The step fails with exit 124 |
+| `timeout_s` | `3600` | seconds before the step's whole process tree is stopped. The step fails with exit 124. `0` means no limit |
 | `fail_if_output` | none | regex. The step fails if any output line matches. Use it for tools that exit 0 while reporting failures |
 | `expect_output` | none | regex. The step fails unless some output line matches, e.g. a "tests passed" line |
 | `destructive` | `false` | this step wipes or replaces local state (see the mode key) |
@@ -104,7 +104,7 @@ Processes a mode starts before its steps, such as the API the HTTP proofs call.
 |---|---|---|
 | `start` | required | shell command that starts the service and keeps running |
 | `cwd` | `"."` | folder to start it in |
-| `port` | none | the Runner waits until this local port accepts connections. Without it, the steps start immediately |
+| `port` | none | the Runner waits until this local port accepts connections. The mode fails if the port already answers before the service starts (a stale process) or the service exits before it's ready. Without a port, the steps start immediately |
 | `ready_timeout_s` | `90` | how long to wait for the port before failing the mode |
 
 ## review
@@ -181,8 +181,8 @@ model.
 | Tier | Agents |
 |---|---|
 | `deep` | orchestrator, build-coordinator, validator, curator, repo-cartographer, code-indicator, reviewer-architecture, reviewer-large, reviewer-security, reviewer-iac |
-| `standard` | work-summarizer, implementer, tester, http-generator, iac-implementer, gate-analyst, docs-gardener, pr-producer, pr-reviewer, reviewer-narrow, reviewer-feature-flag |
-| `fast` | build-test-runner |
+| `standard` | work-summarizer, build-test-runner, implementer, tester, http-generator, iac-implementer, gate-analyst, docs-gardener, pr-producer, pr-reviewer, reviewer-narrow, reviewer-feature-flag |
+| `fast` | none |
 
 After editing, regenerate the host agent files:
 `python -I .fyzxsflow/package/engine/install.py --sync --target . --host claude` (or `--host copilot`).

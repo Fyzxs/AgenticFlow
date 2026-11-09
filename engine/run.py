@@ -1,6 +1,9 @@
 """Create and track fyzxsflow run folders.
 
-  python -I engine/run.py new --source prompt --ref "add a pull list page"   -> prints the run folder
+  python -I engine/run.py new --source prompt --ref "add a pull list page" [--branch <name> | --stay]
+      -> prints the run folder. In a git repo it first creates and switches to the run's working branch
+         (default fyzxsflow/<run-id>) from HEAD, and records branch, base commit and base branch in input.md;
+         --stay keeps the current branch (only when the owner asks for it)
   python -I engine/run.py log <run-dir> <stage> <status> "<message>"          -> appends a ledger line
   python -I engine/run.py status <run-dir> [--lines 8]                        -> prints the latest ledger lines
   python -I engine/run.py checkpoint <run-dir> <stage>                        -> commits the run folder (only it)
@@ -16,9 +19,11 @@
          output is handed off the moment it returns
   python -I engine/run.py models <run-dir>      -> every report with its dispatched and self-reported model
   python -I engine/run.py ship-check <run-dir>
-      -> ready=yes|no: the last extreme run, the extreme and pre-pr gate stages, the acceptance-criteria evidence
-         and open owner decisions. A failure counts only when the owner accepted it (a fixed owner-decision
-         finding with target ship:<check>). The run says "Ready to push" only on ready=yes.
+      -> ready=yes|no: the last ci run, the last http proof run (when proofs were written), the last extreme run,
+         the extreme and pre-pr gate stages, Validator verdicts, open major findings, the acceptance-criteria
+         evidence, open owner decisions, and a clean product tree. A Runner result counts only if the product
+         files haven't changed since the commit it tested. A failure counts only when the owner accepted it (a
+         fixed owner-decision finding with target ship:<check>). The run says "Ready to push" only on ready=yes.
 
 Runs live in .fyzxsflow/runs/active/<id>/ while work is in flight, and move to runs/completed/<id>/ (a PR was
 delivered) or runs/abandoned/<id>/ (stopped, with the reason in the ledger) when closed. Only active runs are
@@ -48,7 +53,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from layout import HOME, PACKAGE  # noqa: E402
 
-STATUSES = ("started", "done", "failed", "gated", "resumed")
+STATUSES = ("started", "done", "failed", "gated", "resumed", "skipped")
 RUN_GITIGNORE = ("# Raw logs stay local; their summaries (runner/*.json, gates/*.json) and every other\n"
                  "# artifact are kept so the run can be reviewed and edited.\n"
                  "runner/*/\ngates/*/\n")
@@ -75,20 +80,41 @@ def slug(text: str) -> str:
     return (s[:30].rstrip("-")) or "run"
 
 
+def working_branch(root: pathlib.Path, run_id: str, name: str, stay: bool):
+    """Create and switch to the run's branch from HEAD. Returns (frontmatter lines, ledger note) or exits 2."""
+    if git(root, "rev-parse", "--git-dir").returncode != 0:
+        return [], "not a git repository: no working branch"
+    head = git(root, "rev-parse", "HEAD")
+    if head.returncode != 0:
+        raise SystemExit("the repository has no commits yet: commit something before starting a run")
+    base, current = head.stdout.strip(), git(root, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    if stay:
+        return [f"branch: {current}", f"base: {base}", f"base_branch: {current}"], f"branch={current} (stayed)"
+    branch = name or f"{HOME[1:]}/{run_id}"
+    made = git(root, "switch", "-c", branch)
+    if made.returncode != 0:
+        raise SystemExit(f"could not create branch {branch}: {made.stderr.strip()}")
+    return [f"branch: {branch}", f"base: {base}", f"base_branch: {current}"], f"branch={branch} from {current}@{base[:9]}"
+
+
 def cmd_new(args) -> int:
     root = pathlib.Path(args.root).resolve()
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
     run_id = f"{stamp}-{slug(args.ref)}"
     run = root / HOME / "runs" / "active" / run_id
+    if run.exists():
+        print(f"{run} already exists", file=sys.stderr)
+        return 2
+    meta, branch_note = working_branch(root, run_id, args.branch, args.stay)
     for sub in ("work-packages", "reports", "runner"):
         (run / sub).mkdir(parents=True, exist_ok=False)
-    (run / "input.md").write_text(
-        f"---\nsource: {args.source}\nrun: {run_id}\n---\n\n{args.ref}\n", encoding="utf-8", newline="\n")
+    front = "\n".join([f"source: {args.source}", f"run: {run_id}", *meta])
+    (run / "input.md").write_text(f"---\n{front}\n---\n\n{args.ref}\n", encoding="utf-8", newline="\n")
     (run / "findings.jsonl").write_text("", encoding="utf-8")
     (run / ".gitignore").write_text(RUN_GITIGNORE, encoding="utf-8", newline="\n")
     (run / "review-requests.md").write_text(REVIEW_REQUESTS, encoding="utf-8", newline="\n")
     (run / "ledger.md").write_text(LEDGER_HEADER, encoding="utf-8", newline="\n")
-    append(run, "run", "started", f"source={args.source}")
+    append(run, "run", "started", f"source={args.source}; {branch_note}")
     print(run)
     return 0
 
@@ -304,7 +330,7 @@ def cmd_close(args) -> int:
         print(f"{dest} already exists", file=sys.stderr)
         return 2
     note = f"{args.outcome}: {args.note}" if args.note else args.outcome
-    if runs_mode(root) == "local":
+    if runs_mode(root) == "local" or git(root, "rev-parse", "--git-dir").returncode != 0:
         append(run, "run", "done" if args.outcome == "completed" else "failed", note)
         dest.parent.mkdir(parents=True, exist_ok=True)
         run.rename(dest)
@@ -331,6 +357,39 @@ def latest(folder: pathlib.Path, prefix: str):
     return files[-1] if files else None
 
 
+PRODUCT = (".", f":(exclude){HOME}", ":(exclude).claude", ":(exclude).github")
+BLOCKING_KINDS = ("instance", "flag", "replan", "scope-request")
+
+
+def staleness(root: pathlib.Path, data: dict):
+    """Why a Runner summary no longer covers the product, or None while it does."""
+    if data.get("dirty"):
+        return "it ran with uncommitted product changes"
+    commit = data.get("commit")
+    if not commit or git(root, "rev-parse", "--git-dir").returncode != 0:
+        return None
+    if git(root, "diff", "--quiet", commit, "HEAD", "--", *PRODUCT).returncode != 0:
+        return f"product files changed since the commit it tested ({commit[:9]})"
+    return None
+
+
+def runner_row(root: pathlib.Path, run: pathlib.Path, mode: str, rows: list, required: bool = True):
+    f = latest(run / "runner", mode)
+    if f is None:
+        if required:
+            rows.append((mode, "missing", False, f"no {mode} run in runner/"))
+        return
+    data = json.loads(f.read_text(encoding="utf-8"))
+    failed = [s["name"] for s in data.get("steps", []) if not s.get("passed", s.get("exit") == 0)]
+    detail = f"{f.name}" + (f"; failed: {', '.join(failed)}" if failed else "")
+    detail += f"; skipped: {', '.join(data['skipped'])}" if data.get("skipped") else ""
+    stale = staleness(root, data) if data.get("result") == "pass" else None
+    if stale:
+        rows.append((mode, "stale", False, f"{detail}; {stale}: run it again"))
+    else:
+        rows.append((mode, data.get("result", "?"), data.get("result") == "pass", detail))
+
+
 def cmd_ship_check(args) -> int:
     """Whether the run may say "Ready to push": every sign-off check passed, or the owner accepted its failure."""
     run = pathlib.Path(args.run)
@@ -345,22 +404,20 @@ def cmd_ship_check(args) -> int:
     config_path = root / HOME / "config.json"
     config = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
     rows = []  # (check, status, ok, detail)
+    modes = config.get("modes") or {}
 
-    extreme_mode = (config.get("modes") or {}).get("extreme") or {}
+    runner_row(root, run, "ci", rows)
+    if st["http-proofs"][0] and not (modes.get("http") or {}).get("not_applicable"):
+        # Required once proof files were written; otherwise only checked if one ran.
+        runner_row(root, run, "http", rows, required=(run / "reports" / "prove.http-generator.md").exists())
+
+    extreme_mode = modes.get("extreme") or {}
     if not st["extreme"][0]:
         rows.append(("extreme", "off", True, f"step switched off ({st['extreme'][1]})"))
     elif extreme_mode.get("not_applicable"):
         rows.append(("extreme", "n/a", True, extreme_mode["not_applicable"]))
     else:
-        f = latest(run / "runner", "extreme")
-        if f is None:
-            rows.append(("extreme", "missing", False, "no extreme run in runner/"))
-        else:
-            data = json.loads(f.read_text(encoding="utf-8"))
-            failed = [s["name"] for s in data.get("steps", []) if not s.get("passed", s.get("exit") == 0)]
-            detail = f"{f.name}" + (f"; failed: {', '.join(failed)}" if failed else "")
-            detail += f"; skipped: {', '.join(data['skipped'])}" if data.get("skipped") else ""
-            rows.append(("extreme", data.get("result", "?"), data.get("result") == "pass", detail))
+        runner_row(root, run, "extreme", rows)
 
     for stage in ("extreme", "pre-pr"):
         check = f"gates:{stage}"
@@ -385,6 +442,21 @@ def cmd_ship_check(args) -> int:
                             "--run", str(run), "--require-evidence"], capture_output=True, text=True)
     last = (trace.stdout.strip().splitlines() or ["(no output)"])[-1]
     rows.append(("criteria", "pass" if trace.returncode == 0 else "fail", trace.returncode == 0, last))
+
+    failed_validations = [r.name for r in sorted((run / "reports").glob("*.validator.*.md"))
+                          if report_meta(r.read_text(encoding="utf-8")).get("result", "").lower() == "fail"]
+    rows.append(("validators", "fail" if failed_validations else "pass", not failed_validations,
+                 ", ".join(failed_validations)))
+
+    open_majors = [f["id"] for f in found if f.get("severity") == "major" and not f.get("fixed")
+                   and f.get("kind") in BLOCKING_KINDS and not str(f.get("target", "")).startswith("ship:")]
+    rows.append(("majors", "open" if open_majors else "none open", not open_majors, ", ".join(open_majors)))
+
+    if git(root, "rev-parse", "--git-dir").returncode == 0:
+        dirty = git(root, "status", "--porcelain", "--untracked-files=all", "--", *PRODUCT).stdout.split("\n")
+        dirty = [l[3:] for l in dirty if l.strip()]
+        rows.append(("tree", "dirty" if dirty else "clean", not dirty,
+                     ("uncommitted: " + ", ".join(dirty[:5]) + (" ..." if len(dirty) > 5 else "")) if dirty else ""))
 
     open_decisions = [f["id"] for f in found if f.get("kind") == "owner-decision" and not f.get("fixed")]
     rows.append(("owner-decisions", "none open" if not open_decisions else "open", not open_decisions,
@@ -535,6 +607,9 @@ def main(argv=None) -> int:
     n.add_argument("--source", required=True, help="prompt | ado:<id>")
     n.add_argument("--ref", required=True, help="the prompt text or work item reference")
     n.add_argument("--root", default=".", help="repo root (default: current directory)")
+    nb = n.add_mutually_exclusive_group()
+    nb.add_argument("--branch", default="", help="working branch name (default fyzxsflow/<run-id>)")
+    nb.add_argument("--stay", action="store_true", help="work on the current branch (only when the owner asks)")
     l = sub.add_parser("log")
     l.add_argument("run"); l.add_argument("stage"); l.add_argument("status"); l.add_argument("note")
     s = sub.add_parser("status")

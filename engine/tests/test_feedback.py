@@ -113,6 +113,28 @@ class FeedbackTests(unittest.TestCase):
         self.assertIn("[waiting] .fyzxsflow/feedback/q.md", self.fb("list")[1])
         self.assertEqual(self.fb("set", str(item), "--status", "done", "--action", "docs", "--note", "x")[0], 2)
 
+    def test_a_binary_item_is_listed_moved_untouched_and_recorded_in_a_sidecar(self):
+        shot = self.inbox / "screen.png"
+        data = b"\x89PNG\r\n\x1a\n\x00\xff\xfe" + bytes(range(256))
+        shot.write_bytes(data)
+        (self.inbox / "note.md").write_text("see the screenshot\n", encoding="utf-8")
+        code, out = self.fb("scan")
+        self.assertEqual(code, 0, out)
+        self.assertIn(f"new .fyzxsflow/feedback/screen.png: (binary file .fyzxsflow/feedback/screen.png, "
+                      f"{len(data)} bytes; open it to read)", out)
+        self.assertIn("inbox: 2 to process", out)
+        code, out = self.fb("set", str(shot), "--status", "applied", "--action", "rework", "--note", "fixed the layout")
+        self.assertEqual(code, 0, out)
+        done = self.inbox / "done" / "screen.png"
+        self.assertFalse(shot.exists())
+        self.assertEqual(done.read_bytes(), data)  # the owner's file is never rewritten
+        self.assertTrue((self.inbox / "done" / "screen.png.feedback-meta.md").read_text(encoding="utf-8")
+                        .startswith("---\nstatus: applied\nactions: rework\n"))
+        self.assertIn("inbox: 1 to process", self.fb("scan")[1])  # only note.md; the sidecar is not an item
+        self.assertIn("[applied] .fyzxsflow/feedback/done/screen.png: (binary file", self.fb("list", "--all")[1])
+        done.write_bytes(data + b"\x00more")
+        self.assertIn("changed .fyzxsflow/feedback/done/screen.png", self.fb("scan")[1])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,6 +18,12 @@ class ModelTests(unittest.TestCase):
         code = subprocess.run([PY, "-I", str(ENGINE / "install.py"), "--target", str(self.root),
                                "--host", "claude", "--host", "copilot"], capture_output=True, text=True)
         self.assertEqual(code.returncode, 0, code.stdout + code.stderr)
+        # No shipped agent is on the fast tier; a probe agent exercises it.
+        (self.root / ".fyzxsflow/package/agents/fast-probe.agent.md").write_text(
+            "---\nname: fast-probe\ntier: fast\ndescription: test probe\n---\n# Probe\n", encoding="utf-8")
+        code = subprocess.run([PY, "-I", str(self.root / ".fyzxsflow/package/engine/install.py"), "--sync", "--target",
+                               str(self.root), "--host", "claude", "--host", "copilot"], capture_output=True, text=True)
+        self.assertEqual(code.returncode, 0, code.stdout + code.stderr)
 
     def tearDown(self):
         shutil.rmtree(self.root, ignore_errors=True)
@@ -38,14 +44,14 @@ class ModelTests(unittest.TestCase):
     def test_default_claude_mapping_and_inherit_for_copilot(self):
         self.assertEqual(self.models("validator")[1], "model=opus tier=deep declared=deep escalated=no")
         self.assertEqual(self.models("implementer")[1], "model=sonnet tier=standard declared=standard escalated=no")
-        self.assertEqual(self.models("build-test-runner")[1], "model=haiku tier=fast declared=fast escalated=no")
+        self.assertEqual(self.models("fast-probe")[1], "model=haiku tier=fast declared=fast escalated=no")
         self.assertTrue(self.models("validator", "--host", "copilot")[1].startswith("model=inherit"))
         self.assertIn("model: opus", self.fm(".claude/agents/validator.md"))
-        self.assertIn("model: haiku", self.fm(".claude/agents/build-test-runner.md"))
+        self.assertIn("model: haiku", self.fm(".claude/agents/fast-probe.md"))
         self.assertNotIn("model:", self.fm(".github/agents/validator.agent.md"))
 
     def test_escalation_steps_up_and_caps_at_deep(self):
-        self.assertEqual(self.models("build-test-runner", "--up", "1")[1],
+        self.assertEqual(self.models("fast-probe", "--up", "1")[1],
                          "model=sonnet tier=standard declared=fast escalated=yes")
         self.assertEqual(self.models("implementer", "--up", "1")[1],
                          "model=opus tier=deep declared=standard escalated=yes")
@@ -57,12 +63,12 @@ class ModelTests(unittest.TestCase):
             "claude": {"deep": "fable", "standard": "sonnet", "fast": ""},
             "copilot": {"deep": "gpt-x", "standard": "", "fast": ""}}}), encoding="utf-8")
         self.assertEqual(self.models("validator")[1].split()[0], "model=fable")
-        self.assertEqual(self.models("build-test-runner")[1].split()[0], "model=inherit")
+        self.assertEqual(self.models("fast-probe")[1].split()[0], "model=inherit")
         code = subprocess.run([PY, "-I", str(self.root / ".fyzxsflow/package/engine/install.py"), "--sync", "--target",
                                str(self.root), "--host", "claude", "--host", "copilot"], capture_output=True, text=True)
         self.assertEqual(code.returncode, 0, code.stderr)
         self.assertIn("model: fable", self.fm(".claude/agents/validator.md"))
-        self.assertNotIn("model:", self.fm(".claude/agents/build-test-runner.md"))
+        self.assertNotIn("model:", self.fm(".claude/agents/fast-probe.md"))
         self.assertIn("model: gpt-x", self.fm(".github/agents/validator.agent.md"))
         self.assertNotIn("model:", self.fm(".fyzxsflow/package/agents/validator.agent.md"))  # canonical copy stays host-neutral
 

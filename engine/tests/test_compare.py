@@ -34,6 +34,9 @@ class CompareTests(unittest.TestCase):
         self.root = pathlib.Path(tempfile.mkdtemp(prefix="fyzxsflow-compare-"))
         subprocess.run([PY, "-I", str(ENGINE / "install.py"), "--target", str(self.root), "--host", "claude"],
                        capture_output=True, check=True)
+        # No shipped agent is on the fast tier; a probe agent exercises it.
+        (self.root / ".fyzxsflow/package/agents/fast-probe.agent.md").write_text(
+            "---\nname: fast-probe\ntier: fast\ndescription: test probe\n---\n# Probe\n", encoding="utf-8")
         self.run_dir = self.new_run("one")
 
     def tearDown(self):
@@ -70,7 +73,7 @@ class CompareTests(unittest.TestCase):
                          "shadow=yes model=haiku tier=fast")
         self.assertEqual(self.cmp("should", "--run", str(self.run_dir), "--agent", "validator")[1],
                          "shadow=yes model=sonnet tier=standard")
-        self.assertIn("no-lower-tier", self.cmp("should", "--run", str(self.run_dir), "--agent", "build-test-runner")[1])
+        self.assertIn("no-lower-tier", self.cmp("should", "--run", str(self.run_dir), "--agent", "fast-probe")[1])
 
     def test_agent_selection_cap_and_sampling(self):
         self.config(enabled=True, agents=["implementer"], max_per_run=1)
@@ -79,6 +82,14 @@ class CompareTests(unittest.TestCase):
         self.assertIn("max-per-run", self.cmp("should", "--run", str(self.run_dir), "--agent", "implementer")[1])
         self.config(enabled=True, sample_rate=0.0)
         self.assertIn("not-sampled", self.cmp("should", "--run", str(self.new_run("two")), "--agent", "implementer")[1])
+
+    def test_sampling_is_decided_per_dispatch_not_stuck_after_a_miss(self):
+        self.config(enabled=True, sample_rate=0.5, max_per_run=100)
+        answers = [self.cmp("should", "--run", str(self.run_dir), "--agent", "implementer")[1] for _ in range(20)]
+        self.assertTrue(any(a.startswith("shadow=yes") for a in answers), answers)
+        self.assertTrue(any("not-sampled" in a for a in answers), answers)
+        first_no = next(i for i, a in enumerate(answers) if "not-sampled" in a)
+        self.assertTrue(any(a.startswith("shadow=yes") for a in answers[first_no:]), answers)  # a miss isn't sticky
 
     def test_scoring(self):
         self.assertTrue(self.record(self.run_dir, sv="corrected")[1].endswith("conclusive=yes shadow_ok=yes"))

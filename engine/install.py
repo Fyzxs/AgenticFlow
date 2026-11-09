@@ -37,7 +37,18 @@ from layout import HOME, LEARNED, LEGACY_HOMES, NAME, PACKAGE  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
 VERSION = "0.2.0"
-HOOK_CMD = f'python -I "$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/block_kill_by_name.py"'
+HOOK_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/block_kill_by_name.py"'
+
+
+def python_name() -> str:
+    """The interpreter name the hook calls: `python` where it exists, else `python3` (some hosts have only that)."""
+    if shutil.which("python"):
+        return "python"
+    return "python3" if shutil.which("python3") else "python"
+
+
+def hook_cmd() -> str:
+    return f"{python_name()} -I {HOOK_SCRIPT}"
 LEARNED_HEADING = re.compile(r"^## Learned\s*$", re.M)
 PACKAGE_PARTS = ("engine", "agents", "context", "templates", "skills", "instructions", "prompts", "INSTALLED.json")
 ADHOC_COMMENT = f"# {HOME[1:]}: ad-hoc runner/gate output outside a run"
@@ -197,11 +208,15 @@ def sync_hosts(target: pathlib.Path, hosts: list, written: list):
 def merge_claude_hook(settings: pathlib.Path, written: list):
     data = json.loads(settings.read_text(encoding="utf-8")) if settings.exists() else {}
     pre = data.setdefault("hooks", {}).setdefault("PreToolUse", [])
+    cmd = hook_cmd()
     for entry in pre:
         for h in entry.get("hooks", []):
-            if h.get("command") == HOOK_CMD:
+            if HOOK_SCRIPT in h.get("command", ""):  # ours, whatever interpreter name it was installed with
+                if h["command"] != cmd:
+                    h["command"] = cmd
+                    write(settings, json.dumps(data, indent=2) + "\n", written)
                 return
-    pre.append({"matcher": "Bash|PowerShell", "hooks": [{"type": "command", "command": HOOK_CMD}]})
+    pre.append({"matcher": "Bash|PowerShell", "hooks": [{"type": "command", "command": cmd}]})
     write(settings, json.dumps(data, indent=2) + "\n", written)
 
 

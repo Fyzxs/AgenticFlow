@@ -13,10 +13,14 @@ steps and neither --allow-destructive nor the mode's owner-set "allow_destructiv
 A step passes when it exits 0 and its output checks hold. Tools that exit 0 while reporting failures need them:
   "fail_if_output": "<regex>"   the step fails if any output line matches (e.g. "[1-9][0-9]* failed")
   "expect_output":  "<regex>"   the step fails unless some output line matches
-A step that runs past "timeout_s" is stopped with its whole process tree (by PID) and fails with exit 124.
+A step that runs past "timeout_s" (default 3600; 0 means no limit) is stopped with its whole process tree (by PID)
+and fails with exit 124.
 
 A step (or a whole mode) marked "destructive": true wipes or replaces local state: a database reset, dropping
 seeded data. A mode marked "not_applicable": "<why>" is a declared non-capability and exits 0 without running.
+A mode with no steps (and no "not_applicable") is a configuration error: exit 2, nothing runs.
+A service with a "port" fails the mode if that port is already answering before it starts (a stale process
+would otherwise be taken for it), or if the started process exits before the port answers.
 A mode with "lock": "<name>" (e.g. "local-db") refuses to start while another mode holding that lock runs, so two
 writers never share a resource.
 
@@ -44,6 +48,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from layout import HOME, PACKAGE  # noqa: E402
 import time
 
+DEFAULT_TIMEOUT_S = 3600  # a step without "timeout_s"; "timeout_s": 0 means no limit
+
 
 def load_config(path: pathlib.Path) -> dict:
     if not path.exists():
@@ -51,25 +57,41 @@ def load_config(path: pathlib.Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def wait_for_port(port: int, timeout_s: float) -> bool:
+def port_open(port: int) -> bool:
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+def wait_for_port(port: int, timeout_s: float, proc=None):
+    """None once the port answers, else why not. Stops waiting as soon as the started process exits."""
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        try:
-            with socket.create_connection(("127.0.0.1", port), timeout=1):
-                return True
-        except OSError:
-            time.sleep(0.5)
-    return False
+        if proc is not None and proc.poll() is not None:
+            return f"exited with code {proc.returncode} before it was ready"
+        if port_open(port):
+            return None
+        time.sleep(0.5)
+    return f"not ready on port {port}"
 
 
 def start_service(name: str, spec: dict, root: pathlib.Path, logdir: pathlib.Path):
+    """Returns (proc or None, log or None, error or None)."""
+    port = int(spec["port"]) if spec.get("port") else None
+    if port and port_open(port):
+        # Something already answers: readiness would be judged on that process, not the one we start.
+        return None, None, f"port {port} already in use before service '{name}' started (a stale process?)"
     log = open(logdir / f"service-{name}.log", "w", encoding="utf-8")
     proc = subprocess.Popen(spec["start"], shell=True, cwd=root / spec.get("cwd", "."),
                             stdout=log, stderr=subprocess.STDOUT, **group_kwargs())
-    ready = True
-    if spec.get("port"):
-        ready = wait_for_port(int(spec["port"]), float(spec.get("ready_timeout_s", 90)))
-    return proc, log, ready
+    error = None
+    if port:
+        why = wait_for_port(port, float(spec.get("ready_timeout_s", 90)), proc)
+        if why:
+            error = f"service '{name}' {why} (see service-{name}.log)"
+    return proc, log, error
 
 
 def group_kwargs() -> dict:
@@ -128,11 +150,12 @@ def run_step(step: dict, scope: str, root: pathlib.Path, logpath: pathlib.Path) 
         log.flush()
         proc = subprocess.Popen(command, shell=True, cwd=root / step.get("cwd", "."), env=env,
                                 stdout=log, stderr=subprocess.STDOUT, **group_kwargs())
+        limit = step.get("timeout_s", DEFAULT_TIMEOUT_S) or None  # 0 = no limit
         try:
-            code = proc.wait(timeout=step.get("timeout_s"))
+            code = proc.wait(timeout=limit)
         except subprocess.TimeoutExpired:
             stop_tree(proc)
-            log.write(f"\n[fyzxsflow runner] timed out after {step.get('timeout_s')}s; "
+            log.write(f"\n[fyzxsflow runner] timed out after {limit}s; "
                       f"stopped process tree of PID {proc.pid}\n")
             code = 124
     check = output_check(step, logpath) if code == 0 else None
@@ -225,6 +248,10 @@ def main(argv=None) -> int:
     if mode.get("not_applicable"):
         print(f"mode '{args.mode}' does not apply to this repo: {mode['not_applicable']}")
         return 0
+    if not mode.get("steps"):
+        print(f"mode '{args.mode}' has no steps: give it steps, or mark it \"not_applicable\": \"<why>\" "
+              "in config.json", file=sys.stderr)
+        return 2
     destructive = [s["name"] for s in mode.get("steps", []) if s.get("destructive") or mode.get("destructive")]
     if destructive and not (args.allow_destructive or mode.get("allow_destructive")):
         # Checked before anything runs, so a refused mode never half-executes.
@@ -254,10 +281,12 @@ def main(argv=None) -> int:
             if spec is None:
                 print(f"mode '{args.mode}' lists unknown service '{name}'", file=sys.stderr)
                 return 2
-            proc, log, ready = start_service(name, spec, root, logdir)
-            services.append((proc, log))
-            if not ready:
-                service_errors.append(f"service '{name}' not ready on port {spec.get('port')} (see service-{name}.log)")
+            proc, log, error = start_service(name, spec, root, logdir)
+            if proc is not None:
+                services.append((proc, log))
+            if error:
+                service_errors.append(error)
+                break
         if not service_errors:
             for i, step in enumerate(mode.get("steps", []), start=1):
                 result = run_step(step, scope, root, logdir / f"{i:02d}-{step['name']}.log")

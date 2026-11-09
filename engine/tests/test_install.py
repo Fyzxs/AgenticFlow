@@ -10,6 +10,8 @@ import unittest
 
 ENGINE = pathlib.Path(__file__).resolve().parent.parent
 PY = sys.executable
+sys.path.insert(0, str(ENGINE))
+import install  # noqa: E402
 
 
 class InstallTests(unittest.TestCase):
@@ -114,7 +116,7 @@ class InstallTests(unittest.TestCase):
         self.assertTrue((rules / "fyzxsflow-working-agreement.md").exists())
         hooks = json.loads((self.root / ".claude/settings.json").read_text(encoding="utf-8"))["hooks"]["PreToolUse"]
         self.assertEqual([h["hooks"][0]["command"] for h in hooks],
-                         ['python -I "$CLAUDE_PROJECT_DIR/.fyzxsflow/package/engine/hooks/block_kill_by_name.py"'])
+                         [f'{install.python_name()} -I "$CLAUDE_PROJECT_DIR/.fyzxsflow/package/engine/hooks/block_kill_by_name.py"'])
         gi = (self.root / ".gitignore").read_text(encoding="utf-8")
         self.assertNotIn(".agentflow", gi)
         self.assertEqual(gi.count(".fyzxsflow/runs/_adhoc/"), 1)
@@ -155,6 +157,22 @@ class InstallTests(unittest.TestCase):
         text = (self.root / ".gitignore").read_text(encoding="utf-8")
         self.assertEqual(text.count(".fyzxsflow/runs/_adhoc/"), 1)
         self.assertTrue(text.startswith("bin/\n"))
+
+    def test_hook_uses_python3_where_python_is_missing_and_reinstall_keeps_one_hook(self):
+        from unittest import mock
+        with mock.patch.object(install.shutil, "which", lambda name: "/usr/bin/python3" if name == "python3" else None):
+            self.assertEqual(install.python_name(), "python3")
+        with mock.patch.object(install.shutil, "which", lambda name: None):
+            self.assertEqual(install.python_name(), "python")
+        script = '"$CLAUDE_PROJECT_DIR/.fyzxsflow/package/engine/hooks/block_kill_by_name.py"'
+        other = "python9" if install.python_name() == "python" else "python"
+        (self.root / ".claude" / "settings.json").write_text(json.dumps({"hooks": {"PreToolUse": [
+            {"matcher": "Bash|PowerShell", "hooks": [{"type": "command", "command": f"{other} -I {script}"}]}]}}),
+            encoding="utf-8")
+        code, out = self.install("--host", "claude")
+        self.assertEqual(code, 0, out)
+        hooks = json.loads((self.root / ".claude/settings.json").read_text(encoding="utf-8"))["hooks"]["PreToolUse"]
+        self.assertEqual([h["hooks"][0]["command"] for h in hooks], [f"{install.python_name()} -I {script}"])
 
     def test_sync_without_install_fails(self):
         code, _ = self.install("--sync", "--host", "claude")

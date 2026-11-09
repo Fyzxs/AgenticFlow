@@ -14,7 +14,9 @@
 The owner writes plain text; the system adds a frontmatter block (status, actions, note, refs, seen_hash, updated)
 and never edits the owner's words. seen_hash covers the text below the frontmatter, so an item the owner edits
 after it was handled shows up in scan again, even from done/ (it is reopened). README.md is the folder's guide,
-not an item.
+not an item. A file that isn't UTF-8 text (a screenshot, a PDF) is an item too: scan and list show it as
+"(binary file <path>, <size> bytes; open it to read)", its record goes in a sidecar <name>.feedback-meta.md
+(the owner's file is never rewritten), and seen_hash covers its bytes.
 
 Review files: every hand-off writes one, whatever the agent's review level, so the owner can comment on any
 output later, in place. scan also lists review files (active and completed runs) whose `## Human Feedback`
@@ -40,6 +42,7 @@ STATUSES = ("in-progress", "waiting", "applied", "declined")
 ACTIONS = ("docs", "agent-input", "rework", "new-work", "none")
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n?", re.S)
 KEYS = ("status", "actions", "note", "refs", "seen_hash", "updated")
+META_SUFFIX = ".feedback-meta.md"  # the record of a binary item, beside it
 
 
 def inbox(root: pathlib.Path) -> pathlib.Path:
@@ -63,10 +66,29 @@ def items(root: pathlib.Path, include_done: bool = True) -> list:
     if not base.is_dir():
         return []
     found = [f for f in sorted(base.rglob("*")) if f.is_file() and f.name.lower() != "readme.md"
-             and not f.name.startswith(".")]
+             and not f.name.startswith(".") and not f.name.endswith(META_SUFFIX)]
     if not include_done:
         found = [f for f in found if "done" not in f.relative_to(base).parts[:-1]]
     return found
+
+
+def sidecar(f: pathlib.Path) -> pathlib.Path:
+    return f.with_name(f.name + META_SUFFIX)
+
+
+def read_item(root: pathlib.Path, f: pathlib.Path):
+    """(meta, body, hash, binary). A text item carries its record in frontmatter; a file that isn't UTF-8 text
+    (a screenshot) can't, so its record lives in a sidecar and its hash covers the bytes."""
+    data = f.read_bytes()
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        side = sidecar(f)
+        meta = split(side.read_text(encoding="utf-8"))[0] if side.exists() else {}
+        body = f"(binary file {f.relative_to(root).as_posix()}, {len(data)} bytes; open it to read)"
+        return meta, body, hashlib.sha256(data).hexdigest()[:16], True
+    meta, body = split(text.replace("\r\n", "\n").replace("\r", "\n"))
+    return meta, body, body_hash(body), False
 
 
 def first_line(body: str) -> str:
@@ -162,12 +184,12 @@ def cmd_scan(args) -> int:
         print(f"review {f.relative_to(root).as_posix()}: {first_line(section)} (run={run.name} state={state})")
     pending = 0
     for f in items(root):
-        meta, body = split(f.read_text(encoding="utf-8"))
+        meta, body, digest, _ = read_item(root, f)
         if not body.strip():
             continue
         if not meta.get("seen_hash"):
             state = "new"
-        elif meta["seen_hash"] != body_hash(body):
+        elif meta["seen_hash"] != digest:
             state = "changed"
         else:
             continue
@@ -186,28 +208,34 @@ def cmd_set(args) -> int:
     if not f.exists():
         print(f"no feedback item {args.item}", file=sys.stderr)
         return 2
-    meta, body = split(f.read_text(encoding="utf-8"))
+    meta, body, digest, binary = read_item(root, f)
     meta.update({
         "status": args.status,
         "actions": ", ".join(args.action),
         "note": args.note.replace("\n", " ").strip(),
         "refs": ", ".join(args.ref or []) or "none",
-        "seen_hash": body_hash(body),
+        "seen_hash": digest,
         "updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
     })
     head = "\n".join(f"{k}: {meta[k]}" for k in KEYS if k in meta)
-    text = f"---\n{head}\n---\n\n{body.lstrip(chr(10))}"
+    record = f"---\n{head}\n---\n"
     base = inbox(root)
     in_done = "done" in f.resolve().relative_to(base.resolve()).parts[:-1]
     dest = f
     if args.status in ("applied", "declined") and not in_done:
         dest = base / "done" / f.name
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        f.unlink()
     elif args.status in ("in-progress", "waiting") and in_done:  # reopened
         dest = base / f.name
-        f.unlink()
-    dest.write_text(text, encoding="utf-8", newline="\n")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if binary:  # never rewrite the owner's file: move it as it is and keep the record beside it
+        if dest != f:
+            f.replace(dest)
+            sidecar(f).unlink(missing_ok=True)
+        sidecar(dest).write_text(record, encoding="utf-8", newline="\n")
+    else:
+        if dest != f:
+            f.unlink()
+        dest.write_text(f"{record}\n{body.lstrip(chr(10))}", encoding="utf-8", newline="\n")
     print(f"{dest.relative_to(root).as_posix()}: {args.status} ({meta['actions']})")
     return 0
 
@@ -216,9 +244,9 @@ def cmd_list(args) -> int:
     root = pathlib.Path(args.root).resolve()
     shown = 0
     for f in items(root, include_done=args.all):
-        meta, body = split(f.read_text(encoding="utf-8"))
+        meta, body, digest, _ = read_item(root, f)
         status = meta.get("status", "open")
-        if meta.get("seen_hash") and meta["seen_hash"] != body_hash(body):
+        if meta.get("seen_hash") and meta["seen_hash"] != digest:
             status += ", edited since"
         shown += 1
         print(f"[{status}] {f.relative_to(root).as_posix()}: {first_line(body)}"

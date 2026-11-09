@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 ENGINE = pathlib.Path(__file__).resolve().parent.parent
@@ -93,6 +94,41 @@ class GatesTests(unittest.TestCase):
 
     def test_missing_registry_is_not_an_error(self):
         self.assertEqual(self.gates("--stage", "ci")[0], 0)
+
+    def test_update_baseline_keeps_the_old_baseline_when_the_gate_errors(self):
+        self.write([{"name": "scan", "stages": ["extreme"], "run": self.copy_cmd(), "format": "sarif"}])
+        self.assertEqual(self.gates("--stage", "extreme", "--update-baseline", "scan")[0], 0)
+        base = self.root / ".fyzxsflow" / "baselines" / "scan.json"
+        before = base.read_text(encoding="utf-8")
+        self.assertEqual(len(json.loads(before)), 2)
+        self.write([{"name": "scan", "stages": ["extreme"], "run": self.copy_cmd(exit_code=7), "format": "sarif"}])
+        code, out = self.gates("--stage", "extreme", "--update-baseline", "scan")
+        self.assertEqual(code, 1, out)
+        self.assertIn("NOT updated", out)
+        self.assertEqual(base.read_text(encoding="utf-8"), before)
+
+    def test_missing_sarif_error_names_the_real_path(self):
+        self.write([{"name": "scan", "stages": ["extreme"], "run": f'"{PY}" -I -c "pass"', "format": "sarif"}])
+        run = self.root / "run"
+        code, out = self.gates("--stage", "extreme", "--run", str(run))
+        self.assertEqual(code, 1, out)
+        summary = json.loads(next((run / "gates").glob("extreme-*.json")).read_text(encoding="utf-8"))
+        error = summary["gates"][0]["error"]
+        self.assertIn("scan.sarif", error)
+        self.assertNotIn("{out}", error)
+
+    def test_timed_out_gate_stops_its_child_processes(self):
+        marker = self.root / "child-survived.txt"
+        child = self.root / "child.py"
+        child.write_text(f"import time; time.sleep(4); open({str(marker)!r}, 'w').write('x')\n", encoding="utf-8")
+        parent = self.root / "parent.py"
+        parent.write_text(f"import subprocess, sys, time\nsubprocess.Popen([sys.executable, '-I', {str(child)!r}])\n"
+                          "time.sleep(60)\n", encoding="utf-8")
+        self.write([{"name": "slow", "stages": ["ci"], "run": f'"{PY}" -I "{parent}"', "format": "exit", "timeout_s": 1}])
+        code, out = self.gates("--stage", "ci")
+        self.assertEqual(code, 1, out)
+        time.sleep(6)
+        self.assertFalse(marker.exists(), "the gate's child process outlived the timeout")
 
 
 if __name__ == "__main__":

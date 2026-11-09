@@ -36,6 +36,7 @@ from layout import HOME, PACKAGE  # noqa: E402
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from docs_check import glob_to_regex  # noqa: E402
+from runner import group_kwargs, stop_tree  # noqa: E402  (stop a timed-out gate's whole tree, by PID)
 
 LEVELS = {"note": 1, "warning": 2, "error": 3}
 SARIF_LEVEL = {"error": "error", "warning": "warning", "note": "note", "none": "note"}
@@ -81,11 +82,14 @@ def run_gate(gate: dict, root: pathlib.Path, outdir: pathlib.Path) -> dict:
     with open(log, "w", encoding="utf-8") as f:
         f.write(f"$ {command}\n\n")
         f.flush()
+        proc = subprocess.Popen(command, shell=True, cwd=root / gate.get("cwd", "."), stdout=f,
+                                stderr=subprocess.STDOUT, **group_kwargs())
         try:
-            code = subprocess.run(command, shell=True, cwd=root / gate.get("cwd", "."), stdout=f,
-                                  stderr=subprocess.STDOUT, timeout=gate.get("timeout_s")).returncode
+            code = proc.wait(timeout=gate.get("timeout_s"))
         except subprocess.TimeoutExpired:
-            f.write(f"\n[fyzxsflow gates] timed out after {gate.get('timeout_s')}s\n")
+            stop_tree(proc)
+            f.write(f"\n[fyzxsflow gates] timed out after {gate.get('timeout_s')}s; "
+                    f"stopped process tree of PID {proc.pid}\n")
             code = 124
     fmt = gate.get("format", "exit")
     ok_codes = gate.get("ok_exit_codes", [0])
@@ -94,7 +98,7 @@ def run_gate(gate: dict, root: pathlib.Path, outdir: pathlib.Path) -> dict:
         if code not in ok_codes:
             entry["error"] = f"exited {code}, which is not in ok_exit_codes {ok_codes}"
         elif not out.exists():
-            entry["error"] = "no SARIF output was written to {out}"
+            entry["error"] = f"no SARIF output was written to {out}"
         else:
             try:
                 entry["results"] = parse_sarif(name, out)
@@ -151,10 +155,15 @@ def main(argv=None) -> int:
         entry = run_gate(gate, root, outdir)
         base_file = baselines / f"{gate['name']}.json"
         if args.update_baseline:
+            if entry["error"]:
+                # A gate that didn't run correctly has no trustworthy results: keep the baseline as it is.
+                print(f"baseline for {gate['name']} NOT updated: the gate failed to run ({entry['error']}); "
+                      f"existing baseline left unchanged. See {entry['log']}", file=sys.stderr)
+                return 1
             baselines.mkdir(parents=True, exist_ok=True)
             base_file.write_text(json.dumps(sorted({r["fingerprint"] for r in entry["results"]}), indent=2), encoding="utf-8")
             print(f"baseline for {gate['name']}: {len(entry['results'])} results accepted -> {base_file}")
-            return 0 if not entry["error"] else 1
+            return 0
         known = set(json.loads(base_file.read_text(encoding="utf-8"))) if base_file.exists() else set()
         new = [r for r in entry["results"] if r["fingerprint"] not in known]
         threshold = gate.get("fail_on", "error")

@@ -54,6 +54,17 @@ class RunTests(TempRepo):
         r = self.new_run()
         self.assertEqual(run("run.py", "log", str(r), "intake", "finished", "x")[0], 2)
 
+    def test_log_accepts_skipped_for_a_step_that_is_off(self):
+        r = self.new_run()
+        code, out = run("run.py", "log", str(r), "deliver", "skipped", "pr off (project)")
+        self.assertEqual(code, 0, out)
+
+    def test_close_outside_git_moves_the_run_without_committing(self):
+        r = self.new_run()
+        code, out = run("run.py", "close", str(r), "--outcome", "abandoned", "--note", "test")
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.root / ".fyzxsflow/runs/abandoned" / r.name / "ledger.md").exists())
+
     def write_package(self, r, stem, segment, title, status=None):
         pid = stem[:5]
         fm = f"---\nid: {pid}\nsegment: {segment}\n" + (f"status: {status}\n" if status else "") + "---\n\n"
@@ -133,6 +144,47 @@ class CheckpointTests(TempRepo):
 
     def git(self, *args):
         return subprocess.run(["git", *args], cwd=self.root, capture_output=True, text=True).stdout
+
+    def test_new_creates_and_records_the_working_branch(self):
+        base = self.git("rev-parse", "HEAD").strip()
+        r = self.new_run()
+        branch = self.git("rev-parse", "--abbrev-ref", "HEAD").strip()
+        self.assertEqual(branch, f"fyzxsflow/{r.name}")
+        meta = (r / "input.md").read_text(encoding="utf-8")
+        self.assertIn(f"branch: fyzxsflow/{r.name}", meta)
+        self.assertIn(f"base: {base}", meta)
+        self.assertIn("base_branch: main", meta)
+        self.assertIn(f"branch=fyzxsflow/{r.name} from main", (r / "ledger.md").read_text(encoding="utf-8"))
+
+    def test_new_stay_keeps_the_current_branch_and_an_existing_name_refuses(self):
+        code, out = run("run.py", "new", "--source", "prompt", "--ref", "stay here", "--stay", "--root", str(self.root))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.git("rev-parse", "--abbrev-ref", "HEAD").strip(), "main")
+        self.git("branch", "taken")
+        code, out = run("run.py", "new", "--source", "prompt", "--ref", "named", "--branch", "taken", "--root", str(self.root))
+        self.assertEqual(code, 1, out)
+        self.assertIn("could not create branch taken", out)
+        self.assertFalse(any(p.name.endswith("-named") for p in (self.root / ".fyzxsflow/runs/active").iterdir()))
+
+    def test_ship_check_rejects_a_ci_result_the_product_has_moved_past_and_a_dirty_tree(self):
+        r = self.new_run()
+        head = self.git("rev-parse", "HEAD").strip()
+        (r / "runner" / "ci-20260101-000000-1.json").write_text(json.dumps(
+            {"result": "pass", "steps": [], "skipped": [], "commit": head, "dirty": False}), encoding="utf-8")
+        run("steps.py", "set", "extreme", "off", "--run", str(r), "--reason", "test")
+        run("steps.py", "set", "gates", "off", "--run", str(r), "--reason", "test")
+        code, out = run("run.py", "ship-check", str(r))
+        self.assertIn("ci               pass", out)
+        self.assertIn("tree             clean", out)
+        (self.root / "app.txt").write_text("v2", encoding="utf-8")
+        code, out = run("run.py", "ship-check", str(r))
+        self.assertIn("tree             dirty", out)
+        self.assertIn("uncommitted: app.txt", out)
+        subprocess.run(["git", "commit", "-q", "-am", "v2"], cwd=self.root, check=True)
+        code, out = run("run.py", "ship-check", str(r))
+        self.assertEqual(code, 1, out)
+        self.assertIn("ci               stale", out)
+        self.assertIn(f"product files changed since the commit it tested ({head[:9]})", out)
 
     def test_checkpoint_commits_only_the_run_folder_and_not_raw_logs(self):
         r = self.new_run()
@@ -275,7 +327,9 @@ class ShipCheckTests(TempRepo):
         (self.r / "brief.md").write_text(BRIEF_OK, encoding="utf-8")
         (self.r / "work-packages" / "WP-01-mapper.md").write_text(WP.format(serves="AC-1, AC-2", flag=FLAG_ON),
                                                                   encoding="utf-8")
-        rows = "| AC-1 | met | t1 |\n| AC-2 | met | t2 |\n| WP-01.1 | met | src/Mapper.cs:10 |"
+        (self.root / "src").mkdir()
+        (self.root / "src" / "Mapper.cs").write_text("// mapper\n" * 12, encoding="utf-8")
+        rows = "| AC-1 | met | `src/Mapper.cs:3` |\n| AC-2 | met | `src/Mapper.cs:4` |\n| WP-01.1 | met | src/Mapper.cs:10 |"
         (self.r / "reports" / "WP-01.implementer.md").write_text(REPORT.format(rows=rows), encoding="utf-8")
         (self.r / "gates").mkdir()
 
@@ -283,6 +337,8 @@ class ShipCheckTests(TempRepo):
         (self.r / rel).write_text(json.dumps(data), encoding="utf-8")
 
     def all_green(self):
+        self.write_json("runner/ci-20260101-000000-1.json",
+                        {"result": "pass", "steps": [{"name": "build", "exit": 0, "passed": True}], "skipped": []})
         self.write_json("runner/extreme-20260101-000000-1.json",
                         {"result": "pass", "steps": [{"name": "build-strict", "exit": 0, "passed": True}], "skipped": []})
         self.write_json("gates/extreme-20260101-000000-1.json", {"result": "pass", "gates": []})
@@ -320,7 +376,34 @@ class ShipCheckTests(TempRepo):
         self.assertIn("declared but not selected: dependency-audit", out)
         self.assertIn("owner-decisions  open", out)
 
+    def test_failed_ci_failed_validator_and_open_major_each_block(self):
+        self.all_green()
+        self.write_json("runner/ci-20260102-000000-1.json",
+                        {"result": "fail", "steps": [{"name": "test", "exit": 1, "passed": False}], "skipped": []})
+        (self.r / "reports" / "WP-01.validator.implementer.md").write_text(
+            "---\nagent: validator\nresult: fail\n---\n# v\n", encoding="utf-8")
+        run("findings.py", "add", "--run", str(self.r), "--source", "reviewer-narrow", "--target", "WP-01",
+            "--kind", "instance", "--severity", "major", "--summary", "null deref", "--evidence", "src/Mapper.cs:3")
+        run("findings.py", "add", "--run", str(self.r), "--source", "curator", "--target", "implementer",
+            "--kind", "agent-gap", "--severity", "major", "--summary", "guidance gap", "--evidence", "x")
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 1, out)
+        self.assertIn("failed: test", out)
+        self.assertIn("validators       fail      NO  WP-01.validator.implementer.md", out)
+        self.assertIn("majors           open      NO  F-1", out)
+        self.assertNotIn("F-2", out)  # an agent-gap is the Curator's, not a product defect
+
+    def test_http_summary_required_once_proofs_were_written(self):
+        self.all_green()
+        (self.r / "reports" / "prove.http-generator.md").write_text("# proofs\n", encoding="utf-8")
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 1, out)
+        self.assertIn("no http run in runner/", out)
+        self.write_json("runner/http-20260101-000000-1.json", {"result": "pass", "steps": [], "skipped": []})
+        self.assertEqual(run("run.py", "ship-check", str(self.r))[0], 0)
+
     def test_missing_extreme_blocks_unless_the_step_is_off(self):
+        self.write_json("runner/ci-20260101-000000-1.json", {"result": "pass", "steps": [], "skipped": []})
         self.write_json("gates/extreme-20260101-000000-1.json", {"result": "pass", "gates": []})
         self.write_json("gates/pre-pr-20260101-000000-1.json", {"result": "pass", "gates": []})
         code, out = run("run.py", "ship-check", str(self.r))
@@ -447,14 +530,47 @@ class AcTraceTests(TempRepo):
 
     def test_evidence_required_for_every_criterion(self):
         r = self.setup_run()
+        (self.root / "src").mkdir()
+        (self.root / "src" / "Mapper.cs").write_text("// line\n" * 10, encoding="utf-8")
+        (self.root / "src" / "PullListTests.cs").write_text("void PullList_ListsUnsigned() {}\n", encoding="utf-8")
         rows = "| AC-1 | met | test PullList_ListsUnsigned |\n| AC-2 | met | |\n| WP-01.1 | met | src/Mapper.cs:10 |"
         (r / "reports" / "WP-01.implementer.md").write_text(REPORT.format(rows=rows), encoding="utf-8")
         code, out = run("ac_trace.py", "--run", str(r), "--require-evidence")
         self.assertEqual(code, 1)
-        self.assertIn("AC-2 has no report marking it met with evidence", out)
+        self.assertIn("AC-2 has no report marking it met with evidence that resolves", out)
+        (r / "runner" / "ci-1.json").write_text(json.dumps({"result": "pass"}), encoding="utf-8")
         rows = rows.replace("| AC-2 | met | |", "| AC-2 | met | runner/ci-1.json |")
         (r / "reports" / "WP-01.implementer.md").write_text(REPORT.format(rows=rows), encoding="utf-8")
+        code, out = run("ac_trace.py", "--run", str(r), "--require-evidence")
+        self.assertEqual(code, 0, out)
+
+    def test_evidence_that_does_not_resolve_fails(self):
+        r = self.setup_run()
+        (self.root / "src").mkdir()
+        (self.root / "src" / "Mapper.cs").write_text("// line\n" * 3, encoding="utf-8")
+        (r / "runner" / "ci-1.json").write_text(json.dumps({"result": "fail"}), encoding="utf-8")
+        rows = ("| AC-1 | met | trust me |\n| AC-2 | met | runner/ci-1.json |\n"
+                "| WP-01.1 | met | src/Mapper.cs:10 |")
+        (r / "reports" / "WP-01.implementer.md").write_text(REPORT.format(rows=rows), encoding="utf-8")
+        code, out = run("ac_trace.py", "--run", str(r), "--require-evidence")
+        self.assertEqual(code, 1)
+        self.assertIn("AC-1 has no report marking it met with evidence that resolves", out)
+        self.assertIn("names no path:line, Runner summary, test or file", out)
+        self.assertIn("runner/ci-1.json has result fail", out)
+        self.assertIn("src/Mapper.cs:10 is past the end of the file (3 lines)", out)
+
+    def test_a_validator_not_met_overrides_the_authors_met(self):
+        r = self.setup_run()
+        (self.root / "src").mkdir()
+        (self.root / "src" / "Mapper.cs").write_text("// line\n" * 10, encoding="utf-8")
+        rows = "| AC-1 | met | src/Mapper.cs:1 |\n| AC-2 | met | src/Mapper.cs:2 |\n| WP-01.1 | met | src/Mapper.cs:3 |"
+        (r / "reports" / "WP-01.implementer.md").write_text(REPORT.format(rows=rows), encoding="utf-8")
         self.assertEqual(run("ac_trace.py", "--run", str(r), "--require-evidence")[0], 0)
+        (r / "reports" / "WP-01.validator.implementer.md").write_text(
+            REPORT.format(rows="| AC-2 | not met | the sort ignores nulls |"), encoding="utf-8")
+        code, out = run("ac_trace.py", "--run", str(r), "--require-evidence")
+        self.assertEqual(code, 1)
+        self.assertIn("AC-2 is marked not met by WP-01.validator.implementer.md", out)
 
 
 class DocsCheckTests(TempRepo):

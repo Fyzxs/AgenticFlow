@@ -42,7 +42,7 @@ def body(doc_rel: str, has_pack: bool) -> str:
     extra = " and every file listed under its `pack:`" if has_pack else ""
     return (f"{MARK}\n\nBefore creating or changing files in this segment, read `{doc_rel}`{extra}, and follow its "
             "pattern, canonical examples and do/don't lists. Where the doc and the code disagree, follow the code "
-            "and say so.\n")
+            "and say so, unless the doc marks the pattern legacy: never copy that.\n")
 
 
 def render(host: str, seg: str, globs: list, title: str, doc_rel: str, has_pack: bool) -> str:

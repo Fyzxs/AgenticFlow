@@ -13,13 +13,21 @@ Plan check fails when:
   - a package says `not-required` while neither the project policy (.fyzxsflow/feature-flags.md
     "Policy: not-required") nor the brief (`flags: not-required`) allows it.
 Delivery check also fails when a criterion (brief AC-n or package WP-xx.n) has no report row marking it
-"met" with non-empty evidence.
+"met" with evidence that resolves, or when any Validator report (reports/*.validator.*.md) marks it not met or
+partial: the checker's verdict wins over the author's. Evidence resolves when it names at least one of:
+  - `path:line` (or `path:line-line`) for a file that exists, relative to the repo root, with that many lines;
+  - a Runner summary (`runner/<invocation>.json`, relative to the run) whose result is pass;
+  - a test, written `test <Name>` or test `<Name>`, whose name appears in a tracked source file;
+  - an existing file, relative to the repo root or the run (a screenshot, a proof file).
 Exit 0 = pass, 1 = fail, 2 = usage error.
 """
 
 import argparse
+import json
+import os
 import pathlib
 import re
+import subprocess
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -32,6 +40,11 @@ AC_ID = re.compile(r"\bAC-\d+\b")
 WP_CRIT = re.compile(r"\*\*(WP-\d+\.\d+)\*\*")
 BAD_WP_CRIT = re.compile(r"\*\*(WP-\d+\.\d+[^\d*\s][^*]*|WP-\d+\.\d+\s*\([^)]*\))\*\*")
 RANGE = re.compile(r"AC-\d+\s*(?:\.\.|–|—|-|to)\s*(?:AC-)?\d+\b", re.I)
+PATH_LINE = re.compile(r"([\w./\-]+\.[\w]+):(\d+)(?:-(\d+))?")
+RUNNER_REF = re.compile(r"(runner/[\w.-]+\.json)")
+TEST_REF = re.compile(r"\btest\s+`?([A-Za-z_][\w.]*)`?", re.I)
+PATH_REF = re.compile(r"`([^`\s]+[/.][^`\s]+)`|(?<![\w`])((?:[\w.-]+/)+[\w.-]+\.\w+)")
+SKIP_DIRS = {".git", "node_modules", "bin", "obj", ".venv", "venv", "__pycache__", HOME, "dist", "build"}
 REPORT_ROW = re.compile(r"^\|\s*((?:AC|WP)-[\d.]+)\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|", re.M)
 
 
@@ -75,6 +88,61 @@ def section(text: str, heading: str) -> str:
 
 def strip_comments(text: str) -> str:
     return re.sub(r"<!--.*?-->", "", text, flags=re.S)
+
+
+def name_in_repo(root: pathlib.Path, name: str) -> bool:
+    if subprocess.run(["git", "rev-parse", "--git-dir"], cwd=root, capture_output=True).returncode == 0:
+        found = subprocess.run(["git", "grep", "-q", "-w", "-F", name, "--", ".", f":(exclude){HOME}"],
+                               cwd=root, capture_output=True)
+        return found.returncode == 0
+    for dirpath, dirnames, filenames in os.walk(root):  # not a git repo: a bounded scan of source files
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+        for fn in filenames:
+            f = pathlib.Path(dirpath) / fn
+            try:
+                if f.stat().st_size < 1_000_000 and re.search(rf"\b{re.escape(name)}\b", f.read_text(encoding="utf-8")):
+                    return True
+            except (OSError, UnicodeDecodeError):
+                continue
+    return False
+
+
+def evidence_resolves(evidence: str, run: pathlib.Path, root: pathlib.Path):
+    """None when some piece of the evidence checks out, else why none did."""
+    tried = []
+    for m in PATH_LINE.finditer(evidence):
+        f = root / m.group(1)
+        if f.is_file():
+            try:
+                lines = len(f.read_text(encoding="utf-8", errors="replace").splitlines())
+            except OSError:
+                lines = 0
+            if int(m.group(3) or m.group(2)) <= lines:
+                return None
+            tried.append(f"{m.group(0)} is past the end of the file ({lines} lines)")
+        else:
+            tried.append(f"{m.group(1)} does not exist")
+    for m in RUNNER_REF.finditer(evidence):
+        f = run / m.group(1)
+        try:
+            result = json.loads(f.read_text(encoding="utf-8")).get("result")
+        except (OSError, ValueError):
+            result = None
+        if result == "pass":
+            return None
+        tried.append(f"{m.group(1)} " + ("is missing" if result is None else f"has result {result}"))
+    for m in TEST_REF.finditer(evidence):
+        name = m.group(1).split(".")[-1]
+        if name_in_repo(root, name):
+            return None
+        tried.append(f"test {name} is not found in the repo")
+    rest = RUNNER_REF.sub(" ", PATH_LINE.sub(" ", evidence))  # a path:line that failed doesn't count as a bare path
+    for m in PATH_REF.finditer(rest):
+        ref = (m.group(1) or m.group(2)).rstrip(".,;")
+        if (root / ref).exists() or (run / ref).exists():
+            return None
+        tried.append(f"{ref} does not exist")
+    return "; ".join(tried) if tried else "names no path:line, Runner summary, test or file"
 
 
 def check(run: pathlib.Path, require_evidence: bool, root: pathlib.Path = None):
@@ -128,15 +196,27 @@ def check(run: pathlib.Path, require_evidence: bool, root: pathlib.Path = None):
         problems.append(f"{a} is not served by any work package")
 
     if require_evidence:
-        met = {}
+        met, unresolved, refuted = {}, {}, {}
         reports = sorted((run / "reports").glob("*.md")) if (run / "reports").is_dir() else []
         for r in reports:
+            is_validator = ".validator." in r.name
             for crit, status, evidence in REPORT_ROW.findall(strip_comments(r.read_text(encoding="utf-8"))):
-                if status.strip().lower() == "met" and evidence.strip() and evidence.strip() not in ("-", "..."):
-                    met[crit.upper()] = r.name
+                crit, status, evidence = crit.upper(), status.strip().lower(), evidence.strip()
+                if is_validator and status in ("not met", "partial"):
+                    refuted[crit] = r.name
+                if status != "met" or evidence in ("", "-", "..."):
+                    continue
+                why = evidence_resolves(evidence, run, root)
+                if why is None:
+                    met[crit] = r.name
+                else:
+                    unresolved.setdefault(crit, f"{r.name}: '{evidence[:80]}' ({why})")
         for crit in sorted(brief_acs | {c.upper() for c in package_criteria}):
-            if crit not in met:
-                problems.append(f"{crit} has no report marking it met with evidence")
+            if crit in refuted:
+                problems.append(f"{crit} is marked not met by {refuted[crit]} (a Validator's verdict wins)")
+            elif crit not in met:
+                problems.append(f"{crit} has no report marking it met with evidence that resolves"
+                                + (f": {unresolved[crit]}" if crit in unresolved else ""))
     return problems, served
 
 

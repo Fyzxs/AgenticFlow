@@ -13,6 +13,8 @@ config.json -> compare:
   { "enabled": false, "agents": [], "sample_rate": 1.0, "max_per_run": 3, "min_samples": 5,
     "reduce_when_ok_rate": 0.9 }
   agents: [] means every eligible agent (fast and auto have no lower tier, so they are never shadowed).
+  sample_rate is decided per dispatch, deterministically from the run, the agent and its dispatch number in the run
+  (counted in <run>/compare-dispatches.jsonl), so a rerun of the same run decides the same way.
 
 Scoring (deterministic, so every host scores the same way):
   conclusive  the primary's Validator verdict is pass or corrected (a failed primary proves nothing)
@@ -36,6 +38,7 @@ import models  # noqa: E402
 DEFAULTS = {"enabled": False, "agents": [], "sample_rate": 1.0, "max_per_run": 3, "min_samples": 5,
             "reduce_when_ok_rate": 0.9}
 VERDICTS = ("pass", "corrected", "fail")
+DISPATCHES = "compare-dispatches.jsonl"  # one line per sampled `should` call: the dispatch counter
 
 
 def root_of(run: pathlib.Path) -> pathlib.Path:
@@ -82,8 +85,13 @@ def cmd_should(args) -> int:
     if done >= cfg["max_per_run"]:
         print(f"shadow=no reason=max-per-run ({done}/{cfg['max_per_run']})")
         return 0
-    # Deterministic sampling: the same run, agent and dispatch count always decide the same way.
-    digest = hashlib.sha256(f"{run.name}:{args.agent}:{done}".encode()).hexdigest()
+    # Deterministic sampling on the agent's dispatch number in this run (each `should` call that gets here is one
+    # dispatch), so an unsampled dispatch doesn't make every later one unsampled too.
+    log = run / DISPATCHES
+    n = sum(1 for r in records(log) if r.get("agent") == args.agent)
+    with open(log, "a", encoding="utf-8", newline="\n") as f:
+        f.write(json.dumps({"agent": args.agent, "n": n}) + "\n")
+    digest = hashlib.sha256(f"{run.name}:{args.agent}:{n}".encode()).hexdigest()
     if int(digest[:8], 16) / 0xFFFFFFFF >= cfg["sample_rate"]:
         print("shadow=no reason=not-sampled")
         return 0
