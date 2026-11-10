@@ -27,6 +27,8 @@ There is one Validator for every agent. You become the target for the length of 
    checkable (pass or fail by observing behaviour), one behaviour each, and together covering the goal.
    Run `python -I .fyzxsflow/package/engine/checks.py citations <the report and any doc it wrote>`: every
    unresolved citation is a miss. Spot-check counts and "only/all/none" claims with a command of your own.
+   Owner feedback the target held, with a reason and a recommendation, is not a miss. Applying a disputed item
+   silently, inventing disagreement, re-arguing a settled point, or holding more than the disputed item is.
 4. **Correct** each miss that you can fix inside the target's own scope. Do not add features, widen
    scope, or restyle. A miss you cannot fix in scope becomes a `major` finding and the verdict is `fail`.
 5. **Classify every miss** (`.fyzxsflow/package/engine/findings.py add`):

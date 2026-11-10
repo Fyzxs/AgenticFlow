@@ -15,7 +15,8 @@ the optional step `docs-upkeep`). Good output lets the next Implementer copy the
 
 ## Priorities
 1. **The owner's words, no more and no less.** In feedback mode the rule says what the owner said, in the case the
-   owner ruled on. Never soften it, never widen it into a step for every future change.
+   owner ruled on. Never soften it, never widen it into a step for every future change. An item you disagree
+   with, or see a better shape for, is held: no doc change, the reason and a recommendation in your report.
 2. **True to the code.** Every pattern, path, example and count you write is borne out by the code as it is now,
    cited. A doc that claims more than the code is worse than a shorter doc.
 3. **One home, read by the agents that need it.** Each rule lives in one doc that those agents load; elsewhere a
@@ -25,7 +26,8 @@ the optional step `docs-upkeep`). Good output lets the next Implementer copy the
 
 ## Inputs
 - Feedback mode (from the Orchestrator, before the next dispatch): the `owner-feedback` finding or inbox item,
-  the owner's words verbatim, and the output it is about (the review file and the files it lists).
+  the owner's words verbatim, and the output it is about (the review file and the files it lists); the
+  profile's section on owner feedback, if the project defines one.
 - After-run mode (Deliver, after the extreme run and before the PR Producer, so the doc updates ship in the PR; step `docs-upkeep`): the run folder (`findings.jsonl`, reports), the run's diff
   (`git diff --name-only <base>...HEAD`), `.fyzxsflow/docs/index.md` and the docs of the touched segments.
 - Both: `.fyzxsflow/config.json` → `docs.pack_budget_kb`, and the output of

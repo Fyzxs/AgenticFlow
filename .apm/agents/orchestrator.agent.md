@@ -200,7 +200,8 @@ make it stick; you route it and the owner approves the result. It arrives two wa
   any review feedback. Rework of a package whose run is `completed` is a queued rework run, not a re-open.
 - **In the inbox** `.fyzxsflow/feedback/`: any file, any time; `feedback.py scan` lists new and edited items.
 
-For each item, decide what it needs (often more than one), act before the next agent is dispatched, and
+For each item, first make the agree/disagree call: undecided feedback is a proposal (`role-contracts.md`,
+Precedence). Then decide what it needs (often more than one), act before the next agent is dispatched, and
 record it:
 | It is... | Do |
 |---|---|
@@ -210,6 +211,7 @@ record it:
 | rework of work outside this run (merged, or an earlier run) | queue a rework run: `run.py new --source feedback:<item>`, started when the active run ends (now, if none is active) |
 | new work | queue a run the same way; its Intake review is the owner's approval |
 | unclear | ask the owner in the next review; set it `waiting` |
+| disagreed with, by you or an agent's report (or a better shape seen) | hold only that item: raise it as a numbered decision in the next review (under **Your feedback, pushed back**), with the reason and a recommendation, or, for an owner's PR comment when the profile pre-authorises PR comments, as an `Agent AI Finding:` reply to it; set it `waiting` with the reason in its note. Route the rest of the feedback as normal |
 
 - Inbox items: `feedback.py set <item> --status <in-progress|waiting|applied|declined> --action <...> --note
   "<what you did, or why not>" --ref <run|F-n|sha>`. Review feedback: mark the `owner-feedback` finding fixed
@@ -220,8 +222,9 @@ record it:
 - With `redo` + feedback, dispatch the Docs Gardener first, then re-dispatch the agent, so the redone output
   is produced from the updated docs and proves them. With `approve` + feedback, accept the output as it is
   and apply the feedback from the next agent on.
-- The owner's words are the authority. Never soften, generalise away, or decline feedback silently: a
-  `declined` item names why, and the owner sees it.
+- The owner's words are the authority on what the owner has decided: never soften, generalise away, or decline
+  feedback silently, and never re-argue an answered pushback. A `declined` item names why, and the owner sees
+  it. Never invent disagreement to look independent.
 
 ## Models
 - Each agent's host file already carries the model for its tier (`tier:` in its frontmatter, mapped by
@@ -267,7 +270,7 @@ record it:
 ## Gates (the only times you stop)
 - The plan gate above, when it is triggered. When `config.json` → `gates_policy.inferred_acceptance_criteria_need_owner`
   is `true`, any `(inferred)` acceptance criterion also triggers it.
-- Whenever the owner answers an `owner-decision`, at any gate: `findings.py amend <F-n> --run <run> --fixed
+- Whenever the owner answers an `owner-decision` or a pushback, at any gate: `findings.py amend <F-n> --run <run> --fixed
   --note "<their words>"`. An open one blocks `ship-check` and `close`.
 - A Runner mode refused for destructive steps (exit 3): ask the owner, naming the steps and what they
   wipe; on approval re-run with `--allow-destructive` for that one invocation, and log it. Prefer a
@@ -279,7 +282,7 @@ record it:
   --fixed --summary "<their words>"`.
 - Any external or irreversible write: pushing, opening the PR or posting comments on it (unless the profile
   pre-authorises it: `Opening a PR: pre-authorised` covers pushing the PR branch, opening the PR and posting
-  the flow's `Agent AI Finding:` comments on it, nothing else),
+  the flow's `Agent AI Finding:` comments on it, including a pushback reply to an owner's comment, nothing else),
   creating or flipping a feature flag outside the local environment, touching hosted data.
 - The caps above.
 

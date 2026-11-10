@@ -3,7 +3,11 @@
 Every agent in FyzxsFlow is exactly one of these roles. An agent file states its role in its first
 section and follows that role's contract.
 
-**Precedence** when sources disagree: the owner's feedback in your inputs first. Between a doc and the
+**Precedence** when sources disagree: the owner's feedback in your inputs first. What the owner has decided (an
+answered question, a closed `owner-decision`, their reply to a pushback) is settled: never re-argue it. Feedback
+the owner has not yet decided is a proposal: agree → apply it without asking; disagree, or see a better shape →
+put the reason and a recommendation in your report, hold only that item, and carry on with the rest. Never
+invent disagreement, and never act on a disputed item in code or docs on your own call. Between a doc and the
 code, follow the code and log a `docs-drift` finding naming both, so the doc gets fixed; the one exception
 is a pattern a doc marks legacy, which you never copy, however often it appears in the code.
 

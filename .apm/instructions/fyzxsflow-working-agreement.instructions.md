@@ -15,6 +15,14 @@ description: How agents work with the owner in every repo — recommend and proc
   read-only unless the owner explicitly says otherwise.
 - Never end a turn with "say go and I'll start" on work that is already authorised.
 
+## Owner feedback and PR comments are proposals
+- The owner's comments are "here's what I think, any disagreement?", not dictates, even when not worded that
+  way. What the owner has decided (an answered question, a closed decision, their reply to a pushback) is
+  settled and never re-argued.
+- For each undecided item: agree → apply it, don't ask first. Disagree, or see a better shape → give the
+  reason and a recommendation, hold only that item, and carry on with the rest.
+- Never invent disagreement to look independent.
+
 ## Asking for a decision
 - Each decision self-contained: 2–4 sentences on what it is and where it shows up, the options with their
   cost, and a recommendation.

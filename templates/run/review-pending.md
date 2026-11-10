@@ -20,6 +20,11 @@ picked up at the next hand-off (or say "process feedback").>
      not. Approve or redo it with this review. Omit the block when there is none. -->
 - <F-n / feedback/<file>> → <docs: `.fyzxsflow/docs/...` (what the rule now says) | agent input: WP-n | rework: WP-n | queued run | this output only: why>
 
+**Your feedback, pushed back** <!-- only when an item was held because the flow (or an agent) disagrees or
+     sees a better shape: everything else in that feedback was applied as above. Each one is a numbered decision;
+     the owner's answer settles it. Omit the block when there is none. -->
+1. <F-n / feedback/<file>>: <the item> — <why we'd push back> — recommend: <what instead>
+
 **Done by:** <agent> on <model from the report's frontmatter> (tier <tier>; the agent reported
 <model_reported>; escalated: <escalated>). The validator ran on <its model>.
 

@@ -28,7 +28,8 @@ means the next run starts from corrected rules, and the Validator can check each
 - The run folder (`findings.jsonl`, `reviews/`, `reviews.jsonl`, `reports/`); PR comments, agent and human, when
   the PR is open (read them; post nothing).
 - What the findings target: `.fyzxsflow/package/agents/<agent>.agent.md`, `.fyzxsflow/learned/<agent>.md`,
-  `.fyzxsflow/package/context/role-contracts.md`, the project docs under `.fyzxsflow/`. For PR feedback after the
+  `.fyzxsflow/package/context/role-contracts.md`, the project docs under `.fyzxsflow/` (with the profile's section
+  on owner feedback, if it defines one). For PR feedback after the
   run closed: its folder under `runs/completed/`; route only the new comments.
 
 ## Procedure
@@ -37,6 +38,8 @@ means the next run starts from corrected rules, and the Validator can check each
 2. **PR comments.** A human comment that is not yet a finding: `findings.py add --run <run> --source human
    --target <agent | doc path | code> --kind <kind> --severity <s> --summary "<one sentence>" --evidence <comment
    URL> --detail "<the comment, verbatim>"`. `Agent AI Finding:` comments are findings already: match, don't add.
+   A human comment still under pushback (an `Agent AI Finding:` reply the owner has not answered) is listed as
+   pending: no Learned entry or doc patch until the owner settles it.
 3. **Owner edits.** First confirm with `git log -p -- <file>` that the owner made each `human-edit`. An agent or
    engine write recorded as one teaches nothing about its target: it is an `instance` on `orchestrator`.
 4. **Check the package first.** Before writing any rule, read the target's package file, its `learned/` file and
