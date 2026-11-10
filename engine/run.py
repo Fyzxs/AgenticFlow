@@ -409,6 +409,11 @@ def runner_row(root: pathlib.Path, run: pathlib.Path, mode: str, rows: list, req
         rows.append((mode, data.get("result", "?"), data.get("result") == "pass", detail))
 
 
+def run_source(run: pathlib.Path) -> str:
+    path = run / "input.md"
+    return report_meta(path.read_text(encoding="utf-8")).get("source", "") if path.exists() else ""
+
+
 def cmd_ship_check(args) -> int:
     """Whether the run may say "Ready to push": every sign-off check passed, or the owner accepted its failure."""
     run = pathlib.Path(args.run)
@@ -497,6 +502,13 @@ def cmd_ship_check(args) -> int:
         dirty = [l[3:] for l in dirty if l.strip()]
         rows.append(("tree", "dirty" if dirty else "clean", not dirty,
                      ("uncommitted: " + ", ".join(dirty[:5]) + (" ..." if len(dirty) > 5 else "")) if dirty else ""))
+
+    if run_source(run) == "greenfield":
+        import docs_check  # noqa: E402
+        left = docs_check.planned(root)
+        rows.append(("greenfield", "planned" if left else "confirmed", not left,
+                     ("still planned (run the Repo Cartographer's confirm mode): " + ", ".join(left[:5])
+                      + (" ..." if len(left) > 5 else "")) if left else "docs and config confirmed against the code"))
 
     open_decisions = [f["id"] for f in found if f.get("kind") == "owner-decision" and not f.get("fixed")]
     rows.append(("owner-decisions", "none open" if not open_decisions else "open", not open_decisions,

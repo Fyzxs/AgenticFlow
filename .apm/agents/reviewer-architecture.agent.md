@@ -55,7 +55,8 @@ of a changed contract still hold (reviewer-large); auth and tenancy, even though
    beside the existing one is a finding.
 8. **Decisions.** A change that contradicts an accepted decision is `major` unless an owner ruling covers it. A
    structural choice no rule or decision covers: following the code's existing shape is a `context-gap` against
-   `architecture.md`; introducing a new shape is an `owner-decision`.
+   `architecture.md`; introducing a new shape is an `owner-decision`. In a greenfield run every shape is new: a
+   shape the planned docs or an accepted decision record describe is not a new one.
 9. **Log** each finding (`findings.py add --run <run-dir> --source reviewer-architecture --target code --kind <k>
    --severity <s> --summary "..." --evidence <path:line> --evidence .fyzxsflow/docs/architecture.md:<line>
    [--rule "..."]`). Write the report, then `python -I .fyzxsflow/package/engine/checks.py citations <report>`.

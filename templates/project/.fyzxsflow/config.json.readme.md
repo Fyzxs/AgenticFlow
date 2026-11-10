@@ -87,6 +87,7 @@ You can add other modes; agents use them when a work package names them.
 | `destructive` | `false` | the whole mode wipes or replaces local state. The Runner refuses it (exit 3) unless you approve that run |
 | `allow_destructive` | `false` | **owner only.** Lets this mode's destructive steps run without asking each time. Agents never set it |
 | `draft` | `false` | you haven't confirmed this mode yet; the Runner prints a reminder each time it runs |
+| `planned` | `false` | new projects only: the Greenfield Architect wrote this mode before the code existed. `docs_check.py` warns (fails with `--strict`) and a greenfield run's ship-check blocks until the Repo Cartographer clears it after the mode passes. Also allowed on a single step |
 | `not_applicable` | none | a reason the repo has no such capability. The mode exits 0 without running anything |
 | `network` | none | `"connected"` or `"airplane"`, recorded in the summary. **Airplane** means everything the mode needs lives on this machine. The network is never switched off. Instead, the Runner points every step's and service's proxy settings at a closed local port. It refuses container starts without `--pull never` (exit 2). It fails the mode if any process the mode started connects to an address that isn't loopback or in `offline_allow`. Any mode can be airplane, `http` included |
 | `offline_allow` | `[]` | for airplane modes: address ranges (CIDRs, e.g. a container network) the app may reach, and host names added to `NO_PROXY` |
@@ -200,7 +201,7 @@ model.
 
 | Tier | Agents |
 |---|---|
-| `deep` | orchestrator, build-coordinator, validator, curator, repo-cartographer, code-indicator, e2e-investigator, reviewer-architecture, reviewer-large, reviewer-security, reviewer-iac |
+| `deep` | orchestrator, build-coordinator, validator, curator, repo-cartographer, design-reader, greenfield-architect, code-indicator, e2e-investigator, reviewer-architecture, reviewer-large, reviewer-security, reviewer-iac |
 | `standard` | work-summarizer, build-test-runner, implementer, tester, http-generator, e2e-implementer, e2e-tester, iac-implementer, gate-analyst, docs-gardener, pr-producer, pr-reviewer, reviewer-narrow, reviewer-feature-flag |
 | `fast` | none |
 

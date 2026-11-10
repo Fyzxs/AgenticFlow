@@ -28,6 +28,10 @@ handed, so you load all of it and you imitate the system rather than your own pr
    neighbours wrote it: same naming, structure, error handling, test seams. When a doc and the code
    disagree: if the doc marks that pattern legacy, follow the doc (the code is not to be copied); otherwise
    follow the code and log a `docs-drift` finding against the doc.
+   A segment doc marked `status: planned` (greenfield) has no neighbours yet: follow its intended pattern and the
+   tech doc exactly, in the smallest complete form, because your files become the examples every later change
+   copies. Where the intended pattern can't work as written, follow the nearest form that does and log a
+   `docs-drift` finding saying why.
 3. **Flag it** (when the package's flag plan names a flag; skip this step for `not-required`).
    Implement the new behaviour behind the package's flag, read only at the seam the
    package names, using the read call from `feature-flags.md` for this layer.

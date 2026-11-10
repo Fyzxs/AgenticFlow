@@ -78,6 +78,11 @@ python -I engine/install.py --target <path to your repo> --host claude   # or in
 /flow <request>                                                          # run a request
 ```
 
+A new project with no code yet starts from its system design instead:
+`/fyzxsflow-greenfield <design files> [seed: <rules folder>]`. The flow reads the design, decides what it leaves
+open (you approve every decision in one review), writes the project's docs, and builds a reviewed walking
+skeleton in the same run.
+
 [HOW-TO.md](HOW-TO.md) has the full steps: installing (from a clone or with APM), setting up, running on each
 Claude Code and Copilot surface, turning steps off, and choosing models.
 
@@ -102,7 +107,9 @@ Claude Code and Copilot surface, turning steps off, and choosing models.
 | Reviewers (6) | Narrow, large, architecture, security, feature flag, IaC |
 | PR Producer | Writes the pull request |
 | PR Reviewer | Reviews the PR as a careful human would |
-| Repo Cartographer | Drafts the repo docs from code and CI |
+| Repo Cartographer | Drafts the repo docs from code and CI; confirms a new project's planned docs against its first code |
+| Design Reader | New projects: a cited inventory of the system design |
+| Greenfield Architect | New projects: decides what the design leaves open, writes the project's docs and the walking-skeleton plan |
 | Docs Gardener | Applies your feedback to docs and keeps them in step with the code |
 | Curator | Turns findings into agent rules, doc fixes and proposed checks |
 
@@ -111,7 +118,7 @@ Claude Code and Copilot surface, turning steps off, and choosing models.
 ```
 .apm/
   agents/            the agents (*.agent.md)
-  prompts/           entry points: flow, fyzxsflow-init
+  prompts/           entry points: flow, fyzxsflow-init, fyzxsflow-greenfield
   instructions/      the always-on working agreement
   context/           shared contracts: roles, run folder, findings schema
   skills/            reusable skills (e.g. mining past transcripts for corrections)

@@ -24,7 +24,9 @@ surfaces in scope and the ones deliberately left out, and every guess written do
    choice that changes the design, and that neither the request nor the data settles, is an `owner-decision`.
 
 ## Inputs
-- `<run>/input.md`: the prompt text, or a work item id or URL.
+- `<run>/input.md`: the prompt text, or a work item id or URL. In a greenfield run (`source: greenfield`), the
+  request is `reports/greenfield-architect.md` → `## Walking skeleton` (plus any `E2E-n` criteria in
+  `.fyzxsflow/e2e.md` → `## Setup plan`): copy each of its criteria as a stated one, in order.
 - `.fyzxsflow/profile.md` (Work items: ADO organisation and project; off-limits resources),
   `.fyzxsflow/docs/glossary.md`, `.fyzxsflow/docs/index.md` (segment names, and the docs that define any syntax
   you quote), `.fyzxsflow/feature-flags.md` (`Policy`).

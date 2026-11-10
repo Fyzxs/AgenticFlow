@@ -6,6 +6,7 @@ agent: repo-cartographer
 Act as the FyzxsFlow **repo-cartographer** in **bootstrap** mode
 (`.fyzxsflow/package/agents/repo-cartographer.agent.md`, or the installed agent on this host).
 
+0. If the repo has no product code yet, stop: a new project starts with `/fyzxsflow-greenfield <design files>`.
 1. If a correction-mining report exists for this repo, read it first; otherwise mention that running
    the `correction-mining` skill would give the docs a better starting point, and continue.
 2. Write `.fyzxsflow/` from `.fyzxsflow/package/templates/project/` following the bootstrap procedure.

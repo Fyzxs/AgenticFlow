@@ -446,6 +446,33 @@ class ShipCheckTests(TempRepo):
         self.assertEqual(code, 0, out)
         self.assertIn("network: airplane", out)
 
+    def test_greenfield_run_blocks_while_anything_is_still_planned(self):
+        self.all_green()
+        text = (self.r / "input.md").read_text(encoding="utf-8")
+        (self.r / "input.md").write_text(text.replace("source: prompt", "source: greenfield"), encoding="utf-8")
+        home = self.root / ".fyzxsflow"
+        (home / "docs").mkdir(parents=True)
+        arch = home / "docs" / "architecture.md"
+        arch.write_text("---\nstatus: planned\n---\n# Architecture\n", encoding="utf-8")
+        (home / "config.json").write_text(json.dumps({"modes": {"ci": {"steps": [
+            {"name": "build", "run": "dotnet build", "planned": True}]}}}), encoding="utf-8")
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 1, out)
+        self.assertIn("greenfield       planned   NO  still planned (run the Repo Cartographer's confirm mode): "
+                      ".fyzxsflow/docs/architecture.md, config.json mode 'ci' step 'build'", out)
+        arch.write_text("# Architecture\n", encoding="utf-8")
+        (home / "config.json").write_text(json.dumps({"modes": {"ci": {"steps": [
+            {"name": "build", "run": "dotnet build"}]}}}), encoding="utf-8")
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 0, out)
+        self.assertIn("greenfield       confirmed ok", out)
+
+    def test_greenfield_row_only_for_greenfield_runs(self):
+        self.all_green()
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("greenfield", out)
+
     def test_e2e_ready_without_any_e2e_mode_blocks(self):
         self.all_green()
         run("steps.py", "set", "e2e", "on", "--run", str(self.r), "--reason", "prove it end to end")
@@ -693,10 +720,40 @@ class DocsCheckTests(TempRepo):
         self.assertEqual(code, 1)
         self.assertIn("over the 1 KB budget", out)
 
+    def test_unresolved_in_a_comment_is_not_unresolved(self):
+        self.write_segment("<!-- leave UNRESOLVED when unknown -->\nProvider: LaunchDarkly")
+        self.assertEqual(run("docs_check.py", "--root", str(self.root), "--strict")[0], 0)
+
     def test_unresolved_warns_unless_strict(self):
         self.write_segment("Provider: UNRESOLVED")
         self.assertEqual(run("docs_check.py", "--root", str(self.root))[0], 0)
         self.assertEqual(run("docs_check.py", "--root", str(self.root), "--strict")[0], 1)
+
+    def test_planned_doc_and_config_warn_until_confirmed_and_fail_strict(self):
+        # Greenfield: the docs describe code that doesn't exist yet.
+        seg = self.root / ".fyzxsflow" / "docs" / "segments" / "mapper.md"
+        seg.write_text('---\nstatus: planned\npaths:\n  - "src/Api/**"\n---\n# Segment: API\n'
+                       "Canonical example once written: `src/Api/HealthController.cs`.\n", encoding="utf-8")
+        self.modes["ci"]["steps"][0]["planned"] = True
+        self.write_cfg()
+        code, out = run("docs_check.py", "--root", str(self.root))
+        self.assertEqual(code, 0, out)
+        self.assertIn("WARN .fyzxsflow/docs/segments/mapper.md: status planned, not yet confirmed against the code", out)
+        self.assertIn("WARN .fyzxsflow/docs/segments/mapper.md: glob `src/Api/**` matches no tracked file yet", out)
+        self.assertIn("WARN .fyzxsflow/docs/segments/mapper.md: cites `src/Api/HealthController.cs`, which does not "
+                      "exist yet", out)
+        self.assertIn("WARN config.json: mode 'ci' step 'x' is planned, not yet proven", out)
+        code, out = run("docs_check.py", "--root", str(self.root), "--strict")
+        self.assertEqual(code, 1, out)
+        self.assertIn("FAIL .fyzxsflow/docs/segments/mapper.md: status planned", out)
+        self.assertIn("FAIL config.json: mode 'ci' step 'x' is planned", out)
+
+    def test_a_confirmed_doc_gets_no_planned_leniency(self):
+        seg = self.root / ".fyzxsflow" / "docs" / "segments" / "mapper.md"
+        seg.write_text('---\nstatus: confirmed\npaths:\n  - "src/Api/**"\n---\n# Segment: API\n', encoding="utf-8")
+        code, out = run("docs_check.py", "--root", str(self.root))
+        self.assertEqual(code, 1, out)
+        self.assertIn("FAIL .fyzxsflow/docs/segments/mapper.md: glob `src/Api/**` matches no tracked file", out)
 
     def test_e2e_modes_warn_when_absent_and_must_declare_their_network(self):
         self.write_segment("ok")

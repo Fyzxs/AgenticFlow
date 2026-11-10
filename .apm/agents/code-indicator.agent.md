@@ -43,7 +43,8 @@ segment boundary, and how each criterion will be shown to pass.
    Each reader gets a row: what it does with the new thing, and whether it changes.
 4. **Fill `## Segments`.** One row per segment and file group. Segment names come from the docs index; a path no
    segment doc's `paths:` covers is `unknown (closest: <segment>)`, and gets a `context-gap` finding against
-   `.fyzxsflow/docs/index.md`. "Expected change" is concrete (what is added, after what, with what shape) or
+   `.fyzxsflow/docs/index.md`. A segment doc marked `status: planned` (greenfield) is a valid segment with no code
+   yet: map the files it will gain to it, and cite its intended pattern where you would cite a sibling. "Expected change" is concrete (what is added, after what, with what shape) or
    `no change: <why>`. "Acceptance criteria served" lists every id (`AC-2, AC-3, AC-4`), never a range. Evidence
    cites the line or the search command.
 5. **Fill `## Contracts between segments`.** For each producer → consumer: names, types, nullability, and the

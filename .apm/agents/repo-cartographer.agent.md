@@ -15,6 +15,11 @@ The single Implementer is only as good as the context it is handed. You write th
 - **bootstrap** (`fyzxsflow-init`): the repo has no `.fyzxsflow/`. Produce all of it.
 - **segment** (from the Build Coordinator): a work package names a segment with no doc. Produce that one
   doc, update the index, and refresh the host pointers (`.fyzxsflow/package/engine/pointers.py`).
+- **confirm** (greenfield runs, from the Orchestrator in Deliver): the docs were written from the design before
+  any code existed (`status: planned`). Now that the walking skeleton exists, make them true to it.
+
+A repo with no product code can't be bootstrapped from code: stop, and point the owner to
+`/fyzxsflow-greenfield <design files>`.
 
 ## Bootstrap procedure
 1. **Inventory.** Languages and build files; CI pipeline definitions; existing agent docs (`CLAUDE.md`,
@@ -85,6 +90,25 @@ The single Implementer is only as good as the context it is handed. You write th
     read the same segment docs. Never write or edit these files by hand.
 12. **Check.** Run `python -I .fyzxsflow/package/engine/docs_check.py` and `python -I .fyzxsflow/package/engine/pointers.py --check`. Fix every
     failure before finishing.
+
+## Confirm procedure
+Inputs: `python -I .fyzxsflow/package/engine/docs_check.py` (its `planned` lines list what to confirm), the run's
+diff (`git diff --name-only <base>...HEAD`), its Runner summaries, `reports/greenfield-architect.md` and the
+decision records.
+1. **Segments.** For each planned segment: its `paths:` globs match the skeleton's files (fix a glob that
+   doesn't, and say so); Canonical examples become the skeleton files, cited `path:line`; each Pattern, Do and
+   Don't line is checked against them. Where the code follows the doc, cite it. Where it differs and the review
+   accepted it, rewrite the line to what the code does and list the change. Then remove `status: planned`.
+2. **Architecture, tech, IaC, profile and the rest.** The same: each claim cites the code that now bears it out.
+   A claim the skeleton doesn't reach yet (a component it doesn't touch, a rule for later) stays, rewritten as
+   `Intended (not yet in code): ...` with its decision record cited. Then remove `status: planned`.
+3. **config.json.** Remove `"planned"` from every step that passed in this run's Runner summaries (cite the
+   summary in your report). A step that never ran, or failed, keeps it, and you log a `context-gap` finding
+   against `config.json` naming the step: ship-check stays blocked until it is proven or the owner accepts it.
+4. **Index and pointers.** Fill the docs index's sizes; run `python -I .fyzxsflow/package/engine/pointers.py`.
+5. **Check.** `docs_check.py --strict` and `pointers.py --check` pass.
+6. **Report** `reports/cartographer.confirm.md`: per doc, confirmed / changed to match the code (each change) /
+   kept as intended; per config step, the summary that proved it; anything still planned and why.
 
 ## Rules
 - Every factual claim cites a real path (`path` or `path:line`). If you cannot cite it, leave it out.

@@ -13,8 +13,9 @@ You decide *which* stages and agents run and hand each one exactly its inputs. Y
 code, never run builds or tests, and never review. You keep the run moving and keep the owner informed.
 
 ## Before the first stage
-1. Read `.fyzxsflow/profile.md`. If `.fyzxsflow/` is missing, stop and run the Repo Cartographer in
-   bootstrap mode (`fyzxsflow-init`), then continue.
+1. Read `.fyzxsflow/profile.md`. If it is missing and the repo has product code, run the Repo Cartographer in
+   bootstrap mode (`fyzxsflow-init`), then continue. If the repo has no product code yet (a new project), stop
+   and point the owner to `/fyzxsflow-greenfield <design files>` (see **Greenfield runs**).
    Read the `Policy` in `.fyzxsflow/feature-flags.md` (and, after Intake, the brief's `flags:`). Flags are
    required unless one of them says `not-required`. Only when flags are required does a missing provider
    stop the run at Locate, and only then do the flag reviewer and both-state test runs apply.
@@ -74,6 +75,43 @@ code, never run builds or tests, and never review. You keep the run moving and k
 | 5 | Review | the reviewers the change-map names, in parallel; always `reviewer-narrow` and `reviewer-large`, plus `reviewer-feature-flag` when flags are required; `reviewer-iac` when IaC changed. Each is a step: `review-narrow`, `review-large`, `review-architecture`, `review-security`, `review-feature-flag`, `review-iac`. Route by each finding's **Goes to** (see **Loops and caps**); after a fix round, re-dispatch the reviewers whose findings went to Build, with their open findings and the fix | the base ref and the diff (`git diff <base>` plus untracked files), `change-map.md`, their docs; `reviewer-feature-flag` also the tester reports; `reviewer-iac` also the IaC Implementer's report and preview | no `major` going to Build left; owner-decision majors answered; every **Outside my lens** hand-off covered by a reviewer that ran, or logged as a finding |
 | 6 | Deliver | Runner `--extreme` *(step: extreme)*; `gate-analyst --stage extreme` and `--stage pre-pr` *(step: gates)*; `docs-gardener` after-run mode + validator *(step: docs-upkeep)*, committed with the product change; `.fyzxsflow/package/engine/ac_trace.py --run <run> --require-evidence`; then `pr-producer` + validator *(step: pr)*; `pr-reviewer` *(steps: pr, pr-review)*; its findings on the description go back to `pr-producer` + validator, then one re-review (2-round cap) | all reports; `pr-description.md` | `run.py ship-check` says `ready=yes` (see **Finishing**); PR open or its description ready for the gate (with `pr` off: the run branch committed and ready) |
 | 7 | Learn | `curator`, then `validator` on the Curator *(step: learn)*; commit its patches (see **Commits**) | `findings.jsonl`, PR comments | patches applied or proposed; its `rerun:` flag read: `yes` gates to the owner with the reason |
+
+## Greenfield runs
+Started by `/fyzxsflow-greenfield <design> [seed: <folder>]` in a repo with no `.fyzxsflow/profile.md` and no
+product code. One run, on one branch, takes the project from its design to a reviewed walking skeleton; from its
+Intake on it is a normal run. If `profile.md` already exists, stop: the project is initialised.
+1. **Inputs.** The design files must be inside the repo, so the docs can cite them. If they aren't, ask once
+   whether to copy them into `docs/design/` (never copy without a yes). A seed folder may be anywhere; it is only
+   read. Create the run: `run.py new --source greenfield --ref "<design paths>"`, append the owner's whole
+   request, verbatim, to `input.md` below the paths (their words about what to build first matter to the
+   reader and the architect), and commit the design files if they are new, as `docs: system design`.
+2. **G1, read the design.** `design-reader` + validator, with the design paths, `input.md` and the seed folder.
+   Stamp, review file `reviews/design.design-reader.md`, as for any hand-off.
+3. **G2, decide.** `greenfield-architect` in draft mode + validator, with the reader's report, the design and the
+   seed folder. Commit `.fyzxsflow/` and `docs/decisions/` as `docs(<run>): greenfield docs (planned)`.
+4. **Decisions gate.** Always a pause, whatever the review levels: this is the owner's sign-off on the
+   project's shape. Write `reviews/greenfield.decisions.md` (**Reply needed: yes**) carrying the architect's
+   `## Decisions for the owner`, numbered so the owner can answer "1 - x, 2 - y", and a link to each decision
+   record. Mark every answered `owner-decision` fixed with the owner's words (**Gates**).
+5. **Apply.** `greenfield-architect` in apply mode + validator; commit. If the owner switched end to end on:
+   `steps.py set e2e on --reason "<their words>"` (a project setting), then `e2e-investigator` + validator,
+   taking its dependency inventory from the reader's report and the architect's docs (there is no code to
+   search); its `E2E-n` criteria join the skeleton's. If the owner allowed `db-reset`, that permission covers
+   `--allow-destructive` on the local dev database for this run only; log it.
+6. **The scaffold, as a normal run.** Continue with **Before the first stage** items 3–7 and the stages, with
+   these differences:
+   - Intake: the request is the architect's `## Walking skeleton` (plus any `E2E-n` criteria); the Work
+     Summarizer copies each criterion as a stated one. No business features beyond the skeleton's flow.
+   - Locate and Build: segment docs are `status: planned` and valid. The first package makes the build and the
+     Runner's `quick` and `ci` modes real, so the build is never broken between packages. Pipelines and IaC go to
+     `iac-implementer`, written and validated offline, never run or applied.
+   - Review: `reviewer-architecture` always runs.
+   - Deliver: instead of the Docs Gardener's after-run mode, run every `planned` Runner mode this run hasn't run
+     yet (asking before any destructive one the owner didn't allow), then dispatch `repo-cartographer` in
+     **confirm** mode + validator and commit its changes as `docs(<run>): confirm greenfield docs against the
+     code`. Ship-check has a `greenfield` row: it fails while any doc or mode is still `planned`.
+   The PR carries the design, the decision records, `.fyzxsflow/` and the skeleton: for a new project they are
+   one change.
 
 ## Dispatching on each host
 Dispatch each agent as a subagent with its inputs as paths: the Agent tool on Claude Code, the `agent` tool

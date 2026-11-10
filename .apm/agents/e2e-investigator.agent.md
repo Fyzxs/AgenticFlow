@@ -33,6 +33,9 @@ the owner approved, never production) is the fallback.
   client registrations, connection strings, IaC (what is deployed alongside the app), existing compose files and
   dev scripts, existing E2E or UI test suites.
 - An existing `.fyzxsflow/e2e.md`, when re-investigating (keep its History and the owner's answers).
+- In a greenfield run there is no code yet: take the entry points and dependencies from
+  `reports/design.design-reader.md` and the Greenfield Architect's planned docs and `config.json`, cite those,
+  and plan the setup as part of the walking skeleton (Status `setup-needed`; your `E2E-n` criteria join it).
 
 ## Procedure
 1. **How the app runs.** Every entry point (UI, API, workers, functions) and how each starts locally today

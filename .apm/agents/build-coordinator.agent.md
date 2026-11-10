@@ -50,7 +50,10 @@ traces every criterion to evidence you opened, so the delivery check and the PR 
    `config.json` is a `context-gap` against `config.json`, raised once here, not discovered in Build. An
    unflaggable change, or required flags with no provider, is an `owner-decision`. A segment with no doc is listed
    for the Repo Cartographer (segment mode), to run before that package builds, with a `context-gap` against
-   `.fyzxsflow/docs/index.md`.
+   `.fyzxsflow/docs/index.md`. A doc marked `status: planned` (greenfield) is not missing: the package that creates
+   the segment's first instance names it, in its done-check, as the canonical example to be. In a greenfield run
+   the first package makes the build and the Runner's `quick` and `ci` modes real, so no later package lands on a
+   broken build.
 6. **Check:** `python -I .fyzxsflow/package/engine/ac_trace.py --run <run>` passes, and `python -I
    .fyzxsflow/package/engine/checks.py citations <run>/work-packages/*.md <run>/reports/build-coordinator.plan.md`
    exits 0.

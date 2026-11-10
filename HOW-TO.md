@@ -6,6 +6,7 @@ works, see the [README](README.md).
 - [Requirements](#requirements)
 - [Install](#install)
 - [Set up your repo](#set-up-your-repo)
+- [Start a new project](#start-a-new-project)
 - [Run the flow](#run-the-flow)
 - [Turn steps off](#turn-steps-off)
 - [Test end to end (opt-in)](#test-end-to-end-opt-in)
@@ -74,10 +75,43 @@ Run `/fyzxsflow-init` (see [Run the flow](#run-the-flow) for your tool). The Rep
 `.fyzxsflow/` (profile, build and test commands, gates, feature-flag rules and per-segment docs) from your
 code and CI, and asks only for what it cannot find. Review what it wrote before the first run.
 
+## Start a new project
+
+`/fyzxsflow-init` learns your conventions from code, so it can't start an empty repo. A new project starts from
+its logical and physical system design instead. Install FyzxsFlow into the empty repo, put the design files in
+it (markdown, diagrams, PDFs), and run:
+
+```
+/fyzxsflow-greenfield docs/design/ seed: ../other-project/.claude/rules
+```
+
+`seed:` is optional: a folder of rules from your other projects to start from. One run then does all of this, on
+its own branch:
+
+1. **Read the design.** The **Design Reader** writes a cited inventory: components, deployables, data, flows,
+   cross-cutting concerns, environments, the technology the design names, and every gap or contradiction.
+2. **Decide.** The **Greenfield Architect** decides everything the design leaves open: language and framework
+   versions, project layout, tests, linters, the local dev stack, CI, infrastructure code, feature flags. Each
+   decision becomes a record in `docs/decisions/`, saying whether the design, your seed rules or the architect
+   made it. It writes the whole of `.fyzxsflow/` from them, marked `status: planned` because no code exists yet.
+3. **You approve, once.** One review lists every decision the design didn't make and every gap, numbered, each
+   with a recommendation, and asks whether to switch end-to-end testing on from day one. Answer "1 - yes,
+   2 - xUnit, ..." in the review. Nothing is built before this.
+4. **The walking skeleton.** The run continues as a normal run: every deployable exists, builds and starts
+   locally, and one key flow from the design works through every layer against a local database, with tests,
+   linters, a CI pipeline file and a getting-started README. No business features. Pipelines and infrastructure
+   code are written and validated offline, never run or applied.
+5. **Confirm.** The **Repo Cartographer** checks every planned doc against the skeleton: each segment gets its
+   canonical examples, and each rule is borne out by the code or kept as "intended". Ship-check blocks until
+   nothing is still planned.
+
+After that, `/flow` works as it does on any repo, and the skeleton's files are the examples it copies.
+
 ## Run the flow
 
-The flow is two entry points: **`flow`** (run a request through the Orchestrator) and **`fyzxsflow-init`**
-(bootstrap the repo with the Repo Cartographer). Open your repo and start them like this:
+The flow has three entry points: **`flow`** (run a request through the Orchestrator), **`fyzxsflow-init`**
+(bootstrap the repo with the Repo Cartographer) and **`fyzxsflow-greenfield`** (start a new project from its
+design; see [Start a new project](#start-a-new-project)). Open your repo and start them like this:
 
 | Where | Bootstrap | Run a request |
 |---|---|---|
@@ -188,7 +222,7 @@ Each agent declares a tier, never a model name. Out of the box:
 
 | Tier | Agents | Claude Code | Copilot |
 |---|---|---|---|
-| `deep` | orchestrator, build-coordinator, validator, curator, repo-cartographer, code-indicator, e2e-investigator, reviewer-architecture, reviewer-large, reviewer-security, reviewer-iac | `opus` | inherit |
+| `deep` | orchestrator, build-coordinator, validator, curator, repo-cartographer, design-reader, greenfield-architect, code-indicator, e2e-investigator, reviewer-architecture, reviewer-large, reviewer-security, reviewer-iac | `opus` | inherit |
 | `standard` | work-summarizer, build-test-runner, implementer, tester, http-generator, e2e-implementer, e2e-tester, iac-implementer, gate-analyst, docs-gardener, pr-producer, pr-reviewer, reviewer-narrow, reviewer-feature-flag | `sonnet` | inherit |
 | `fast` | none | `haiku` | inherit |
 | `auto` | none | inherit | inherit |

@@ -15,6 +15,10 @@ Fails when:
   - end-to-end testability: a missing e2e-airplane or e2e-connected mode is a warning (define it, or declare it
     not_applicable); a defined one must say "network": "airplane" / "connected"; and .fyzxsflow/e2e.md saying
     `Status: ready` needs at least one of them defined.
+Planned (greenfield, before the code exists): a doc whose frontmatter says `status: planned` describes intended
+code, so its globs matching no file and its cited paths not existing yet are warnings; a config.json mode or step
+with "planned": true is a warning. Every planned item fails with --strict: the Repo Cartographer's confirm mode
+clears them once the code exists.
 Exit 0 = pass, 1 = fail.
 """
 
@@ -79,6 +83,47 @@ def frontmatter_list(text: str, key: str) -> list:
     return [x.strip().strip("\"'") for x in re.findall(r"^\s+-\s+(.*)$", block.group(1), re.M)]
 
 
+def frontmatter_value(text: str, key: str) -> str:
+    m = FRONTMATTER.match(text)
+    if not m:
+        return ""
+    v = re.search(r"^" + re.escape(key) + r":[ \t]*(\S[^\n]*)$", m.group(1), re.M)
+    return v.group(1).strip().strip("\"'") if v else ""
+
+
+def is_planned(text: str) -> bool:
+    return frontmatter_value(text, "status").lower() == "planned"
+
+
+def project_docs(base: pathlib.Path) -> list:
+    """The project's own docs: the installed package and run folders are not project documentation."""
+    docs = [base / n for n in ("profile.md", "feature-flags.md", "gates.md", "e2e.md") if (base / n).exists()]
+    if (base / "docs").is_dir():
+        docs += [d for d in (base / "docs").rglob("*.md") if not d.name.startswith("_")]
+    return docs
+
+
+def planned_modes(modes: dict) -> list:
+    out = []
+    for name, mode in modes.items():
+        if mode.get("not_applicable"):
+            continue
+        if mode.get("planned"):
+            out.append(f"mode '{name}'")
+        out += [f"mode '{name}' step '{s.get('name')}'" for s in mode.get("steps", []) if s.get("planned")]
+    return out
+
+
+def planned(root: pathlib.Path) -> list:
+    """Everything still marked planned: docs with `status: planned`, config.json modes or steps with "planned"."""
+    base = root / HOME
+    out = [d.relative_to(root).as_posix() for d in project_docs(base) if is_planned(d.read_text(encoding="utf-8"))]
+    cfg = base / "config.json"
+    if cfg.exists():
+        out += [f"config.json {m}" for m in planned_modes(json.loads(cfg.read_text(encoding="utf-8")).get("modes") or {})]
+    return out
+
+
 def cited_paths(text: str) -> list:
     out = []
     body = re.sub(r"```.*?```", "", text, flags=re.S)
@@ -138,6 +183,8 @@ def config_problems(base: pathlib.Path):
                 warnings.append(f"config.json: mode '{name}' step '{step.get('name')}' looks destructive but is not "
                                 "marked \"destructive\": true")
     failures += e2e_problems(base, modes, warnings)
+    warnings += [f"config.json: {m} is planned, not yet proven (the Repo Cartographer's confirm mode clears it)"
+                 for m in planned_modes(modes)]
     return failures, warnings
 
 
@@ -179,23 +226,23 @@ def main(argv=None) -> int:
         budget_kb = json.loads(config_path.read_text(encoding="utf-8")).get("docs", {}).get("pack_budget_kb", 24)
     files = tracked_files(root)
     fileset = set(files)
-    failures, warnings = [], []
-    # Only the project's own docs: the installed package (agents/, context/, engine/, skills/, templates/)
-    # and run folders are not project documentation.
-    docs = [base / n for n in ("profile.md", "feature-flags.md", "gates.md", "e2e.md") if (base / n).exists()]
-    if (base / "docs").is_dir():
-        docs += [d for d in (base / "docs").rglob("*.md") if not d.name.startswith("_")]
+    failures, warnings, planned_warnings = [], [], []
+    docs = project_docs(base)
     for doc in docs:
         rel = doc.relative_to(root).as_posix()
         text = doc.read_text(encoding="utf-8")
+        intended = is_planned(text)
+        if intended:
+            planned_warnings.append(f"{rel}: status planned, not yet confirmed against the code")
+        missing = planned_warnings if intended else failures
         for path in cited_paths(text):
             target = root / path
             if not target.exists() and path.rstrip("/") not in fileset:
-                failures.append(f"{rel}: cites `{path}`, which does not exist")
+                missing.append(f"{rel}: cites `{path}`, which does not exist" + (" yet" if intended else ""))
         for g in frontmatter_list(text, "paths"):
             rx = glob_to_regex(g)
             if not any(rx.match(f) for f in files):
-                failures.append(f"{rel}: glob `{g}` matches no tracked file")
+                missing.append(f"{rel}: glob `{g}` matches no tracked file" + (" yet" if intended else ""))
         pack = frontmatter_list(text, "pack")
         if pack:
             size = doc.stat().st_size
@@ -207,12 +254,14 @@ def main(argv=None) -> int:
                     failures.append(f"{rel}: pack file `{item}` does not exist")
             if size > budget_kb * 1024:
                 failures.append(f"{rel}: context pack is {size // 1024} KB, over the {budget_kb} KB budget")
-        if "UNRESOLVED" in text:
+        # Template comments explain UNRESOLVED; only the doc's own text counts.
+        if "UNRESOLVED" in re.sub(r"<!--.*?-->", "", text, flags=re.S):
             (failures if args.strict else warnings).append(f"{rel}: contains UNRESOLVED")
     cfg_failures, cfg_warnings = config_problems(base)
     failures += cfg_failures
-    (failures if args.strict else warnings).extend(w for w in cfg_warnings if "UNRESOLVED" in w)
-    warnings.extend(w for w in cfg_warnings if "UNRESOLVED" not in w)
+    strict = [w for w in cfg_warnings if "UNRESOLVED" in w or "is planned" in w] + planned_warnings
+    (failures if args.strict else warnings).extend(strict)
+    warnings.extend(w for w in cfg_warnings if w not in strict)
     for w in warnings:
         print(f"WARN {w}")
     for f in failures:

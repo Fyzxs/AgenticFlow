@@ -6,7 +6,8 @@ How FyzxsFlow maps onto Claude Code. Claude Code is the host the flow has been t
 `engine/install.py --host claude` (also run after `apm install`) writes, from `.fyzxsflow/package/`:
 - `.claude/agents/<name>.md`: each agent, with `model:` set from its tier (`config.json` → `models.claude`)
   and the project's Learned entries from `.fyzxsflow/learned/<name>.md` appended;
-- `.claude/commands/<prompt>.md`: `/flow` and `/fyzxsflow-init`, with the user's text as `$ARGUMENTS`;
+- `.claude/commands/<prompt>.md`: `/flow`, `/fyzxsflow-init` and `/fyzxsflow-greenfield`, with the user's text as
+  `$ARGUMENTS`;
 - `.claude/rules/fyzxsflow-working-agreement.md`: the always-on working agreement;
 - the kill-by-name guard, merged into `.claude/settings.json` as a `PreToolUse` hook on `Bash|PowerShell`:
   `python -I "$CLAUDE_PROJECT_DIR/.fyzxsflow/package/engine/hooks/block_kill_by_name.py"` (`python3` where
