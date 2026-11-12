@@ -96,7 +96,8 @@ and **10 (to `off`)**, all set in `~/.fyzxsflow/preceptee.json`:
 ```json
 { "handle": "quinn-gil", "prompt_after": { "light": 4, "spot": 7, "off": 10 } }
 ```
-Ten is a starting point, to tune after the first trials. A declined prompt starts the count again.
+The counts are one running streak: accepting a prompt keeps it going toward the next threshold, while a miss or a
+declined prompt starts it again from zero. Ten is a starting point, to tune after the first trials.
 
 **`off` is not graduation.** Reaching `off` means only that ten answers in a row gave the Preceptor nothing more to
 coach: the preceptee's skill there is now beyond what the agent can judge. Whether the engineer is *competent* in
