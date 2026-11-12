@@ -151,10 +151,11 @@ session at each preceptee step: read `.fyzxsflow/package/agents/preceptor.agent.
 - **Preceptee-written work** goes through the flow like agent work: the Preceptor writes its report
   (`author: owner`: the person running the flow wrote it, which is all the team needs to know), stamp it with
   `--agent implementer` or `--agent tester` (stamp records it as owner-written, with no agent model), and dispatch
-  the Validator with "the output is the owner's" in its inputs. Rework goes back to the preceptee (2-round cap, then the agent).
+  the Validator with `log only` in its inputs (it corrects nothing, so the preceptee fixes it). The standard agents
+  know nothing of preceptee mode: everything they need is in the dispatch. Rework goes back to the preceptee (2-round cap, then the agent).
 - **On the PR by default.** With the `pr` step on, the preceptee's work arrives as their own group PR and the
-  Preceptor reviews it there, in comments that narrow from the PR to the file, the method and the line only as
-  needed (preceptor.agent.md, Reviewing the preceptee's PR); while it waits for their reply or push, log
+  Preceptor dispatches `preceptee-socratic-pr` to review it there, in guiding questions that narrow from the PR to
+  the file, the method and the line only as needed; while it waits for their reply or push, log
   `gated "waiting on the owner"` and stop. `/flow resume` reads the replies (`preceptee.py activity`).
 - **Review comments are public; the record is private.** Scores, levels, prompts, reasons, explanations and quiz
   answers live only in the preceptee's local record (`preceptee.py`): never in the run folder, review files,

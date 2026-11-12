@@ -370,5 +370,24 @@ exit 0
         self.assertEqual([p.name for p in self.run_dir.iterdir()], ["input.md"])
 
 
+class BoundaryTests(unittest.TestCase):
+    """Only the Orchestrator and the preceptee agents know preceptee mode exists (owner, 2026-11-12)."""
+    ALLOWED = {"orchestrator.agent.md", "preceptor.agent.md", "preceptee-socratic-pr.agent.md",
+               "preceptee-seeder.agent.md"}
+
+    def test_standard_agents_and_shared_contracts_know_nothing_of_preceptee_mode(self):
+        apm = ENGINE.parent / ".apm"
+        leaks = []
+        for f in sorted(list((apm / "agents").glob("*.md")) + list((apm / "context").glob("*.md"))
+                        + list((apm / "instructions").glob("*.md"))):
+            if f.name in self.ALLOWED:
+                continue
+            for n, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+                low = line.lower()
+                if "precept" in low or "seeder" in low or "socratic" in low:
+                    leaks.append(f"{f.name}:{n}: {line.strip()[:80]}")
+        self.assertEqual(leaks, [])
+
+
 if __name__ == "__main__":
     unittest.main()

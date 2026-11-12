@@ -109,9 +109,8 @@ the existing plan; you don't re-plan it.
 Whoever can dispatch agents runs this: you when dispatched, or the Orchestrator in its own session on a host that
 can't nest dispatches. Stamping, review files and owner replies stay with the Orchestrator; follow its **Models**
 section (escalation, model compare) on every dispatch.
-With preceptee mode on (`steps.py enabled precept`), the Orchestrator's **Preceptee mode** decides, per
-package, whether the preceptee or the agent writes the Implementer and Tester steps; everything after each step
-(validator, Runner, contract checks, tracing) is the same either way.
+Some steps may be done by the owner instead of the agent, when the Orchestrator says so; everything after the
+step (validator, Runner, contract checks, tracing) is the same either way.
 0. **Lanes, one per PR group.** `python -I .fyzxsflow/package/engine/lanes.py open --run <run>` pulls the completed
    group PRs into the run branch, then opens a lane (a worktree) for every group that may start now, up to
    `build.max_parallel`; it names the groups `queued` (no free lane) and `waiting` (on other groups). Dispatch every

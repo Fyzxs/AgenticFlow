@@ -31,7 +31,7 @@ one exercise in spot_every) > off. Areas 2, 4, 5 and 8 never pause: they are ask
                     (--text "..." | --file <f>)
   preceptee.py explained --run <run>                              exit 1 while a changed file has no explanation
   preceptee.py seed --run <run> --step <id> --copy <seeded diff> --lines-file <f>
-      -> registers a seeded flaw's lines (the Seeder agent only). Refused when preceptee mode is off for the run, or
+      -> registers a seeded flaw's lines (the preceptee-seeder agent only). Refused when preceptee mode is off for the run, or
          when the seeded copy is inside the repo: no agent ever plants a flaw in the product
   preceptee.py seed-check --run <run>                             exit 1 if a seeded line reached the branch or tree
   preceptee.py comment --run <run> --step <id> --group <g> --at pr|file|method|line [--path <file>] [--line <n>]

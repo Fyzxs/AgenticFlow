@@ -16,7 +16,8 @@ The installed `INSTALLED.json` said 0.2.0 across every change below; from here e
   runs, and `/fyzxsflow-parallelize` to re-order an existing plan.
 - **Preceptee mode** (off by default; `/flow --preceptee`, or the `precept` step for a project): the engineer
   writes the code and the Preceptor reviews their PRs like a senior engineer, broad to specific (`preceptee.py
-  comment | activity`), and coaches in the session; the record stays on their machine. Only the Seeder agent plants
+  comment | activity`), and coaches in the session; the record stays on their machine. PR coaching is its own agent (preceptee-socratic-pr). Only the Orchestrator and the preceptee agents know the mode
+  exists; the standard agents get plain instructions (the Validator's `log only`). Only the Preceptee Seeder agent plants
   practice flaws, in preceptee mode, outside the repo; every role is forbidden to plant a mistake. See PRECEPTEE.md.
 - **Compactor** (`/fyzxsflow-compact`): shrinks agent files, learned entries and docs without losing a rule
   (`compact.py`, overlays in `.fyzxsflow/compacted/`).

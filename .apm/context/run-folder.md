@@ -10,11 +10,11 @@ it and writes its output back into it. `.fyzxsflow/package/engine/run.py new` cr
   abandoned/<run-id>/    stopped before a PR, with the reason in the ledger (--outcome abandoned)
 ```
 
-`.fyzxsflow/` holds only the project's own files (config, profile, docs, feedback, runs, `learned/` agent
-entries, `compacted/` package files); `.fyzxsflow/package/` is the installed FyzxsFlow package, replaced by every
-install: read it, never write to it (install.py copies the `compacted/` overlays into it). In preceptee mode,
-the preceptee's coaching record lives on their machine (`~/.fyzxsflow/preceptee/`), never in the run folder. Beside the runs, `.fyzxsflow/feedback/` is the owner's inbox: any file, any time, read by the Orchestrator
-at every run start and hand-off (`.fyzxsflow/package/engine/feedback.py`). Handled items move to `feedback/done/`.
+`.fyzxsflow/` holds only the project's own files (config, profile, docs, feedback, runs, `learned/` agent entries,
+`compacted/` package files); `.fyzxsflow/package/` is the installed FyzxsFlow package, replaced by every install:
+read it, never write to it (install.py copies the `compacted/` overlays into it). Beside the runs,
+`.fyzxsflow/feedback/` is the owner's inbox: any file, any time, read by the Orchestrator at every run start and
+hand-off (`.fyzxsflow/package/engine/feedback.py`). Handled items move to `feedback/done/`.
 
 ```
 <run-id>/

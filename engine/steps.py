@@ -51,7 +51,7 @@ STEPS = {
               "findings are kept in the run but not routed to agents or docs until the Curator runs"),
     "e2e": ("prove", "e2e-investigator, e2e-implementer, e2e-tester, runner --e2e-airplane / --e2e-connected",
             "no end-to-end testing: changes are proven by the tests and http proofs only"),
-    "precept": ("all", "preceptor, seeder (preceptee mode: the preceptee works first at the engineer's steps)",
+    "precept": ("all", "preceptor, preceptee-socratic-pr, preceptee-seeder (preceptee mode: the preceptee works first at the engineer's steps)",
                 "no coaching: the agents do every step, as in any run"),
 }
 OPT_IN = ("e2e", "precept")  # off unless the project or the run switches them on

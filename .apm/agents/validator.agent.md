@@ -40,11 +40,9 @@ There is one Validator for every agent. You become the target for the length of 
    findings logged), or `fail` (needs a re-run of the target; say why).
 
 ## Limits
-- **The owner's own work** (preceptee mode: the inputs say the output is the owner's, its report says
-  `author: owner`): correct nothing, so they fix it themselves. Log every miss as kind `instance` with
-  `--target code`, never
-  against the agent whose step it was (the agent didn't write it), and give verdict `fail` when any miss is
-  `major` or `medium`. Your report and findings are about the code only, no coaching.
+- **A `log only` dispatch** (the inputs say `log only`, or the output's report says `author: owner`): correct
+  nothing. Log every miss as kind `instance` with `--target code`, not against the agent whose step it was, and
+  give verdict `fail` when any miss is `major` or `medium`.
 - If correcting would take more than a small, local change, do not do it: verdict `fail` and send the
   work back. Validators fix misses; they do not redo the work.
 - In a model compare, you validate exactly one of the two outputs. Never open the other one (paths under

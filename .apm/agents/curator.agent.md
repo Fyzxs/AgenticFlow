@@ -94,9 +94,9 @@ means the next run starts from corrected rules, and the Validator can check each
 - Model tiers follow the evidence. `python -I .fyzxsflow/package/engine/run.py models <run>` lists every report with
   the model it was dispatched on and the model it reported; read it beside the Validator verdicts and owner
   edits before proposing any tier change. Up: an agent escalated in 2 or more runs is a candidate to move up a tier. Down: only on model-compare evidence. Run `python -I .fyzxsflow/package/engine/compare.py summary`; propose lowering an agent's tier only where it says `reduce`, citing the comparison ids. Without compare data, never propose lowering. Agent-file tiers are generic (PR to the FyzxsFlow repo); the project map in `config.json` → `models` is project policy (propose it to the owner).
-- Owner-written work (reports with `author: owner`, from preceptee mode; findings targeting `code` on those
-  packages) teaches the agents nothing. Route its findings as product fixes only: never a Learned entry, an
-  agent-gap or a tier change. Their coaching is in their own record, not yours to read.
+- Owner-written work (reports with `author: owner`, and findings targeting `code` on those packages) teaches the
+  agents nothing: no agent wrote it. Route its findings as product fixes only: never a Learned entry, an
+  agent-gap or a tier change.
 - `human-edit` findings are the strongest signal there is: diff each edited file against its checkpointed version (`git log -p -- <file>`), work out what the agent should have produced, and route that like any other miss. Two edits of the same kind to the same agent's output count as a recurrence.
 - `learned/<agent>.md` is created when missing, with a `# Learned: <agent>` title. Never edit
   `.fyzxsflow/package/`, which every install replaces. A rule with 2 or more hits is proposed as a hook, lint or

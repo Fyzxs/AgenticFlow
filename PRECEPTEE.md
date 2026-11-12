@@ -62,7 +62,7 @@ lead to a correction:
 4. On the line, still as a question.
 5. A reply that explains it, with a worked example from the codebase.
 
-Each comment starts `Agent AI Preceptor:`. The preceptee answers with a reply or a push to the same PR, and the run
+The reviews come from the `preceptee-socratic-pr` agent, and each comment starts `Agent AI Preceptor:`. The preceptee answers with a reply or a push to the same PR, and the run
 waits for them; `/flow resume` picks up their reply. Their human preceptor reads the whole exchange on the PR.
 Once everything is fixed, the PR is published as ready for review, like any group PR.
 
@@ -133,10 +133,18 @@ name, notes or runs.
 | `spot_every` | `3` | at `spot`, one exercise in this many pauses |
 | `seed_every` | `4` | one review in this many (area 1, in the session) contains a planted flaw to find |
 
-**Planted flaws never reach the code.** Only the Seeder agent plants one, and only in preceptee mode. It writes a
+**Planted flaws never reach the code.** Only the Preceptee Seeder agent plants one, and only in preceptee mode. It writes a
 practice copy of an agent's change, with its answer key, in the preceptee's own folder, never in the repo, a branch
 or a PR. The script refuses a seed outside preceptee mode or inside the repo, and ship-check fails if a planted line
 ever appears in the repo. Every other agent is forbidden to introduce a mistake on purpose, in any mode.
+
+## Who knows about it
+
+Only the Orchestrator and the three preceptee agents know preceptee mode exists: the Preceptor (coaching in the
+session), Preceptee Socratic PR (reviewing on the PR) and Preceptee Seeder (practice flaws). Every other agent
+works exactly as in any run and gets what it needs through its instructions for that step. For example, the
+Validator is told `log only`, so it reports problems in the preceptee's code without fixing them. A test fails if
+any other agent file mentions the mode.
 
 ## More
 

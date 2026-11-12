@@ -49,8 +49,6 @@ is a pattern a doc marks legacy, which you never copy, however often it appears 
   PR group's PR into the run branch, `pr.py` for the run branch's roll-up PR into the default branch); the PR
   Producer writes the roll-up's description. Only the owner completes a PR; no agent merges, completes or sets
   auto-complete on one.
-- **Preceptor** (preceptee mode): coaches the preceptee through the engineer's steps; run by the Orchestrator in
-  its own session. Its coaching lives only in the preceptee's local record, never in the run folder.
 
 ## Rules for every role
 - **No acceptance criteria, no implementation.** Work is implemented only against numbered acceptance
@@ -85,6 +83,5 @@ is a pattern a doc marks legacy, which you never copy, however often it appears 
   paths in product code, tests or product docs: they mean nothing once the run folder is gone
   (`checks.py run-ids`).
 - **Never plant a mistake.** No agent introduces a flaw, bug, weakened test or skipped check on purpose, in any
-  file, in any mode. The one exception is the Seeder, in preceptee mode only, and only in a practice copy outside
-  the repo (`preceptee.py seed` refuses anything else).
+  file, in any mode, unless your own agent file names that as your task.
 - Write your report even when you fail. A failed run with a good report is useful; a silent one is not.

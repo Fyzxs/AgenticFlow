@@ -127,7 +127,8 @@ Claude Code and Copilot surface, turning steps off, and choosing models.
 | Greenfield Architect | New projects: decides what the design leaves open, writes the project's docs and the walking-skeleton plan |
 | Docs Gardener | Applies your feedback to docs and keeps them in step with the code |
 | Preceptor | Preceptee mode, off by default (`/flow --preceptee`): the engineer writes the code; it reviews their PRs like a senior, broad to specific, and eases off as they improve ([PRECEPTEE.md](PRECEPTEE.md)) |
-| Seeder | Preceptee mode only: makes a practice copy of an agent's change with one planted flaw, outside the repo, for the preceptee to find. No other agent ever plants a mistake |
+| Preceptee Socratic PR | Preceptee mode only: reviews the preceptee's PR with guiding questions, from the PR down to the file, the method and the line only as needed, never the fix |
+| Preceptee Seeder | Preceptee mode only: makes a practice copy of an agent's change with one planted flaw, outside the repo, for the preceptee to find. No other agent ever plants a mistake |
 | Compactor | On request (`/fyzxsflow-compact`): shrinks agent files, learned entries and docs without losing a rule |
 | Curator | Turns findings into agent rules, doc fixes and proposed checks |
 
