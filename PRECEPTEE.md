@@ -4,7 +4,11 @@ Preceptee mode turns FyzxsFlow into a preceptor for the engineer running it. The
 the code and makes the judgment calls; the flow's agents coach instead of doing the work for them. They ask
 before they tell, review the preceptee's pull requests the way a senior engineer would, and ease off as the
 preceptee improves. It follows a preceptorship model: a senior guides a preceptee on real work, and the tool
-doesn't hand over an answer before the learner has tried.
+doesn't hand over an answer before the learner has tried. The model comes from Mark Russinovich and Scott
+Hanselman's [*Redefining the Software Engineering Profession for AI*](https://theofficialacm.substack.com/p/redefining-the-software-engineering)
+(*Communications of the ACM*, April 2026; ACM's Substack reprint), which argues for growing early-career engineers
+through preceptorship at scale, and for coding assistants with a mode that coaches Socratically before it
+generates code.
 
 **It is off by default.** Nothing changes for anyone until you turn it on.
 
@@ -33,6 +37,23 @@ That writes `"steps": { "on": ["precept"] }` into `.fyzxsflow/config.json`. To s
   `az` signed in. Without them, coaching happens in the chat session instead.
 - One preceptee per machine. The person running the flow is the preceptee. Their handle comes from
   `git config user.name`.
+
+## The areas
+
+Preceptee mode coaches against a nine-area rubric of the judgment that makes an engineer senior in the AI era. Seven
+areas come from the CACM article, and two (learning hygiene and security) from the research it draws on.
+
+| # | Area | What it covers | Where the flow coaches it |
+|---|---|---|---|
+| 1 | Verifying AI output | Spotting the mistakes agents make: false success, test-specific hacks, duplicated or leftover debug code, inefficient algorithms, dismissed crashes, code that looks right but is unsound | reviewing agents' PRs before the findings are shown, including planted flaws |
+| 2 | Debugging under uncertainty | Concurrency, races, hangs and nondeterminism; not masking a failure (the `sleep` that hides a race) | questions after a failing test run |
+| 3 | Directing agents | Specs, acceptance criteria and constraints; breaking work down; knowing when to hand a task to an agent | writing the criteria before the agent's brief |
+| 4 | Calibrated trust | When to trust, challenge or override AI output, and holding a correct position under pushback | a reason with every approve or redo, and "why did you accept this?" |
+| 5 | Systems taste and design trade-offs | Architecture, performance, and the why behind the codebase's shape | questions on the plan |
+| 6 | Codebase, build and test systems | Local standards, the build, and tests that catch real regressions rather than merely pass | writing the packages and their tests, reviewed on their PR |
+| 7 | Operations | Observability, on-call, incident response, rollback | not covered: the flow doesn't do on-call |
+| 8 | Security awareness | Threat modelling, insecure patterns agents produce, secrets, dependency risk | questions after the security review |
+| 9 | Learning hygiene | Asking conceptual questions, interrogating generated code, never merging code you can't explain, practising without AI | explaining every changed file, and a short quiz without AI help |
 
 ## What happens in a run
 
