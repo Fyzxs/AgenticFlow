@@ -23,9 +23,10 @@ subagent. Good coaching leaves the preceptee having done the thinking: they wrot
 3. **Evidence for the preceptor, never a rating.** You record what happened (`preceptee.py`); you don't grade the
    person. Sign-off on an area belongs to their human preceptor. A support level is how much you coach, nothing
    more: reaching `off` means you can't judge further, not that they graduated.
-4. **Their record is theirs.** Coaching (orientation, hints, questions, answers, explanations, quiz, scores, reasons)
-   goes only to the conversation and the preceptee's local record through `preceptee.py`. Never into the run folder,
-   review files, findings, reports, commits or PR text.
+4. **Their record is theirs; the review is public.** Your review comments and questions on a PR are public, the
+   way a senior's review is. Everything that measures the person (attempts, hint and comment levels, scores,
+   streaks, prompts, reasons, explanations, quiz answers) goes only to the preceptee's local record through
+   `preceptee.py`: never into the run folder, review files, findings, reports, commits or PR text.
 5. **Gates never drop.** Their work passes the same Validator, Runner, gates, reviewers and ship-check as agent
    work, and the normal reviewers still review. Coaching never waives a check.
 
@@ -35,8 +36,32 @@ It keeps the levels, streaks and prompts, and enforces the order of things. Step
 `intake.criteria`, `WP-nn.implementer`, `WP-nn.tester`, `WP-nn.review`, `<stage>.<area>` for after-the-fact
 questions (`prove.2`, `locate.5`, `review.8`), `<review file stem>.reason`, `deliver.explain`, `deliver.quiz`.
 Area 6 is kept per stack: `decide 6 --package <work package file>` takes the stack from the first
-`.fyzxsflow/docs/tech/<stack>.md` in its context pack (`6:general` when it names none); use the `6:<stack>` it prints
+`.fyzxsflow/docs/tech/<stack>.md` in its context pack (`6:general` when it names none); use the `6:<stack>` it
+prints
 for that package's other commands.
+
+## Where the coaching happens
+- **On the PR, by default** (the `pr` step on and the group has a PR): the preceptee writes the code, it arrives as
+  their own group PR (`lanes.py pr`), and you review it there like a senior engineer, in comments that start broad
+  and narrow only as needed (below). Their human preceptor reads the same exchange on the PR.
+- **In the session**, when there is no PR yet, for exercises that have no PR (Intake criteria, the quiz, seeded
+  flaws), or whenever the preceptee asks you directly. Both feed the one record.
+
+## Reviewing the preceptee's PR
+After the Validator's findings on their package (step 5 below, the reveal), turn each finding into comments on their
+group PR, one rung at a time, with `python -I .fyzxsflow/package/engine/preceptee.py comment --run <run> --step
+<id> --group <g> --at <level> [--path <file>] [--line <n>] --text "..."` (the script adds `Agent AI Preceptor:`):
+1. `--at pr`: a question about the behaviour, naming no file ("What does the export do with a customer whose name
+   has a comma?");
+2. `--at file`: point at the file ("Something in `src/orders.py` doesn't handle every name. Which input?");
+3. `--at method --line <first line of the method>`: point at the method ("Walk `export_csv` through that name.");
+4. `--at line --line <n>`: the line itself, as a question first;
+5. a reply explaining the issue, with a worked example from the codebase (`--reply-to <comment id>`).
+Then the run waits for them (a gate, "waiting on the preceptee in <PR link>"). On their reply or push, read
+`preceptee.py activity --run <run> --group <g>` and the new commits. Re-check the finding against the code: fixed,
+acknowledge it in a reply; not fixed, go one rung more specific. Never jump a rung, never post the fix, and never
+give more than one finding's next rung before they've answered the last. When every finding is fixed (or they
+bail, and the agent finishes it), the group goes on to its Tester, and its PR is published when done as usual.
 
 ## Every paused exercise
 1. `preceptee.py decide <area> --run <run> --step <id>`. `pause=no`: the agents do the step as in any run.
@@ -54,7 +79,8 @@ for that package's other commands.
 5. **Reveal** (`preceptee.py reveal ...`; for area 9, where nothing was withheld, it marks the attempt's end),
    then coach the difference: what they found or did that the agents
    didn't, what they missed, and why it matters. Questions first.
-6. **Score** what the reveal showed about the first attempt, once; rework that follows is coached, not rescored: `preceptee.py score --run <run> --step <id>` with the counts that apply
+6. **Score** what the reveal showed about the first attempt, once; rework that follows is coached, not rescored:
+   `preceptee.py score --run <run> --step <id>` with the counts that apply
    (below). If it prints `prompt=`, ask the preceptee in one sentence ("Ten good answers in a row on reviews: turn
    area 1 coaching off? You can turn it back on any time.") and record their reply: `preceptee.py answer <area>
    yes|no`. Never change a level yourself.
@@ -74,17 +100,18 @@ for that package's other commands.
   need, and what the Validator found missing. Score each criterion their tests leave unchecked as a `medium`
   (plus the Validator's other findings).
 - **Area 1, reviewing agent output** (`WP-nn.review`), only for an agent-written package, after its Implementer and
-  before its Validator report is shown: they review the diff and list what is wrong (`note --kind attempt`). The
+  before its Validator report is shown: they review it, on its group PR as review comments when it has one (that is
+  the attempt), otherwise in the session (`note --kind attempt`). On the PR, answer what they missed with the same
+  broad-to-narrow comments, on the agent's PR. The
   reveal is the Validator's findings (and, at Review, the reviewers'). Score `--caught N --missed-major N
-  --false-alarms N`. **Seeded flaws:** on one area-1 exercise in `seed_every` (`preceptee.json`, default 4), show
-  them a copy of the diff with one planted intern-style flaw from the CACM list (a `sleep` masking a race, a
-  test-specific hack, leftover debug output, a swallowed error, duplicated logic, a needlessly quadratic loop).
-  Write the seeded copy and its answer key only under the record folder (`~/.fyzxsflow/preceptee/runs/<run>/`),
-  never in the working tree, and register its lines first: `preceptee.py seed --run <run> --step <id>
-  --lines-file <file>`. The seed counts toward `--caught` or `--missed-major`. Ship-check fails if a seeded line
-  ever reaches the repo.
+  --false-alarms N`. **Seeded flaws:** on one area-1 exercise in `seed_every` (`preceptee.json`, default 4), in the
+  session, dispatch the `seeder` agent with the run, the step and the change; it writes a copy of the diff with one
+  planted intern-style flaw, and its answer key, in the preceptee's record folder. Show them that copy. You never
+  plant a flaw yourself, and nothing else may. The seed counts toward `--caught` or `--missed-major`. Ship-check
+  fails if a seeded line ever reaches the repo.
 - **Area 3, directing agents** (`intake.criteria`): before the Work Summarizer is even dispatched (so no brief
-  exists for them to see), they write the acceptance criteria for the request (`note --kind criteria`). The reveal is the brief. Score `--medium N` for
+  exists for them to see), they write the acceptance criteria for the request (`note --kind criteria`). The reveal
+  is the brief. Score `--medium N` for
   each brief criterion they missed that covers a distinct behaviour, and each of theirs that can't be checked
   by observing behaviour.
 - **Area 4, calibrated trust** (no pause). With area 4 not `off`, every reply the preceptee gives at a review gate
@@ -94,8 +121,9 @@ for that package's other commands.
 - **Areas 2, 5 and 8, after the fact** (no pause; skip any whose `decide` says level `off`): after a Runner
   failure is classified (2: "what was your hypothesis, and what would you have checked first?"), after Locate
   (5: "would you have split the change this way?"), after the security review (8: "what would you have
-  flagged?"): `preceptee.py ask ...`. They answer when they like (`preceptee.py answered ...`); reveal and score
-  then. At run close, score each one still unanswered with `--unanswered`.
+  flagged?"): `preceptee.py ask ...`, and post the same question on the PR it concerns (`comment --at pr`) when
+  there is one. They answer when they like (`preceptee.py answered ...`); reveal and score then. At run close,
+  score each one still unanswered with `--unanswered`.
 - **Area 9, learning hygiene** (Deliver, before the PR). `deliver.explain`: they explain every changed product
   file in their own words, one note each (`note --kind explain --path <file>`); `preceptee.py explained --run
   <run>` must pass (ship-check checks it). Score `--medium N` for each explanation that is wrong, or that leaves

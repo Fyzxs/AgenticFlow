@@ -230,10 +230,31 @@ class PreceptorTests(unittest.TestCase):
         self.p("area", "9", "off", "--run", self.run)
         self.assertEqual(self.p("explained", "--run", self.run)[0], 0)
 
-    def test_a_seeded_line_in_the_tree_or_branch_is_caught(self):
+    def seed(self, copy=None):
         seed = self.tmp / "seed.txt"
         seed.write_text("    time.sleep(0.5)  # wait for the cache\n", encoding="utf-8")
-        self.p("seed", "--run", self.run, "--step", "WP-01.review", "--lines-file", str(seed))
+        if copy is None:
+            copy = self.home / "preceptee" / "runs" / "x" / "seeded" / "WP-01.review.diff"
+            copy.parent.mkdir(parents=True, exist_ok=True)
+            copy.write_text("+    time.sleep(0.5)  # wait for the cache\n", encoding="utf-8")
+        return self.p("seed", "--run", self.run, "--step", "WP-01.review", "--copy", str(copy),
+                      "--lines-file", str(seed))
+
+    def test_no_flaw_is_planted_outside_preceptee_mode_or_inside_the_repo(self):
+        code, out = self.seed()
+        self.assertEqual(code, 1)
+        self.assertIn("preceptee mode is off for this run", out)
+        (self.run_dir / "steps.json").write_text(json.dumps({"off": [], "on": ["precept"]}), encoding="utf-8")
+        inside = self.repo / "seeded.diff"
+        inside.write_text("x\n", encoding="utf-8")
+        code, out = self.seed(copy=inside)
+        self.assertEqual(code, 1)
+        self.assertIn("outside the repo", out)
+        self.assertEqual(self.seed()[0], 0)
+
+    def test_a_seeded_line_in_the_tree_or_branch_is_caught(self):
+        (self.run_dir / "steps.json").write_text(json.dumps({"off": [], "on": ["precept"]}), encoding="utf-8")
+        self.assertEqual(self.seed()[0], 0)
         self.assertEqual(self.p("seed-check", "--run", self.run)[0], 0)
         (self.repo / "app.py").write_text("import time\n    time.sleep(0.5)  # wait for the cache\n", encoding="utf-8")
         code, out = self.p("seed-check", "--run", self.run)
@@ -272,6 +293,74 @@ class PreceptorTests(unittest.TestCase):
         self.assertEqual(data["areas"]["1"]["review_catch_rate"], 0.75)
         self.assertNotIn("quinn", out.lower())
         self.assertNotIn("2026-11-12-001", out)
+
+    def pr_lane(self, host):
+        lanes = self.repo / ".git" / "fyzxsflow-lanes" / "2026-11-12-001-x"
+        lanes.mkdir(parents=True)
+        self.git("branch", "fyzxsflow-lanes/x/export")
+        (lanes / "lanes.json").write_text(json.dumps({"export": {
+            "packages": ["WP-01"], "state": "draft", "path": "x", "branch": "fyzxsflow-lanes/x/export",
+            "pr": {"host": host, "number": "7", "url": "https://example/pull/7"}}}), encoding="utf-8")
+        self.bin = self.tmp / "bin"
+        self.bin.mkdir()
+        self.calls = self.tmp / "calls.log"
+        fake = f"""#!/bin/sh
+echo "$0 $*" >> "{self.calls}"
+case "$*" in
+  *"repo view"*) echo acme/shop ;;
+  *"pr show"*) echo '{{"repository": {{"id": "r1", "project": {{"name": "Proj"}}}}}}' ;;
+  *"--http-method GET"*) echo '{{"value": [{{"id": 3, "threadContext": {{"filePath": "/src/orders.py"}}, "comments": [{{"content": "fixed the quoting", "publishedDate": "2999-01-01T00:00:00"}}]}}]}}' ;;
+  *" -f "*|*"--http-method POST"*) echo '{{"id": 101}}' ;;
+  *"/comments"*) echo '[{{"id": 102, "body": "I think it is the comma", "created_at": "2999-01-01T00:00:00Z", "path": "src/orders.py", "line": 9, "in_reply_to_id": 101}}]' ;;
+esac
+exit 0
+"""
+        for tool in ("gh", "az"):
+            (self.bin / tool).write_text(fake, encoding="utf-8")
+            (self.bin / tool).chmod(0o755)
+        self.old_path = os.environ["PATH"]
+        os.environ["PATH"] = f"{self.bin}{os.pathsep}{self.old_path}"
+        self.addCleanup(lambda: os.environ.__setitem__("PATH", self.old_path))
+        self.exercise("WP-01.implementer", major=1)
+
+    def test_coaching_on_a_github_pr_goes_from_broad_to_specific(self):
+        self.pr_lane("github")
+        step = ["--run", self.run, "--step", "WP-01.implementer", "--group", "export"]
+        code, out = self.p("comment", *step, "--at", "pr", "--text", "What happens with unusual customer names?")
+        self.assertEqual(code, 0, out)
+        self.p("comment", *step, "--at", "file", "--path", "src/orders.py", "--text", "Something here misses an input.")
+        self.p("comment", *step, "--at", "method", "--path", "src/orders.py", "--line", "8",
+               "--text", "Walk export_csv through a name with a comma.")
+        self.assertNotEqual(self.p("comment", *step, "--at", "line", "--path", "src/orders.py", "--text", "x")[0], 0)
+        calls = self.calls.read_text(encoding="utf-8")
+        self.assertIn("api repos/acme/shop/issues/7/comments -f body=Agent AI Preceptor: What happens", calls)
+        self.assertIn("path=src/orders.py -f subject_type=file", calls)
+        self.assertIn("-F line=8 -f side=RIGHT", calls)
+        code, out = self.p("activity", "--run", self.run, "--group", "export")
+        self.assertIn("reply 102 src/orders.py:9 (in reply to 101): I think it is the comma", out)
+        out_dir = self.tmp / "out"
+        self.p("digest", "--out", str(out_dir))
+        digest = next(out_dir.glob("digest-*.md")).read_text(encoding="utf-8")
+        self.assertIn("| 1 / 1 / 1 / 0 |", digest)  # how specific the comments had to get, never the text
+        self.assertNotIn("customer names", digest)
+
+    def test_coaching_on_an_azure_devops_pr_uses_threads(self):
+        self.pr_lane("azure")
+        code, out = self.p("comment", "--run", self.run, "--step", "WP-01.implementer", "--group", "export",
+                           "--at", "line", "--path", "src/orders.py", "--line", "9", "--text", "This line.")
+        self.assertEqual(code, 0, out)
+        calls = self.calls.read_text(encoding="utf-8")
+        self.assertIn("devops invoke --area git --resource pullRequestThreads --route-parameters project=Proj "
+                      "repositoryId=r1 pullRequestId=7 --http-method POST", calls)
+        self.assertIn("reply in thread 3 /src/orders.py: fixed the quoting",
+                      self.p("activity", "--run", self.run, "--group", "export")[1])
+
+    def test_without_a_group_pr_coaching_stays_in_the_session(self):
+        self.exercise("WP-01.implementer")
+        code, out = self.p("comment", "--run", self.run, "--step", "WP-01.implementer", "--group", "export",
+                           "--at", "pr", "--text", "x")
+        self.assertNotEqual(code, 0)
+        self.assertIn("coach in the session instead", out)
 
     def test_nothing_is_written_inside_the_repo(self):
         self.exercise("a")

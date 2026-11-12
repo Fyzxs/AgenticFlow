@@ -176,7 +176,7 @@ Optional steps switched off for the whole project, and opt-in steps switched on.
 | `docs-upkeep` | docs aren't refreshed after the run (your feedback still updates them) |
 | `learn` | findings are kept but not turned into agent or doc changes |
 | `e2e` | **opt-in, off by default.** While on: if the project has no end-to-end setup, the E2E Investigator works out how to test it end to end and asks you whether to set it up. The setup itself is a run you start. Once `.fyzxsflow/e2e.md` says `ready`, the E2E Tester adds scenarios for every change, and the `e2e-*` modes must pass before shipping |
-| `precept` | **opt-in, off by default**, and usually turned on per run with `/flow --preceptee <request>` rather than here. Preceptee mode: the person running the flow does the engineer's steps first (writes packages and tests, reviews agent output, explains the change) and the Preceptor coaches them. Their coaching record stays on their machine (`~/.fyzxsflow/preceptee/`); ship-check adds explain-before-merge and seeded-flaw checks |
+| `precept` | **opt-in, off by default**; turn it on here for every run, or per run with `/flow --preceptee <request>`. Preceptee mode: the person running the flow writes the code and makes the calls, and the Preceptor reviews their PRs like a senior engineer (broad to specific) and coaches in the session. Their record stays on their machine (`~/.fyzxsflow/preceptee/`); ship-check adds explain-before-merge and seeded-flaw checks. See PRECEPTEE.md in the FyzxsFlow repo |
 
 Default: everything on except opt-in steps. Turn an opt-in step on with
 `python -I .fyzxsflow/package/engine/steps.py set e2e on --reason "..."`. The core flow (intake, locate, build, validation, and the `quick` and `ci`

@@ -230,3 +230,21 @@ the quiz (area 9), digest and import. The reveal guard held, and no coaching rea
   the Work Summarizer, the reveal marks the end of area 9's exercises, how tests and explanations are scored,
   the first attempt is scored and rework isn't, a missing doc for rung 2 becomes a context-gap finding, and a
   sign-off changes no level.
+
+## Coaching on the PR (owner, 2026-11-12)
+"I feel like it should be presented as interactions in the PR. Questions for the preceptee in the PR. If the
+preceptee misses an issue, post a comment asking the preceptee to review the file... then method... then the
+specific line if the broader comments don't elicit appropriate corrections. Much like a sr engineer would do with a
+PR." "It can ALSO be through prompts and the interactive agentic harness, but we should have a process to manage it
+through PRs." Decisions: comments public, scores private; PR by default ("This also gives the human preceptor
+something to review"), the session stays available.
+
+- The preceptee's code arrives as their own group PR (0.3.0). The Preceptor reviews it there: the Validator's
+  findings become comments that start broad and narrow only as needed. First a question on the PR, then the file,
+  then the method, then the line, then a worked example from the codebase. Each comment starts
+  `Agent AI Preceptor:`. The preceptee answers with a reply or a push to the same PR.
+- On an agent-written group PR (area 1), the preceptee reviews the PR the way they would any PR, as review
+  comments. The Preceptor answers what they missed with the same broad-to-narrow comments.
+- After-the-fact questions (areas 2, 5, 8) are posted on the PR they concern.
+- The record (attempts, comment levels, streaks, prompts) stays on the preceptee's machine; the digest shows how
+  specific the comments had to get. Seeded flaws, the criteria exercise and the quiz stay in the session.

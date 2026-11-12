@@ -88,8 +88,12 @@ A new project with no code yet starts from its system design instead:
 open (you approve every decision in one review), writes the project's docs, and builds a reviewed walking
 skeleton in the same run.
 
-To coach an engineer on real work, run `/flow --preceptee <request>`: they do the engineer's steps first and a
-Preceptor agent coaches them ([preceptee mode](HOW-TO.md#precept-an-engineer-opt-in)).
+**Preceptee mode (off by default).** To train an engineer on real work, start a run with
+`/flow --preceptee <request>`, or switch it on for a project with
+`python -I .fyzxsflow/package/engine/steps.py set precept on --reason "<why>"`. The engineer writes the code, and a
+Preceptor agent reviews their pull requests the way a senior engineer would. It asks about the behaviour first,
+then points at the file, the method and finally the line, only as far as needed, and eases off as they improve.
+Their scores stay on their machine. See [PRECEPTEE.md](PRECEPTEE.md).
 
 When learned entries, docs and agents grow heavy, `/fyzxsflow-compact [targets]` shrinks them without losing a
 rule, so every agent dispatch costs fewer tokens.
@@ -122,7 +126,8 @@ Claude Code and Copilot surface, turning steps off, and choosing models.
 | Design Reader | New projects: a cited inventory of the system design |
 | Greenfield Architect | New projects: decides what the design leaves open, writes the project's docs and the walking-skeleton plan |
 | Docs Gardener | Applies your feedback to docs and keeps them in step with the code |
-| Preceptor | Preceptee mode (`/flow --preceptee`): the engineer does the engineer's steps first; it coaches with questions and eases off as they improve |
+| Preceptor | Preceptee mode, off by default (`/flow --preceptee`): the engineer writes the code; it reviews their PRs like a senior, broad to specific, and eases off as they improve ([PRECEPTEE.md](PRECEPTEE.md)) |
+| Seeder | Preceptee mode only: makes a practice copy of an agent's change with one planted flaw, outside the repo, for the preceptee to find. No other agent ever plants a mistake |
 | Compactor | On request (`/fyzxsflow-compact`): shrinks agent files, learned entries and docs without losing a rule |
 | Curator | Turns findings into agent rules, doc fixes and proposed checks |
 
@@ -145,6 +150,7 @@ adapters/            host-specific notes for Claude Code and Copilot
 docs/                design summary, decisions, and plans
 apm.yml              APM manifest
 HOW-TO.md            install, set up, run, and tune
+PRECEPTEE.md         preceptee mode: coaching an engineer through real work (off by default)
 ```
 
 ## Roadmap

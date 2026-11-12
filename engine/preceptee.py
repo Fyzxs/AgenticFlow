@@ -30,8 +30,17 @@ one exercise in spot_every) > off. Areas 2, 4, 5 and 8 never pause: they are ask
   preceptee.py note --run <run> --kind reason|explain|criteria|attempt|coaching [--path <file>] [--step <id>]
                     (--text "..." | --file <f>)
   preceptee.py explained --run <run>                              exit 1 while a changed file has no explanation
-  preceptee.py seed --run <run> --step <id> --lines-file <f>      register the lines of a seeded flaw
+  preceptee.py seed --run <run> --step <id> --copy <seeded diff> --lines-file <f>
+      -> registers a seeded flaw's lines (the Seeder agent only). Refused when preceptee mode is off for the run, or
+         when the seeded copy is inside the repo: no agent ever plants a flaw in the product
   preceptee.py seed-check --run <run>                             exit 1 if a seeded line reached the branch or tree
+  preceptee.py comment --run <run> --step <id> --group <g> --at pr|file|method|line [--path <file>] [--line <n>]
+                       [--reply-to <comment id>] --text "..."
+      -> posts the Preceptor's comment on the group's PR (engine/lanes.py): `pr` a question on the PR, `file` on a
+         file, `method` and `line` on a line (for `method`, the line the method starts on). The text is prefixed
+         `Agent AI Preceptor:`. Recorded locally with how specific it was; the PR shows the comment, never a score.
+  preceptee.py activity --run <run> --group <g>
+      -> the preceptee's replies on the group's PR and the commits pushed to it since the Preceptor's last comment
   preceptee.py digest [--since YYYY-MM-DD] --out <dir>            the file the preceptee reviews and sends
   preceptee.py import <digest file>                               the preceptor's sign-offs and levels, from its notes
   preceptee.py export --consent [--out <file>]                    aggregated signals only: no handle, notes or runs
@@ -433,6 +442,152 @@ def cmd_note(args) -> int:
     return 0
 
 
+# ---------------------------------------------------------------- coaching on the PR
+
+LEVELS_AT = ("pr", "file", "method", "line")
+PREFIX = "Agent AI Preceptor: "
+
+
+def group_pr(run: pathlib.Path, group: str):
+    """(repo root, lane dict) for a PR group, or exit with what is missing."""
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    import lanes  # noqa: E402
+    root = repo_root(run)
+    lane = lanes.load(root, run).get(group)
+    if not lane or not lane.get("pr"):
+        raise SystemExit(f"group {group} has no PR yet (lanes.py pr opens it); coach in the session instead")
+    return root, lane
+
+
+def host_call(cmd: list, root: pathlib.Path) -> subprocess.CompletedProcess:
+    import shutil
+    if not shutil.which(cmd[0]):
+        raise SystemExit(f"'{cmd[0]}' is not installed or not on PATH")
+    return subprocess.run(cmd, cwd=root, capture_output=True, text=True)
+
+
+def gh_repo(root) -> str:
+    out = host_call(["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], root)
+    if out.returncode or not out.stdout.strip():
+        raise SystemExit(f"gh can't tell the repository: {out.stderr.strip()[:200]}")
+    return out.stdout.strip()
+
+
+def az_ids(root, number: str):
+    out = host_call(["az", "repos", "pr", "show", "--id", number, "--output", "json"], root)
+    info = json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip().startswith("{") else {}
+    repo = info.get("repository") or {}
+    if not repo.get("id"):
+        raise SystemExit(f"az can't read pull request {number}: {out.stderr.strip()[:200]}")
+    return (repo.get("project") or {}).get("name", ""), repo["id"]
+
+
+def post(root: pathlib.Path, lane: dict, at: str, text: str, path=None, line=None, reply_to=None) -> str:
+    """Post one comment on the group's PR; returns its id."""
+    pr = lane["pr"]
+    body = text if text.startswith(PREFIX) else PREFIX + text
+    if pr["host"] == "github":
+        repo = gh_repo(root)
+        if reply_to:
+            cmd = ["gh", "api", f"repos/{repo}/pulls/{pr['number']}/comments/{reply_to}/replies", "-f", f"body={body}"]
+        elif at == "pr":
+            cmd = ["gh", "api", f"repos/{repo}/issues/{pr['number']}/comments", "-f", f"body={body}"]
+        else:
+            sha = subprocess.run(["git", "rev-parse", lane["branch"]], cwd=root, capture_output=True,
+                                 text=True).stdout.strip()
+            cmd = ["gh", "api", f"repos/{repo}/pulls/{pr['number']}/comments", "-f", f"body={body}",
+                   "-f", f"commit_id={sha}", "-f", f"path={path}"]
+            cmd += ["-f", "subject_type=file"] if at == "file" else ["-F", f"line={line}", "-f", "side=RIGHT"]
+        out = host_call(cmd, root)
+        info = json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip().startswith("{") else {}
+        cid = str(info.get("id", ""))
+    else:
+        project, repo_id = az_ids(root, pr["number"])
+        import tempfile
+        if reply_to:
+            resource, route, payload = "pullRequestThreadComments", [f"threadId={reply_to}"], \
+                {"content": body, "parentCommentId": 1, "commentType": 1}
+        else:
+            payload = {"comments": [{"content": body, "commentType": 1}], "status": 1}
+            if at != "pr":
+                ctx = {"filePath": "/" + path.lstrip("/")}
+                if at != "file":
+                    ctx.update({"rightFileStart": {"line": int(line), "offset": 1},
+                                "rightFileEnd": {"line": int(line), "offset": 1}})
+                payload["threadContext"] = ctx
+            resource, route = "pullRequestThreads", []
+        f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+        json.dump(payload, f)
+        f.close()
+        out = host_call(["az", "devops", "invoke", "--area", "git", "--resource", resource, "--route-parameters",
+                         f"project={project}", f"repositoryId={repo_id}", f"pullRequestId={pr['number']}", *route,
+                         "--http-method", "POST", "--api-version", "7.1", "--in-file", f.name, "--output", "json"],
+                        root)
+        info = json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip().startswith("{") else {}
+        cid = str(info.get("id", ""))
+    if out.returncode or not cid:
+        raise SystemExit(f"could not post the comment: {(out.stderr or out.stdout).strip()[:300]}")
+    return cid
+
+
+def cmd_comment(args) -> int:
+    if args.at not in LEVELS_AT:
+        raise SystemExit(f"--at is one of {', '.join(LEVELS_AT)}")
+    if args.at != "pr" and not args.path and not args.reply_to:
+        raise SystemExit(f"a {args.at} comment needs --path")
+    if args.at in ("method", "line") and not args.line and not args.reply_to:
+        raise SystemExit(f"a {args.at} comment needs --line (for a method, the line it starts on)")
+    run = pathlib.Path(args.run)
+    area = step_area(args.run, args.step)
+    root, lane = group_pr(run, args.group)
+    cid = post(root, lane, args.at, args.text, args.path, args.line, args.reply_to)
+    level = LEVELS_AT.index(args.at) + 1
+    log("comment", run=run_id(args.run), step=args.step, area=area, group=args.group, where=args.at, level=level,
+        path=args.path, line=args.line, comment=cid, reply_to=args.reply_to)
+    print(f"posted {args.at} comment {cid} on {lane['pr']['url']}")
+    return 0
+
+
+def cmd_activity(args) -> int:
+    run = pathlib.Path(args.run)
+    root, lane = group_pr(run, args.group)
+    mine = [e for e in events() if e["kind"] == "comment" and e.get("group") == args.group
+            and e.get("run") == run_id(args.run)]
+    since = mine[-1]["at"] if mine else "0000"
+    pr = lane["pr"]
+    print(f"{lane['pr']['url']}; since the Preceptor's last comment ({since}):")
+    if pr["host"] == "github":
+        repo = gh_repo(root)
+        seen = []
+        for kind in ("pulls", "issues"):
+            out = host_call(["gh", "api", f"repos/{repo}/{kind}/{pr['number']}/comments"], root)
+            items = json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip().startswith("[") else []
+            for c in items:
+                body = c.get("body", "")
+                if not body.startswith(PREFIX) and c.get("created_at", "")[:19] >= since[:19]:
+                    where = f"{c['path']}:{c.get('line') or ''} " if c.get("path") else ""
+                    seen.append(f"reply {c.get('id')} {where}(in reply to {c.get('in_reply_to_id', '-')}): {body}")
+        for line in seen:
+            print("  " + line)
+    else:
+        project, repo_id = az_ids(root, pr["number"])
+        out = host_call(["az", "devops", "invoke", "--area", "git", "--resource", "pullRequestThreads",
+                         "--route-parameters", f"project={project}", f"repositoryId={repo_id}",
+                         f"pullRequestId={pr['number']}", "--http-method", "GET", "--api-version", "7.1",
+                         "--output", "json"], root)
+        data = json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip().startswith("{") else {}
+        for t in data.get("value", []):
+            for c in t.get("comments", []):
+                body = c.get("content", "")
+                if body and not body.startswith(PREFIX) and c.get("publishedDate", "")[:19] >= since[:19]:
+                    path = (t.get("threadContext") or {}).get("filePath", "")
+                    print(f"  reply in thread {t.get('id')} {path}: {body}")
+    commits = subprocess.run(["git", "log", "--format=%h %cI %s", f"--since={since}", lane["branch"]], cwd=root,
+                             capture_output=True, text=True).stdout.strip()
+    print("commits pushed since:" + ("\n  " + commits.replace("\n", "\n  ") if commits else " none"))
+    return 0
+
+
 # ---------------------------------------------------------------- checks the ship line relies on
 
 def repo_root(run: pathlib.Path) -> pathlib.Path:
@@ -499,14 +654,30 @@ def cmd_explained(args) -> int:
     return 0 if ok else 1
 
 
+def precept_on(run: pathlib.Path) -> bool:
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    import steps  # noqa: E402
+    return steps.state(repo_root(run), run)["precept"][0]
+
+
 def cmd_seed(args) -> int:
+    run = pathlib.Path(args.run)
+    if not precept_on(run):
+        print("refused: preceptee mode is off for this run; no agent plants a flaw outside it", file=sys.stderr)
+        return 1
+    copy = pathlib.Path(args.copy).resolve()
+    root = repo_root(run).resolve()
+    if copy == root or root in copy.parents or not copy.exists():
+        print(f"refused: the seeded copy must exist outside the repo (under {record_dir()}), never in the working "
+              "tree", file=sys.stderr)
+        return 1
     lines = [l for l in pathlib.Path(args.lines_file).read_text(encoding="utf-8").splitlines() if l.strip()]
     if not lines:
         raise SystemExit("a seed with no lines can't be checked")
     rd = run_dir(args.run)
     rd.mkdir(parents=True, exist_ok=True)
     data = seeds(pathlib.Path(args.run))
-    data.append({"step": args.step, "lines": lines, "at": now()})
+    data.append({"step": args.step, "lines": lines, "copy": str(copy), "at": now()})
     (rd / "seeds.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     log("seed", run=run_id(args.run), step=args.step, area="1", lines=len(lines))
     print(f"seed registered ({len(lines)} lines); show the seeded copy from {rd}, never from the working tree")
@@ -541,6 +712,9 @@ def area_summary(evs: list) -> dict:
             s["bails"] += 1
         elif e["kind"] == "hint" and e.get("before_attempt"):
             s["hints"][str(e["rung"])] = s["hints"].get(str(e["rung"]), 0) + 1
+        elif e["kind"] == "comment" and not e.get("reply_to"):
+            s.setdefault("comments", {})
+            s["comments"][e["where"]] = s["comments"].get(e["where"], 0) + 1
     return out
 
 
@@ -558,8 +732,8 @@ def cmd_digest(args) -> int:
              "record. The preceptee reads it, may remove anything, and chooses whether to send it. It is coaching "
              "evidence for the rubric's proof column, not a rating.", "",
              "## Areas", "",
-             "| Area | Level | Exercises | Good | Misses | Bails | Hints before attempting (rung: n) | Review: caught / missed major / false alarms | Quiz |",
-             "|---|---|---|---|---|---|---|---|---|"]
+             "| Area | Level | Exercises | Good | Misses | Bails | Hints before attempting (rung: n) | PR comments needed (pr / file / method / line) | Review: caught / missed major / false alarms | Quiz |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
     for k in keys:
         s = summary.get(k, {})
         name = f"{k} {AREAS[k.split(':')[0]]}" + (f" ({k.split(':')[1]})" if ":" in k else "")
@@ -567,8 +741,10 @@ def cmd_digest(args) -> int:
         review = (f"{s.get('caught', 0)} / {s.get('missed_major', 0)} / {s.get('false_alarms', 0)}"
                   if k == "1" else "-")
         quiz = f"{s.get('quiz_right', 0)}/{s.get('quiz_total', 0)}" if s.get("quiz_total") else "-"
+        c = s.get("comments", {})
+        comments = " / ".join(str(c.get(a, 0)) for a in LEVELS_AT) if c else "-"
         lines.append(f"| {name} | {effective_level(state, k)} | {s.get('exercises', 0)} | {s.get('good', 0)} | "
-                     f"{s.get('miss', 0)} | {s.get('bails', 0)} | {hints} | {review} | {quiz} |")
+                     f"{s.get('miss', 0)} | {s.get('bails', 0)} | {hints} | {comments} | {review} | {quiz} |")
     lines += ["", "## Level changes and prompts", ""]
     changes = [e for e in evs if e["kind"] in ("level", "prompt", "prompt-answer")]
     for e in changes:
@@ -696,17 +872,21 @@ def main(argv=None) -> int:
     n.add_argument("--path"); n.add_argument("--step"); n.add_argument("--text"); n.add_argument("--file")
     e = sub.add_parser("explained"); e.add_argument("--run", required=True)
     sd = sub.add_parser("seed"); sd.add_argument("--run", required=True); sd.add_argument("--step", required=True)
-    sd.add_argument("--lines-file", required=True)
+    sd.add_argument("--lines-file", required=True); sd.add_argument("--copy", required=True)
     sc = sub.add_parser("seed-check"); sc.add_argument("--run", required=True)
     g = sub.add_parser("digest"); g.add_argument("--since"); g.add_argument("--out", required=True)
     i = sub.add_parser("import"); i.add_argument("file"); i.add_argument("--by")
+    cm = sub.add_parser("comment"); cm.add_argument("--run", required=True); cm.add_argument("--step", required=True)
+    cm.add_argument("--group", required=True); cm.add_argument("--at", required=True); cm.add_argument("--path")
+    cm.add_argument("--line", type=int); cm.add_argument("--reply-to"); cm.add_argument("--text", required=True)
+    ac = sub.add_parser("activity"); ac.add_argument("--run", required=True); ac.add_argument("--group", required=True)
     x = sub.add_parser("export"); x.add_argument("--consent", action="store_true"); x.add_argument("--out")
     args = p.parse_args(argv)
     return {"whoami": cmd_whoami, "status": cmd_status, "area": cmd_area, "decide": cmd_decide, "hint": cmd_hint,
             "attempt": cmd_attempt, "reveal": cmd_reveal, "ask": cmd_ask, "answered": cmd_answered,
             "score": cmd_score, "answer": cmd_answer, "note": cmd_note, "explained": cmd_explained,
             "seed": cmd_seed, "seed-check": cmd_seed_check, "digest": cmd_digest, "import": cmd_import,
-            "export": cmd_export}[args.cmd](args)
+            "export": cmd_export, "comment": cmd_comment, "activity": cmd_activity}[args.cmd](args)
 
 
 if __name__ == "__main__":

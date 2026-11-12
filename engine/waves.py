@@ -71,14 +71,16 @@ def parse(path: pathlib.Path) -> dict:
         if m:
             reasons[m.group(1)] = m.group(2).strip()
     modes = set()
-    for line in section(text, "Done check").splitlines():
+    done_check = section(text, "Done check")
+    for line in done_check.splitlines():
         if "Runner" in line or "runner.py" in line:
             for tok in BACKTICK.findall(line) or [line]:
                 modes.update(m for m in MODE.findall(tok) if m not in ("scope", "run", "root", "allow-destructive"))
     named = re.sub(r"[^a-z0-9-]+", "-", meta.get("pr_group", "").lower()).strip("-")
     group = named or wp
     return {"id": wp, "file": path.name, "depends_on": deps, "scope": sorted(scope), "reasons": reasons,
-            "modes": sorted(modes), "done": meta.get("status", "").lower() == "done", "group": group}
+            "modes": sorted(modes), "done": meta.get("status", "").lower() == "done", "group": group,
+            "done_check": done_check}
 
 
 def load(run: pathlib.Path) -> list:
@@ -185,6 +187,10 @@ def check(run: pathlib.Path):
             elif r and r not in REASONS:
                 found.append((f"{p['id']}: series reason '{r}' for {d} is not one of: {', '.join(REASONS)}",
                               {p["id"]}))
+    for p in packages:  # a mode named by its config key ("`ci` passes") counts too, not only `--ci` / runner.py ci
+        for m in modes:
+            if re.search(rf"`{re.escape(m)}`|\b{re.escape(m)} mode\b", p["done_check"]):
+                p["modes"] = sorted(set(p["modes"]) | {m})
     deps = group_deps(packages)
     reach = closure(deps)
     members = groups(packages)

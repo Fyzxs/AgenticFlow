@@ -152,8 +152,13 @@ session at each preceptee step: read `.fyzxsflow/package/agents/preceptor.agent.
   (`author: owner`: the person running the flow wrote it, which is all the team needs to know), stamp it with
   `--agent implementer` or `--agent tester` (stamp records it as owner-written, with no agent model), and dispatch
   the Validator with "the output is the owner's" in its inputs. Rework goes back to the preceptee (2-round cap, then the agent).
-- **Nothing coaching-related in the run folder, review files, findings, commits or the PR.** It lives only in the
-  preceptee's local record (`preceptee.py`). Ship-check adds `precept:explain` and `precept:seeds`.
+- **On the PR by default.** With the `pr` step on, the preceptee's work arrives as their own group PR and the
+  Preceptor reviews it there, in comments that narrow from the PR to the file, the method and the line only as
+  needed (preceptor.agent.md, Reviewing the preceptee's PR); while it waits for their reply or push, log
+  `gated "waiting on the owner"` and stop. `/flow resume` reads the replies (`preceptee.py activity`).
+- **Review comments are public; the record is private.** Scores, levels, prompts, reasons, explanations and quiz
+  answers live only in the preceptee's local record (`preceptee.py`): never in the run folder, review files,
+  findings, commits or PR text. Ship-check adds `precept:explain` and `precept:seeds`.
 - **At close**, score unanswered questions `--unanswered`, then `preceptee.py status` and the digest reminder.
 
 ## Dispatching on each host

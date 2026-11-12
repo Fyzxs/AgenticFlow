@@ -129,6 +129,15 @@ class WavesTests(ParallelBase):
         self.assertEqual(code, 0, out)
         self.assertIn("share the Runner lock local-db", out)
 
+    def test_a_lock_is_seen_when_the_done_check_names_the_mode_in_prose(self):
+        self.wp("WP-01", ["src/a.py"], mode="quick")
+        self.wp("WP-02", ["src/b.py"], mode="quick")
+        for wp in ("WP-01", "WP-02"):
+            f = self.run / "work-packages" / f"{wp}-x.md"
+            f.write_text(f.read_text(encoding="utf-8").replace("- Runner: `--quick --scope project`", "- `db` passes"),
+                         encoding="utf-8")
+        self.assertIn("share the Runner lock local-db", self.waves()[1])
+
     def done(self, wp_id):
         f = next((self.run / "work-packages").glob(f"{wp_id}-*.md"))
         f.write_text(f.read_text(encoding="utf-8").replace("status: planned", "status: done"), encoding="utf-8")

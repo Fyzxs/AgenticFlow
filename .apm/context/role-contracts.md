@@ -84,4 +84,7 @@ is a pattern a doc marks legacy, which you never copy, however often it appears 
 - **Run ids stay in the run.** No finding, criterion or package ids (`F-12`, `AC-3`, `WP-04.2`) and no run-folder
   paths in product code, tests or product docs: they mean nothing once the run folder is gone
   (`checks.py run-ids`).
+- **Never plant a mistake.** No agent introduces a flaw, bug, weakened test or skipped check on purpose, in any
+  file, in any mode. The one exception is the Seeder, in preceptee mode only, and only in a practice copy outside
+  the repo (`preceptee.py seed` refuses anything else).
 - Write your report even when you fail. A failed run with a good report is useful; a silent one is not.
