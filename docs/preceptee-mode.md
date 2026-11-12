@@ -74,18 +74,34 @@ how much the Preceptor does there:
 | `spot` | the run pauses on some packages only (for example one in three); the rest are agent-written and get after-the-fact questions |
 | `off` | no pausing or coaching in this area |
 
-Two things move a level:
-- **The preceptee** can turn any area off or set its level, for one run or for good (`preceptee.py area <n>
-  off|full|light|spot [--run <run>]`). Some areas won't match their job, and the mode should never be in the way.
-- **The Preceptor steps an area down on evidence.** Working in an area produces feedback on the preceptee's skill
-  there. When the record shows they no longer need the support, the Preceptor lowers the level one step and says
-  why. For example, three packages in a row with no hint past rung 1 and no `major` findings would step it down.
-  After a miss the Preceptor may step it back up. Every change shows in the digest, so the preceptee and their
-  preceptor can see why it happened and reverse it.
+Two things move a level, and both are the preceptee's decision:
+- **The preceptee** can turn any area off or set its level at any time, for one run or for good
+  (`preceptee.py area <n> off|full|light|spot [--run <run>]`). Some areas won't match their job, and the mode
+  should never be in the way.
+- **The Preceptor prompts to step an area down after enough good answers.** It never lowers a level itself: it
+  asks, the preceptee says yes or no, and either way the prompt and the answer go in the record.
 
-**Support is not sign-off.** A support level only says how much coaching the flow gives. Whether an engineer is
-*competent* in an area is the rubric's proof column, and only the human preceptor signs that off. An area that
-reached `off` is evidence for the preceptor, not a verdict.
+**What counts as a good answer.** Only work the preceptee actually did in that area counts, so an area is never
+eased off on work nobody checked:
+- **Counts:** an exercise in that area the preceptee attempted themselves (for area 6, per stack) that ended
+  without a bail, without a hint past rung 1, and with no `major` or `medium` finding on their work. For a review
+  (area 1), that means catching every `major` the Validator and reviewers found.
+- **Doesn't count:** a skipped exercise, an area at `off`, an agent-written `spot` package, an after-the-fact
+  question left unanswered, or a run abandoned before the reveal.
+- **Resets the count:** a miss, i.e. a bail, a hint past rung 1, or a `major` or `medium` finding. A `major` miss
+  in an area at `light` or `spot` also makes the Preceptor ask whether to step it back up.
+
+**When it prompts.** By default it prompts at 4 good answers in a row (`full` to `light`), 7 (`light` to `spot`)
+and **10 (to `off`)**, all set in `~/.fyzxsflow/preceptee.json`:
+```json
+{ "handle": "quinn-gil", "prompt_after": { "light": 4, "spot": 7, "off": 10 } }
+```
+Ten is a starting point, to tune after the first trials. A declined prompt starts the count again.
+
+**`off` is not graduation.** Reaching `off` means only that ten answers in a row gave the Preceptor nothing more to
+coach: the preceptee's skill there is now beyond what the agent can judge. Whether the engineer is *competent* in
+that area is the rubric's proof column, and only the human preceptor signs that off. A support level says how much
+coaching the flow gives, nothing more.
 
 **Skills are tracked per technology.** In area 6, "writes good code" means little without the language. Every
 work package names its technology docs (`.fyzxsflow/docs/tech/<stack>.md` in its context pack). The record keeps
@@ -97,14 +113,15 @@ implementation", in the terms the project's tech docs use.
 - **Switch.** An opt-in step `precept` (`engine/steps.py` `OPT_IN`, like `e2e`), turned on for a run with
   `/flow --preceptee <request>`, or for a project in `config.json` → `steps.on`. With it off, the flow is
   unchanged.
-- **Handle.** The handle comes from the preceptee's git identity: `git config user.name`, made into a slug (for
-  example `quinn-gil`). One handle then follows the preceptee across repos without setup. It can be overridden
-  in `~/.fyzxsflow/preceptee.json` (`{"handle": "..."}`) for a preceptee whose work and personal git names
-  differ, or with `--preceptee <handle>` for one run.
+- **One preceptee per machine.** The records are local, so the machine's user is the preceptee. There is one
+  record, `~/.fyzxsflow/preceptee/`, and one settings file, `~/.fyzxsflow/preceptee.json`.
+- **Handle.** The handle names the preceptee in the digest. It comes from their git identity, `git config
+  user.name` made into a slug (for example `quinn-gil`), and can be overridden with `"handle"` in
+  `preceptee.json` when their work and personal git names differ.
 - **Preceptor agent** (`.apm/agents/preceptor.agent.md`; role Coordinator, tier deep).
   - It runs every attempt-then-reveal exchange, the hint ladder, the after-the-fact questions, the
     explain-before-merge check and the AI-off quiz.
-  - It gives feedback per area and per stack, and steps support levels down (or back up) on evidence.
+  - It gives feedback per area and per stack, and prompts to step a support level down after enough good answers (or back up after a `major` miss).
   - It never writes product code and never shows an agent's version early.
   - The Orchestrator dispatches it at each step whose area is on, and holds the agent's version back until the
     Preceptor reports it revealed.
@@ -112,7 +129,7 @@ implementation", in the terms the project's tech docs use.
   - It keeps, per area (and per stack for area 6): attempts, hint rungs used, bails, review catches, misses and
     false alarms, approved outputs that later drew findings, quiz results, and each support-level change with its
     reason.
-  - It lives **outside the repo**, in `~/.fyzxsflow/preceptees/<handle>/`, never in the committed run folder.
+  - It lives **outside the repo**, in `~/.fyzxsflow/preceptee/`, never in the committed run folder.
     The run notes only that preceptee mode was on.
   - There are no scores and no ranking: the human preceptor assesses.
 - **Sharing with the preceptor: a digest the preceptee sends, and the preceptor writes back in.**
@@ -135,7 +152,7 @@ implementation", in the terms the project's tech docs use.
 
 ## Phasing
 1. **MVP.**
-   - The switch, the handle, the Preceptor and the support levels.
+   - The switch, the handle, the Preceptor, the support levels and the step-down prompts.
    - Pausing steps for the Implementer and Tester (area 6, per stack), the package's hand-off review (area 1),
      and reasons on every decision (area 4).
    - The local record, the digest and import.
@@ -149,37 +166,36 @@ implementation", in the terms the project's tech docs use.
    table needs: the review catch rate and comprehension checks, aggregated.
 
 ## Verification (when built)
-- `python -I engine/tests/run_all.py`, with a new `test_preceptee.py` (handle resolution and override, support
-  levels stepping down only on evidence, digest and import) and `precept` cases in `test_steps.py`.
+- `python -I engine/tests/run_all.py`, with a new `test_preceptee.py` (handle resolution and override, which
+  answers count toward a step-down prompt, the thresholds from `preceptee.json`, digest and import) and `precept` cases in `test_steps.py`.
 - A trial in a scratch project with a small app, on both hosts. A subagent role-plays a preceptee who makes
   scripted mistakes. The trial checks that:
   - no agent version is shown before the attempt;
   - hints are logged per rung;
   - review catches and misses are scored against the revealed findings;
-  - a support level steps down after the scripted clean streak, and back up after a scripted miss;
+  - the step-down prompt comes only after the configured count of good answers, counting only work the
+    preceptee did (a skipped exercise, a `spot` package and a bail don't count), and a miss resets the count;
   - nothing coaching-related lands in git;
   - the digest round-trips the preceptor's sign-offs through `import`.
 
 ## Decisions (owner, 2026-11-12)
 Each decision was given as a direction, not a fixed rule; the design above builds on them.
 1. **Name:** preceptee mode.
-2. **Handle:** the git identity, with an override (`~/.fyzxsflow/preceptee.json`, or `--preceptee <handle>`).
+2. **Handle:** the git identity, with an override in `~/.fyzxsflow/preceptee.json`. One preceptee per machine,
+   because the records are local.
 3. **Pausing:** the Implementer and Tester are the key engineer steps. Intake criteria and the package's first
    review are added as the "one or two others"; every other step uses after-the-fact questions.
 4. **Sharing:** the owner left it open. Chosen: a digest file the preceptee reviews and sends, with a
    `## Preceptor notes` section the preceptor fills in, imported back.
-5. **Areas:** all on when enabled. The preceptee can turn any one off. The Preceptor steps support down as the
-   preceptee improves (and back up after a miss), and the steps feed back skill per area and per stack. Sign-off
-   stays with the human preceptor, per the preceptorship proposal.
+5. **Areas:** all on when enabled. The preceptee can turn any one off. The Preceptor *prompts* to step an area
+   down after enough good answers, counting only work the preceptee actually did; 10 in a row prompts to turn it
+   off (configurable in `preceptee.json`). That isn't graduation, only the point beyond which the agent can't
+   judge; sign-off stays with the human preceptor, per the preceptorship proposal.
 6. **No Claude-only features.** The owner's workplace doesn't use Claude, so there's no Learning output style and
    no Claude Docs; everything works on Copilot too.
-7. **Coaching records stay local** (`~/.fyzxsflow/preceptees/<handle>/`), never in git, and are shared only
+7. **Coaching records stay local** (`~/.fyzxsflow/preceptee/`), never in git, and are shared only
    through the digest.
 
 ## Open questions
-1. **Step-down threshold.** The example above (three packages with no hint past rung 1 and no `major` findings)
-   is a starting guess. It should be tuned on the first trials, the same way review levels graduate after a clean
-   streak (`review.graduate_after` in `config.json`).
-2. **Several preceptees in one repo.** The record is per handle and local, so two preceptees never share one.
-   Does a project need to know who its preceptees are (for example, so the Build Coordinator doesn't give one
-   person every package)? The current answer is no: whoever starts the run is the preceptee.
+1. **The intermediate prompts.** The owner set 10 to turn an area off. The prompts at 4 (`light`) and 7 (`spot`)
+   are my guesses to fill the levels between; the first trials may show that one prompt at 10 is enough.
