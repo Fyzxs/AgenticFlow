@@ -56,6 +56,22 @@ class InstallTests(unittest.TestCase):
         self.assertEqual(settings["model"], "keep-me")
         self.assertEqual(len(settings["hooks"]["PreToolUse"]), 1)
 
+    def test_every_prompt_reads_its_agent_with_the_projects_learned_entries(self):
+        """A slash command runs in the main session, not as the dispatched agent, so it must load the learned
+        entries itself: the generated host file (which has them), or the package file plus learned/<agent>.md."""
+        self.install("--host", "claude", "--host", "copilot")
+        prompts = sorted((ENGINE.parent / ".apm" / "prompts").glob("*.prompt.md"))
+        self.assertTrue(prompts)
+        for p in prompts:
+            agent = install.split_frontmatter(p.read_text(encoding="utf-8"))[0].get("agent")
+            self.assertTrue(agent, p.name)
+            for host_file in (f".claude/agents/{agent}.md", f".github/agents/{agent}.agent.md"):
+                self.assertTrue((self.root / host_file).exists(), host_file)
+            cmd = (self.root / ".claude/commands" / p.name.replace(".prompt.md", ".md")).read_text(encoding="utf-8")
+            for ref in (f".claude/agents/{agent}.md", f".github/agents/{agent}.agent.md",
+                        f".fyzxsflow/package/agents/{agent}.agent.md", f".fyzxsflow/learned/{agent}.md"):
+                self.assertIn(ref, cmd, (p.name, ref))
+
     def test_learned_entries_live_in_the_project_and_survive_reinstall_which_replaces_the_package(self):
         self.install("--host", "claude")
         learned = self.root / ".fyzxsflow/learned/implementer.md"

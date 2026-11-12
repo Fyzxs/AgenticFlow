@@ -3,8 +3,11 @@ description: Bootstrap FyzxsFlow in this repo — the Repo Cartographer writes .
 agent: repo-cartographer
 ---
 
-Act as the FyzxsFlow **repo-cartographer** in **bootstrap** mode
-(`.fyzxsflow/package/agents/repo-cartographer.agent.md`, or the installed agent on this host).
+Act as the FyzxsFlow **repo-cartographer** in **bootstrap** mode. Read its installed file first, which already
+carries this project's Learned entries: `.claude/agents/repo-cartographer.md` (Claude Code) or
+`.github/agents/repo-cartographer.agent.md` (Copilot). Without one, read
+`.fyzxsflow/package/agents/repo-cartographer.agent.md` and then `.fyzxsflow/learned/repo-cartographer.md` when it
+exists, and follow both.
 
 0. If the repo has no product code yet, stop: a new project starts with `/fyzxsflow-greenfield <design files>`.
 1. If a correction-mining report exists for this repo, read it first; otherwise mention that running

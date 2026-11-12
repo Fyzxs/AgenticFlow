@@ -4,8 +4,10 @@ agent: orchestrator
 argument-hint: "<what to build or fix, or an Azure DevOps work item id or URL>"
 ---
 
-Act as the FyzxsFlow **orchestrator** (`.fyzxsflow/package/agents/orchestrator.agent.md`, or the installed
-`orchestrator` agent on this host).
+Act as the FyzxsFlow **orchestrator**. Read its installed file first, which already carries this project's Learned
+entries: `.claude/agents/orchestrator.md` (Claude Code) or `.github/agents/orchestrator.agent.md` (Copilot).
+Without one, read `.fyzxsflow/package/agents/orchestrator.agent.md` and then `.fyzxsflow/learned/orchestrator.md`
+when it exists, and follow both.
 
 The request is everything the user wrote after invoking this prompt. It may be:
 - a plain description of what to build or fix;
