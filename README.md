@@ -146,6 +146,8 @@ HOW-TO.md            install, set up, run, and tune
 - A separate, opt-in `deploy` agent set for pipelines, deployment health and resource optimisation.
   These agents will never change production; prod changes go only through a pipeline with a human
   approval gate. See [`docs/deploy-agents.md`](docs/deploy-agents.md).
+- A preceptee mode for training engineers: at chosen steps the preceptee judges first, the agent's version is
+  revealed after, and a Preceptor agent coaches the difference. See [`docs/preceptee-mode.md`](docs/preceptee-mode.md).
 
 ## Development
 
