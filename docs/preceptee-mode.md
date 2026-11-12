@@ -191,12 +191,12 @@ Each decision was given as a direction, not a fixed rule; the design above build
 5. **Areas:** all on when enabled. The preceptee can turn any one off. The Preceptor *prompts* to step an area
    down after enough good answers, counting only work the preceptee actually did; 10 in a row prompts to turn it
    off (configurable in `preceptee.json`). That isn't graduation, only the point beyond which the agent can't
-   judge; sign-off stays with the human preceptor, per the preceptorship proposal.
+   judge; sign-off stays with the human preceptor, per the preceptorship proposal. The prompts at 4 (`light`) and
+   7 (`spot`) stay too: they let the preceptee do a little less while the flow still checks some of their work.
 6. **No Claude-only features.** The owner's workplace doesn't use Claude, so there's no Learning output style and
    no Claude Docs; everything works on Copilot too.
 7. **Coaching records stay local** (`~/.fyzxsflow/preceptee/`), never in git, and are shared only
    through the digest.
 
 ## Open questions
-1. **The intermediate prompts.** The owner set 10 to turn an area off. The prompts at 4 (`light`) and 7 (`spot`)
-   are my guesses to fill the levels between; the first trials may show that one prompt at 10 is enough.
+None yet. The first trials will tune the prompt thresholds.
