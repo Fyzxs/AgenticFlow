@@ -241,6 +241,9 @@ def cmd_stamp(args) -> int:
     text = report.read_text(encoding="utf-8")
     values = {"tier": used, "model": f"{args.host}:{model or 'inherit'}",
               "escalated": f"from {declared}" if used != declared and not args.down else "no"}
+    if report_meta(text).get("author") == "owner":
+        # The owner wrote this step themselves (preceptee mode): no agent, tier or model did the work.
+        values = {"tier": "none", "model": "owner", "escalated": "no", "model_reported": "owner"}
     if args.down:
         values["escalated"] = f"no (shadow, one below {declared})"
     if args.model:
@@ -482,6 +485,16 @@ def cmd_ship_check(args) -> int:
         else:
             failed = [g["gate"] for g in data.get("gates", []) if not g.get("passed")]
             rows.append((check, result, result in ("pass", "empty"), detail + (f"; failed: {', '.join(failed)}" if failed else "")))
+
+    if st.get("precept", (False,))[0]:
+        # Preceptee mode: the preceptee explained every changed file, and no seeded flaw reached the repo.
+        # The record is the preceptee's, outside the repo: these rows show only pass/fail and file names.
+        import preceptee  # noqa: E402
+        ok, detail = preceptee.explained(run)
+        rows.append(("precept:explain", "pass" if ok else "missing", ok, detail))
+        leaks = preceptee.seed_leaks(run)
+        rows.append(("precept:seeds", "leaked" if leaks else "clean", not leaks,
+                     f"{len(leaks)} seeded line(s) in the repo: run preceptee.py seed-check" if leaks else ""))
 
     trace = subprocess.run([sys.executable, "-I", str(pathlib.Path(__file__).resolve().parent / "ac_trace.py"),
                             "--run", str(run), "--require-evidence"], capture_output=True, text=True)

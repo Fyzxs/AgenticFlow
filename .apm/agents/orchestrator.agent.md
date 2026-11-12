@@ -126,6 +126,36 @@ it never runs beside another run: if `run.py list` shows an active run, say so a
 4. End with one line: `Run <id>: compacted <n> files, <before> -> <after> bytes. Accepted drops: <n>. Proposals:
    <n>. Branch <name> ready.`
 
+## Preceptee mode
+On when `steps.py enabled precept --run <run>` exits 0. The request turns it on for a run when it says
+`--preceptee` (or "preceptee mode"): `steps.py set precept on --run <run> --reason="owner asked for preceptee mode"`
+(the `=` form: a reason starting with `--` would be read as an option). Keep the run free of the mode's name:
+create the run with the request *without* `--preceptee` (`run.py new --ref` and `input.md`), so the run id, branch
+and input say nothing about coaching. The person
+running the flow is the preceptee (one per machine; `preceptee.py whoami`). You act as the **Preceptor** in this
+session at each preceptee step: read `.fyzxsflow/package/agents/preceptor.agent.md` (with
+`.fyzxsflow/learned/preceptor.md`) and follow it, because the preceptee talks with you, not with a subagent.
+- **At the start**, tell them in two sentences what will pause for them and that they can turn any area off
+  (`preceptee.py area <n> off [--run <run>]`).
+- **Where it plugs in**, each guarded by the Preceptor's `preceptee.py decide`:
+  - Intake: `intake.criteria` (area 3) before the Work Summarizer's brief is shown.
+  - Build, each package: `WP-nn.implementer` and `WP-nn.tester` (area 6, per stack) decide who writes the step;
+    for an agent-written package, `WP-nn.review` (area 1) comes before its Validator report is shown.
+  - Locate, Prove failures, Review: after-the-fact questions (areas 5, 2, 8); every review reply: a reason (area 4).
+  - Deliver, before the PR: `deliver.explain` and `deliver.quiz` (area 9).
+- **A paused exercise is a gate** whatever the review levels: the run waits for the preceptee. Heartbeat it as
+  `run.py log <run> <stage> gated "waiting on the owner"`, as for any gate; nothing about the exercise goes in the
+  ledger.
+- **Withhold, then reveal.** Hold the agents' output for a step (don't quote or summarise it to the preceptee)
+  until `preceptee.py reveal` succeeds for it.
+- **Preceptee-written work** goes through the flow like agent work: the Preceptor writes its report
+  (`author: owner`: the person running the flow wrote it, which is all the team needs to know), stamp it with
+  `--agent implementer` or `--agent tester` (stamp records it as owner-written, with no agent model), and dispatch
+  the Validator with "the output is the owner's" in its inputs. Rework goes back to the preceptee (2-round cap, then the agent).
+- **Nothing coaching-related in the run folder, review files, findings, commits or the PR.** It lives only in the
+  preceptee's local record (`preceptee.py`). Ship-check adds `precept:explain` and `precept:seeds`.
+- **At close**, score unanswered questions `--unanswered`, then `preceptee.py status` and the digest reminder.
+
 ## Dispatching on each host
 Dispatch each agent as a subagent with its inputs as paths: the Agent tool on Claude Code, the `agent` tool
 (`runSubagent`) in VS Code, the host's subagent or task tool elsewhere. **If this host gives you no way to
@@ -298,6 +328,7 @@ record it:
   pre-authorises it: `Opening a PR: pre-authorised` covers pushing the PR branch, opening the PR and posting
   the flow's `Agent AI Finding:` comments on it, including a pushback reply to an owner's comment, nothing else),
   creating or flipping a feature flag outside the local environment, touching hosted data.
+- A paused preceptee exercise (see **Preceptee mode**): the owner's turn to do the step.
 - The caps above.
 
 Ask each question in a self-contained way: 2–4 sentences on what it is and where it shows up, the

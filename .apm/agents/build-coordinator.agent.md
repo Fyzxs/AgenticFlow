@@ -62,6 +62,9 @@ traces every criterion to evidence you opened, so the delivery check and the PR 
 Whoever can dispatch agents runs this: you when dispatched, or the Orchestrator in its own session on a host that
 can't nest dispatches. Stamping, review files and owner replies stay with the Orchestrator; follow its **Models**
 section (escalation, model compare) on every dispatch.
+With preceptee mode on (`steps.py enabled precept`), the Orchestrator's **Preceptee mode** decides, per
+package, whether the preceptee or the agent writes the Implementer and Tester steps; everything after each step
+(validator, Runner, contract checks, tracing) is the same either way.
 1. **Each package of the wave**, in plan order (in parallel only in separate worktrees whose base already holds
    every package they depend on; while that work is uncommitted, one after another):
    1. `status: building`; `python -I .fyzxsflow/package/engine/run.py log <run> build started "<stem>: implementer"`;

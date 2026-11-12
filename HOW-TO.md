@@ -10,6 +10,7 @@ works, see the [README](README.md).
 - [Run the flow](#run-the-flow)
 - [Turn steps off](#turn-steps-off)
 - [Test end to end (opt-in)](#test-end-to-end-opt-in)
+- [Precept an engineer (opt-in)](#precept-an-engineer-opt-in)
 - [Models](#models)
 - [What lands in your repo](#what-lands-in-your-repo)
 - [Upgrade](#upgrade)
@@ -177,7 +178,8 @@ stands with `python -I .fyzxsflow/package/engine/steps.py list`.
 | `docs-upkeep` | docs aren't refreshed after the run (your feedback still updates them) |
 | `learn` | findings are kept but not turned into agent or doc changes |
 
-`e2e` is the one step that starts **off**; see the next section.
+`e2e` and `precept` are the steps that start **off**; see [Test end to end](#test-end-to-end-opt-in) and
+[Precept an engineer](#precept-an-engineer-opt-in).
 
 ## Test end to end (opt-in)
 
@@ -216,6 +218,67 @@ every process's proxy settings at a closed local port and refuses container star
 watches the connections of every process the mode started. A connection to anything that isn't this machine (or
 an address range you allowed for containers) fails the mode and names the process and the address. One limit:
 processes inside containers aren't watched; `--pull never` proves their images are local.
+
+## Precept an engineer (opt-in)
+
+Preceptee mode turns a run into coaching for the engineer running it, following a preceptorship model: a
+senior preceptor guides a preceptee on real work, and the tool coaches Socratically instead of handing over the
+answer. The design and its reasons are in [`docs/preceptee-mode.md`](docs/preceptee-mode.md).
+
+```
+/flow --preceptee add CSV export to the orders page
+```
+
+The run is a normal run, with the same reviews, checks and ship line, but at the engineer's steps it stops and
+the preceptee goes first:
+
+| Rubric area | When | The preceptee | Then the Preceptor |
+|---|---|---|---|
+| 6 codebase, build, tests | each package's Implementer and Tester steps | writes the code, then the tests | reveals the Validator's findings as questions; the preceptee fixes their own work |
+| 1 verifying AI output | each agent-written package | reviews the diff first (sometimes with a planted flaw) | reveals what the Validator found: caught, missed, false alarm |
+| 3 directing agents | Intake | writes the acceptance criteria | compares them with the agent's brief |
+| 4 calibrated trust | every review reply | gives a one-line reason | asks "why did you accept this?" when an approved output later drew findings |
+| 2, 5, 8 debugging, design, security | after a failure, Locate, the security review | answers a question when they like | compares with what the agents found |
+| 9 learning hygiene | before the PR | explains every changed file, then a short quiz without AI help | ship-check requires the explanations |
+
+Hints come one rung at a time: a question, the doc section, the file, the shape of the answer, a worked example
+from the codebase. The agents' version of a step is never shown before the preceptee attempts it or bails, and a
+script enforces that order.
+
+**It eases off as they improve.** Each area has a support level: `full`, `light` (hints only when asked), `spot`
+(one exercise in three pauses) or `off`. After 4, 7 and 10 good answers in a row in an area, the Preceptor asks
+whether to step it down. A good answer is work the preceptee did themselves, with no bail, no hint past the
+first, and no major or medium finding. The preceptee can also turn any area off at any time:
+
+```
+python -I .fyzxsflow/package/engine/preceptee.py area 8 off               # for good
+python -I .fyzxsflow/package/engine/preceptee.py area 3 off --run <run>   # this run only
+python -I .fyzxsflow/package/engine/preceptee.py status
+```
+
+Reaching `off` isn't graduation. It means the agent can't judge any further; the human preceptor signs areas off.
+
+**The record is the preceptee's.** It lives in `~/.fyzxsflow/preceptee/` on their machine, one preceptee per
+machine, and nothing about coaching goes into the run folder, findings, commits or the PR. The run itself shows
+only that the `precept` step was on and that the owner wrote some steps (`author: owner`), with the usual review
+findings on that code. To share it:
+
+```
+python -I .fyzxsflow/package/engine/preceptee.py digest --out ~/Documents   # read it, trim it, send it
+python -I .fyzxsflow/package/engine/preceptee.py import <the digest, with the preceptor's notes>
+```
+
+The preceptor writes sign-offs (`- area 1: signed off`) and levels (`- area 2: level full`) under the digest's
+`## Preceptor notes` and sends it back. `preceptee.py export --consent` prints aggregated numbers only, with no
+name, notes or runs, for an organisation's program measures.
+
+Settings live in `~/.fyzxsflow/preceptee.json`, every key optional:
+
+```json
+{ "handle": "quinn-gil", "prompt_after": { "light": 4, "spot": 7, "off": 10 }, "spot_every": 3, "seed_every": 4 }
+```
+
+The handle names the preceptee in the digest and defaults to `git config user.name`.
 
 ## Models
 

@@ -84,6 +84,9 @@ A new project with no code yet starts from its system design instead:
 open (you approve every decision in one review), writes the project's docs, and builds a reviewed walking
 skeleton in the same run.
 
+To coach an engineer on real work, run `/flow --preceptee <request>`: they do the engineer's steps first and a
+Preceptor agent coaches them ([preceptee mode](HOW-TO.md#precept-an-engineer-opt-in)).
+
 When learned entries, docs and agents grow heavy, `/fyzxsflow-compact [targets]` shrinks them without losing a
 rule, so every agent dispatch costs fewer tokens.
 
@@ -115,6 +118,7 @@ Claude Code and Copilot surface, turning steps off, and choosing models.
 | Design Reader | New projects: a cited inventory of the system design |
 | Greenfield Architect | New projects: decides what the design leaves open, writes the project's docs and the walking-skeleton plan |
 | Docs Gardener | Applies your feedback to docs and keeps them in step with the code |
+| Preceptor | Preceptee mode (`/flow --preceptee`): the engineer does the engineer's steps first; it coaches with questions and eases off as they improve |
 | Compactor | On request (`/fyzxsflow-compact`): shrinks agent files, learned entries and docs without losing a rule |
 | Curator | Turns findings into agent rules, doc fixes and proposed checks |
 
@@ -146,8 +150,6 @@ HOW-TO.md            install, set up, run, and tune
 - A separate, opt-in `deploy` agent set for pipelines, deployment health and resource optimisation.
   These agents will never change production; prod changes go only through a pipeline with a human
   approval gate. See [`docs/deploy-agents.md`](docs/deploy-agents.md).
-- A preceptee mode for training engineers: at the engineer's steps the preceptee works first, the agent's version
-  is revealed after, and a Preceptor agent coaches the difference and eases off as they improve. See [`docs/preceptee-mode.md`](docs/preceptee-mode.md).
 
 ## Development
 

@@ -1,6 +1,7 @@
 # Preceptee mode: a proposal
 
-Status: **proposal.** Written 2026-11-12; revised the same day with the owner's answers. Nothing here is built yet.
+Status: **built** (owner: "build the whole thing", 2026-11-12) and trialled on a scratch app. How to use it:
+[HOW-TO → Precept an engineer](../HOW-TO.md#precept-an-engineer-opt-in). The design below is what was built.
 
 ## The ask (owner)
 Quinn's proposal *Preceptorship for the AI Era* (a Claude Doc; local export at
@@ -34,7 +35,8 @@ Preceptor agent then reveals the agent's version and coaches the difference with
 **Where the run pauses for the preceptee.** The engineer's steps are the heart of it: the **Implementer** and the
 **Tester** in Build. Two lighter steps are worth a pause too: the brief's acceptance criteria at Intake, and a
 first review of each package's output before the Validator's findings are shown. Everywhere else the run does not
-wait. The Preceptor leaves questions in that step's review file instead, which the preceptee can answer later.
+wait. The Preceptor asks a question instead, kept in the preceptee's local record (not the step's review file,
+which the team can read), and the preceptee answers it later.
 
 | Area | Flow step | Pauses? | The preceptee does first | Then |
 |---|---|---|---|---|
@@ -200,3 +202,31 @@ Each decision was given as a direction, not a fixed rule; the design above build
 
 ## Open questions
 None yet. The first trials will tune the prompt thresholds.
+
+## Build (checkpoint)
+- [x] `engine/preceptee.py` (settings, handle, levels, decide, hint, attempt, reveal, score, prompts, notes,
+      explained, seeds, digest, import, export) + `engine/tests/test_preceptee.py`
+- [x] `engine/steps.py` `precept` opt-in step; `engine/run.py ship-check` rows (explain-before-merge, seeds)
+- [x] `.apm/agents/preceptor.agent.md`; Orchestrator *Preceptee mode*; Build Coordinator, Validator, Curator,
+      role-contracts, run-folder, `flow.prompt.md` (`--preceptee`)
+- [x] README, HOW-TO, design.md, config readme
+- [x] Trial in a scratch project (role-played preceptee); fixes from it
+- [x] Commit by path
+
+## Trial (2026-11-12)
+A subagent ran a slice of `/flow --preceptee` on a scratch Python app as the Orchestrator and Preceptor, against a
+scripted preceptee: Intake criteria (area 3), the Implementer and Tester steps (area 6), explain-before-merge and
+the quiz (area 9), digest and import. The reveal guard held, and no coaching reached the repo. Fixed from it:
+- explain-before-merge counted untracked build output (`__pycache__`); it now counts committed and modified
+  tracked files only (ship-check's tree row already blocks uncommitted product files);
+- a step that didn't pause could still be attempted and scored; now refused and `not-counted`;
+- area 6 needed its stack typed by hand; `decide 6 --package <work package>` reads it from the context pack;
+- `run.py stamp` gave owner-written reports an agent model; it now records `model: owner`, tier `none`;
+- the run gave away the mode: `--preceptee` in the run id, input and step reason, `author: preceptee`, ledger
+  lines naming the preceptee. Now the run is created without the flag, reports say `author: owner`, and gates log
+  "waiting on the owner". What remains visible to the team: `steps.json` shows the `precept` step on, and
+  findings on code the owner wrote, as on any reviewed change;
+- clarified in the Preceptor's file: the report's criteria table is the preceptee's own claim, area 3 runs before
+  the Work Summarizer, the reveal marks the end of area 9's exercises, how tests and explanations are scored,
+  the first attempt is scored and rework isn't, a missing doc for rung 2 becomes a context-gap finding, and a
+  sign-off changes no level.

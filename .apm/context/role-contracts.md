@@ -45,6 +45,8 @@ is a pattern a doc marks legacy, which you never copy, however often it appears 
 - **Orchestrator:** dispatches stages, hands off files, keeps the ledger, enforces caps and gates.
 - **Build Coordinator:** plans work packages (Locate) and executes them in dependency order (Build).
 - **Curator:** turns findings into agent and doc patches.
+- **Preceptor** (preceptee mode): coaches the preceptee through the engineer's steps; run by the Orchestrator in
+  its own session. Its coaching lives only in the preceptee's local record, never in the run folder.
 
 ## Rules for every role
 - **No acceptance criteria, no implementation.** Work is implemented only against numbered acceptance

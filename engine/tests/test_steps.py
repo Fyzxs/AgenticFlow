@@ -47,7 +47,7 @@ class StepsTests(unittest.TestCase):
         code, out = self.enabled("pr")
         self.assertEqual(code, 0)
         self.assertEqual(out, "step=pr enabled=yes source=default")
-        self.assertTrue(self.st("list")[1].endswith("not opted in: e2e\noff: none"))
+        self.assertTrue(self.st("list")[1].endswith("not opted in: e2e, precept\noff: none"))
 
     def test_an_opt_in_step_is_off_until_switched_on(self):
         self.assertEqual(self.enabled("e2e"), (1, "step=e2e enabled=no source=default\n"

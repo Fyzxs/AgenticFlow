@@ -5,6 +5,7 @@ Run: python -I engine/tests/run_all.py
 """
 
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -392,6 +393,31 @@ class ShipCheckTests(TempRepo):
         self.assertIn("validators       fail      NO  WP-01.validator.implementer.md", out)
         self.assertIn("majors           open      NO  F-1", out)
         self.assertNotIn("F-2", out)  # an agent-gap is the Curator's, not a product defect
+
+    def test_stamp_records_owner_written_work_without_an_agent_model(self):
+        rep = self.r / "reports" / "WP-01.implementer.md"
+        rep.write_text("---\nagent: implementer\nauthor: owner\nmodel_reported: owner\n---\n"
+                       + rep.read_text(encoding="utf-8"), encoding="utf-8")
+        code, out = run("run.py", "stamp", str(rep), "--agent", "implementer", "--no-checkpoint")
+        self.assertEqual(code, 0, out)
+        self.assertIn("model=owner", out)
+        self.assertIn("tier: none", rep.read_text(encoding="utf-8"))
+
+    def test_preceptee_mode_adds_its_rows_only_when_switched_on(self):
+        self.all_green()
+        code, out = run("run.py", "ship-check", str(self.r))
+        self.assertNotIn("precept:", out)
+        (self.r / "steps.json").write_text(json.dumps({"off": [], "on": ["precept"]}), encoding="utf-8")
+        home = self.root / "userhome"
+        old = os.environ.get("FYZXSFLOW_USER_HOME")
+        os.environ["FYZXSFLOW_USER_HOME"] = str(home)
+        try:
+            code, out = run("run.py", "ship-check", str(self.r))
+        finally:
+            os.environ.pop("FYZXSFLOW_USER_HOME") if old is None else os.environ.update(FYZXSFLOW_USER_HOME=old)
+        self.assertIn("precept:explain", out)
+        self.assertIn("precept:seeds    clean", out)
+        self.assertFalse(any(self.r.rglob("*preceptee*")))  # the record never lands in the run folder
 
     def test_http_summary_required_once_proofs_were_written(self):
         self.all_green()

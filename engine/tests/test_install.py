@@ -41,7 +41,7 @@ class InstallTests(unittest.TestCase):
         self.assertTrue((self.root / ".claude/agents/implementer.md").exists())
         flow_cmd = (self.root / ".claude/commands/flow.md").read_text(encoding="utf-8")
         self.assertIn("Request: $ARGUMENTS", flow_cmd)
-        self.assertIn('argument-hint: "<what to build or fix', flow_cmd)
+        self.assertIn('argument-hint: "[--preceptee] <what to build or fix', flow_cmd)
         self.assertNotIn("agent: orchestrator", flow_cmd)  # Copilot's routing key; Claude commands don't take it
         self.assertIn("agent: orchestrator", (self.root / ".github/prompts/flow.prompt.md").read_text(encoding="utf-8"))
         self.assertTrue((self.root / ".github/agents/implementer.agent.md").exists())

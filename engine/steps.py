@@ -7,7 +7,8 @@
       -> "step=<step> enabled=yes|no source=<default|project|run>"; exit 0 = on, 1 = off, 2 = unknown or core
   python -I .fyzxsflow/package/engine/steps.py set <step> on|off [--run <dir>] --reason "<owner's words>" [--root .]
 
-Every step is on unless switched off, except the opt-in steps (OPT_IN: `e2e`), which are off until switched on.
+Every step is on unless switched off, except the opt-in steps (OPT_IN: `e2e`, `precept`), which are off until
+switched on.
 The project switches steps in config.json:
     "steps": { "off": ["pr", "learn"], "on": ["e2e"] }
 A run can override that either way (only through `set --run`, which writes <run>/steps.json):
@@ -50,8 +51,10 @@ STEPS = {
               "findings are kept in the run but not routed to agents or docs until the Curator runs"),
     "e2e": ("prove", "e2e-investigator, e2e-implementer, e2e-tester, runner --e2e-airplane / --e2e-connected",
             "no end-to-end testing: changes are proven by the tests and http proofs only"),
+    "precept": ("all", "preceptor (preceptee mode: the preceptee works first at the engineer's steps)",
+                "no coaching: the agents do every step, as in any run"),
 }
-OPT_IN = ("e2e",)  # off unless the project or the run switches them on
+OPT_IN = ("e2e", "precept")  # off unless the project or the run switches them on
 GROUPS = {"reviews": [s for s in STEPS if s.startswith("review-")]}
 CORE = ("intake", "locate", "build", "work-summarizer", "code-indicator", "build-coordinator", "implementer",
         "iac-implementer", "tester", "validator", "build-test-runner", "runner", "orchestrator")
