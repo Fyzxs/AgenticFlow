@@ -128,7 +128,8 @@ Claude Code and Copilot surface, turning steps off, and choosing models.
 ```
 .apm/
   agents/            the agents (*.agent.md)
-  prompts/           entry points: flow, fyzxsflow-init, fyzxsflow-greenfield, fyzxsflow-compact
+  prompts/           entry points: flow, fyzxsflow-init, fyzxsflow-greenfield, fyzxsflow-compact,
+                     fyzxsflow-parallelize
   instructions/      the always-on working agreement
   context/           shared contracts: roles, run folder, findings schema
   skills/            reusable skills (e.g. mining past transcripts for corrections)

@@ -1,7 +1,8 @@
 """Which work packages run in parallel, and why the rest run in series.
 
   python -I .fyzxsflow/package/engine/waves.py check --run <run> [--json]
-      -> the wave table ("wave 1: WP-01 | wave 2: WP-02, WP-03 (parallel)"), then any problems. Exit 0 = the plan
+      -> the wave table ("wave 1: WP-01 (done) | wave 2: WP-02, WP-03 (parallel)"; packages with `status: done`
+         are marked and never built again), then any problems. Exit 0 = the plan
          holds, 1 = a problem (listed), 2 = usage.
 
 A wave is the packages whose every `depends_on` is in an earlier wave; the packages of one wave run in parallel
@@ -67,7 +68,7 @@ def parse(path: pathlib.Path) -> dict:
             for tok in BACKTICK.findall(line) or [line]:
                 modes.update(m for m in MODE.findall(tok) if m not in ("scope", "run", "root", "allow-destructive"))
     return {"id": wp, "file": path.name, "depends_on": deps, "scope": sorted(scope), "reasons": reasons,
-            "modes": sorted(modes)}
+            "modes": sorted(modes), "done": meta.get("status", "").lower() == "done"}
 
 
 def load(run: pathlib.Path) -> list:
@@ -153,10 +154,12 @@ def cmd_check(args) -> int:
     if args.json:
         print(json.dumps({"waves": out, "max_parallel": cap, "problems": problems, "warnings": warnings}, indent=2))
     else:
+        done = {p["id"] for p in load(run) if p["done"]}
         parts = []
         for n, w in enumerate(out, 1):
-            note = f" (parallel, {min(len(w), cap)} at a time)" if len(w) > 1 else ""
-            parts.append(f"wave {n}: {', '.join(w)}{note}")
+            left = [i for i in w if i not in done]
+            note = f" (parallel, {min(len(left), cap)} at a time)" if len(left) > 1 else ""
+            parts.append(f"wave {n}: {', '.join(i + (' (done)' if i in done else '') for i in w)}{note}")
         print(" | ".join(parts) if parts else "no packages")
         for w in warnings:
             print(f"warning: {w}")

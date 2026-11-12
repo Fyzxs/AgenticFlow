@@ -7,7 +7,7 @@ How FyzxsFlow maps onto Claude Code. Claude Code is the host the flow has been t
 - `.claude/agents/<name>.md`: each agent, with `model:` set from its tier (`config.json` → `models.claude`)
   and the project's Learned entries from `.fyzxsflow/learned/<name>.md` appended (after any compacted
   overlay from `.fyzxsflow/compacted/` is copied over the package file);
-- `.claude/commands/<prompt>.md`: `/flow`, `/fyzxsflow-init`, `/fyzxsflow-greenfield` and `/fyzxsflow-compact`, with the user's text as
+- `.claude/commands/<prompt>.md`: `/flow`, `/fyzxsflow-init`, `/fyzxsflow-greenfield`, `/fyzxsflow-compact` and `/fyzxsflow-parallelize`, with the user's text as
   `$ARGUMENTS`;
 - `.claude/rules/fyzxsflow-working-agreement.md`: the always-on working agreement;
 - the kill-by-name guard, merged into `.claude/settings.json` as a `PreToolUse` hook on `Bash|PowerShell`:

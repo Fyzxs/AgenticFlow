@@ -29,6 +29,7 @@ at every run start and hand-off (`.fyzxsflow/package/engine/feedback.py`). Handl
                        its tier, dispatched model and self-reported model (run.py stamp / run.py models)
     work-summarizer.md, code-indicator.md          Intake, Locate
     build-coordinator.plan.md                      the plan: packages with their waves, contract checks
+    build-coordinator.parallelize.md               a plan re-ordered for parallel lanes (/fyzxsflow-parallelize)
     WP-01.implementer.md, WP-01.tester.md          per package (WP-01.iac-implementer.md for IaC)
     WP-01.validator.implementer.md                 a Validator on <target>: <id>.validator.<target>.md
     build-coordinator.execute.md                   Build's close-out: every criterion traced to evidence

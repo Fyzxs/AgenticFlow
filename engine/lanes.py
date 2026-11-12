@@ -3,7 +3,8 @@
   python -I .fyzxsflow/package/engine/lanes.py open --run <run> --wave <n>
       -> one line per lane opened: "lane <WP> <worktree path> <branch>"; "waiting <WP>" for packages beyond
          config.json -> build.max_parallel (open them after this batch merges); "in place <WP>" when the wave has a
-         single package (no lane: build it in the run's own checkout, as before). Exit 1 if waves.py check fails or
+         single package left (no lane: build it in the run's own checkout, as before); "done <WP>" for packages
+         already built (`status: done`), which are never built again. Exit 1 if waves.py check fails or
          the run's checkout has uncommitted product changes (a lane would not see them).
   python -I .fyzxsflow/package/engine/lanes.py status --run <run>
   python -I .fyzxsflow/package/engine/lanes.py merge --run <run> --wave <n>
@@ -84,7 +85,13 @@ def cmd_open(args) -> int:
     if not 1 <= args.wave <= len(out):
         print(f"no wave {args.wave}: the plan has {len(out)}", file=sys.stderr)
         return 2
-    wave = out[args.wave - 1]
+    done = {p["id"] for p in wmod.load(run) if p["done"]}
+    for wp in out[args.wave - 1]:
+        if wp in done:
+            print(f"done {wp}")
+    wave = [wp for wp in out[args.wave - 1] if wp not in done]
+    if not wave:
+        return 0
     if len(wave) == 1:
         print(f"in place {wave[0]}")
         return 0

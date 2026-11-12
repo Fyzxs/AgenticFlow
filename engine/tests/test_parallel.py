@@ -173,6 +173,18 @@ class LanesTests(ParallelBase):
         self.assertEqual(len(self.git("worktree", "list").stdout.splitlines()), 1)
         self.assertNotIn("fyzxsflow-lanes", self.git("branch").stdout)
 
+    def test_a_replanned_run_never_rebuilds_a_done_package(self):
+        self.plan()
+        wp1 = self.run / "work-packages" / "WP-01-x.md"
+        wp1.write_text(wp1.read_text(encoding="utf-8").replace("status: planned", "status: done"), encoding="utf-8")
+        self.commit_all()
+        self.assertIn("wave 1: WP-01 (done), WP-02, WP-03 (parallel, 2 at a time)",
+                      self.py("waves.py", "check", "--run", str(self.run))[1])
+        code, out = self.lanes("open", "--wave", "1")
+        self.assertEqual(code, 0, out)
+        self.assertIn("done WP-01", out)
+        self.assertEqual(sorted(self.opened(out)), ["WP-02", "WP-03"])
+
     def test_a_conflict_the_plan_missed_falls_back_to_series(self):
         self.plan()
         self.commit_all()

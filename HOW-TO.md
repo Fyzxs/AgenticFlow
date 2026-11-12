@@ -236,7 +236,10 @@ python -I .fyzxsflow/package/engine/waves.py check --run <run>
 ```
 
 It fails when two packages of one wave change the same file, on a dependency cycle, or on a dependency without a
-reason. To widen the waves, the planner puts shared contracts in a small early package, edits to hotspot files
+reason. A run planned before this existed (or planned too serially) can be re-ordered with
+**`/fyzxsflow-parallelize [run id]`**. It keeps the dependencies that have a real reason, removes the ones that
+were only plan order, and leaves every package's content and every package already built untouched. Then
+`/flow resume` continues the run with the new waves. To widen the waves, the planner puts shared contracts in a small early package, edits to hotspot files
 (route tables, registrations) in one small package at the end, and splits a large package so lanes stay balanced.
 
 How many lanes run at once is `config.json` → `build.max_parallel` (default 3; `1` builds in series). Each lane

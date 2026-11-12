@@ -96,3 +96,13 @@ running the Runner with `--root <lane>` and writing its report to the run folder
 wave 2 came back `in place`, and `lanes.py close` removed the worktrees and lane branches. The engine tests also
 cover a same-file overlap refused by `waves.py`, a conflict the plan missed falling back to series, uncommitted
 lane work never being merged, a run in its own worktree, and Runner locks shared across checkouts.
+
+## Re-ordering an existing plan (2026-11-12)
+`/fyzxsflow-parallelize [run id]` runs the Build Coordinator's Parallelize mode on a run planned before lanes (or
+too serially). It keeps a dependency only with a cited reason, removes plan-order-only ones, adds missing ones,
+and changes nothing else; packages with `status: done` are never edited or rebuilt (`waves.py` marks them, and
+`lanes.py open` skips them). Trial: a four-package chain with WP-01 done became `wave 1: WP-01 (done), WP-02,
+WP-03 (parallel) | wave 2: WP-04`, with the checkout package's two real contract dependencies cited and the three
+plan-order ones removed. Fixed from the trial: the checkpoint needs the run folder's path, an `ac_trace` problem
+that predates the re-order is reported rather than fixed, a dependency on a done package leaves that package
+untouched, and the re-order is logged in the ledger.
