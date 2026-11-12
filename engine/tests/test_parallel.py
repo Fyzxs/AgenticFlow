@@ -127,7 +127,36 @@ class WavesTests(ParallelBase):
         self.wp("WP-02", ["src/b.py"], mode="db")
         code, out = self.waves()
         self.assertEqual(code, 0, out)
-        self.assertIn("share the Runner lock local-db", out)
+        self.assertIn("warning: lock local-db: 2 groups' done-checks queue one at a time when their lanes overlap "
+                      "(WP-01, WP-02)", out)
+
+    def test_one_warning_per_lock_naming_every_group_and_pairs_on_request(self):
+        for wp, f in (("WP-01", "src/a.py"), ("WP-02", "src/b.py"), ("WP-03", "src/c.py")):
+            self.wp(wp, [f], mode="db")
+        code, out = self.waves()
+        self.assertEqual(code, 0, out)
+        self.assertEqual([l for l in out.splitlines() if l.startswith("warning")],
+                         ["warning: lock local-db: 3 groups' done-checks queue one at a time when their lanes "
+                          "overlap (WP-01, WP-02, WP-03)"])
+        self.assertNotIn("may build at the same time", out)
+        verbose = self.py("waves.py", "check", "--run", str(self.run), "--verbose")[1]
+        self.assertEqual(verbose.count("  lock local-db:"), 3)
+        data = json.loads(self.py("waves.py", "check", "--run", str(self.run), "--json")[1])
+        self.assertEqual(len(data["lock_pairs"]), 3)
+
+    def test_a_dependency_chain_sharing_a_lock_is_no_warning(self):
+        self.wp("WP-01", ["src/a.py"], mode="db")
+        self.wp("WP-02", ["src/b.py"], deps=["WP-01"], mode="db")
+        self.assertNotIn("warning", self.waves()[1])
+
+    def test_a_pair_with_a_done_group_is_neither_a_lock_warning_nor_a_file_problem(self):
+        self.wp("WP-01", ["src/a.py", "src/shared.py"], mode="db")
+        self.wp("WP-02", ["src/b.py", "src/shared.py"], mode="db")
+        self.done("WP-01")
+        code, out = self.waves()
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("warning", out)
+        self.assertIn("info (done packages, left as they are): groups WP-01 and WP-02", out)
 
     def test_a_lock_is_seen_when_the_done_check_names_the_mode_in_prose(self):
         self.wp("WP-01", ["src/a.py"], mode="quick")
@@ -136,7 +165,7 @@ class WavesTests(ParallelBase):
             f = self.run / "work-packages" / f"{wp}-x.md"
             f.write_text(f.read_text(encoding="utf-8").replace("- Runner: `--quick --scope project`", "- `db` passes"),
                          encoding="utf-8")
-        self.assertIn("share the Runner lock local-db", self.waves()[1])
+        self.assertIn("warning: lock local-db: 2 groups' done-checks queue one at a time", self.waves()[1])
 
     def done(self, wp_id):
         f = next((self.run / "work-packages").glob(f"{wp_id}-*.md"))

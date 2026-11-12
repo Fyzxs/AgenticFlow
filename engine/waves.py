@@ -1,6 +1,6 @@
 """Which work packages run in parallel, which share a PR, and why the rest run in series.
 
-  python -I .fyzxsflow/package/engine/waves.py check --run <run> [--json]
+  python -I .fyzxsflow/package/engine/waves.py check --run <run> [--json] [--verbose]
       -> the done packages, the wave table of what is left ("wave 1: WP-02, WP-03 (parallel, 2 at a time) | wave 2:
          WP-04"), the PR groups and what each waits for, then any problems. Exit 0 = the plan holds, 1 = a problem
          (listed), 2 = usage.
@@ -22,8 +22,10 @@ Fails when:
   - a `depends_on` entry has no reason in the package's `## Series reasons` section:
         - WP-01: contract — consumes the OrderExport interface WP-01 defines
     with one of the reasons: contract, same file, shared resource, risk first.
-Warns when two such groups use Runner modes holding the same lock (config.json "lock"): their done-checks wait for
-each other, which is safe but slower.
+Warns once per Runner lock (config.json "lock") that two or more not-done groups which may build at the same time
+share: their done-checks queue one at a time, which is safe but slower. The line names every such group; --verbose
+(and --json, as lock_pairs) lists the pairs behind it. A group that is done never builds again, so a pair with a done
+group is never a lock warning, and a file both change is info, not a problem.
 A problem that names only done packages is reported as info, never a failure: done packages are left exactly as
 they are, so a run planned before these rules can still go on.
 """
@@ -170,6 +172,12 @@ def waiting(packages: list, completed: set) -> list:
 
 def check(run: pathlib.Path):
     """(waves, problems, warnings, info). A problem that names only done packages is info."""
+    d = check_detail(run)
+    return d["waves"], d["problems"], d["warnings"], d["info"]
+
+
+def check_detail(run: pathlib.Path) -> dict:
+    """Everything check() finds, plus the lock pairs behind each lock warning."""
     packages = load(run)
     by_id = {p["id"]: p for p in packages}
     done = {p["id"] for p in packages if p["done"]}
@@ -198,25 +206,34 @@ def check(run: pathlib.Path):
         if g in ds:
             found.append((f"group {g} depends on itself through: {', '.join(sorted(ds - {g}))}", set(members[g])))
     names = list(members)
+    finished = done_groups(packages)
+    pairs = []  # (lock, group a, group b) for not-done groups that may build at the same time
     for i, a in enumerate(names):
         for b in names[i + 1:]:
             if b in reach[a] or a in reach[b]:
                 continue
             pa, pb = [by_id[x] for x in members[a]], [by_id[x] for x in members[b]]
+            either_done = a in finished or b in finished  # a done group never builds again
             shared = sorted({f for p in pa for f in p["scope"]} & {f for p in pb for f in p["scope"]})
             if shared:
-                found.append((f"groups {a} and {b} may build at the same time but both change {', '.join(shared)}: "
-                              "make one depend on the other (reason: same file), or move that edit to an "
-                              "integration package", set(members[a]) | set(members[b])))
+                text = (f"groups {a} and {b} may build at the same time but both change {', '.join(shared)}: "
+                        "make one depend on the other (reason: same file), or move that edit to an "
+                        "integration package")
+                found.append((text, done if either_done else set(members[a]) | set(members[b])))
+            if either_done:
+                continue
             locks = {(modes.get(m) or {}).get("lock") for p in pa for m in p["modes"]} & \
                     {(modes.get(m) or {}).get("lock") for p in pb for m in p["modes"]}
             locks.discard(None)
-            if locks and not all(p["done"] for p in pa + pb):
-                warnings.append(f"groups {a} and {b} share the Runner lock {', '.join(sorted(locks))}: their "
-                                "done-checks will wait for each other")
+            pairs += [(lock, a, b) for lock in sorted(locks)]
+    for lock in sorted({l for l, _, _ in pairs}):
+        sharing = [g for g in names if any(l == lock and g in (a, b) for l, a, b in pairs)]
+        warnings.append(f"lock {lock}: {len(sharing)} groups' done-checks queue one at a time when their lanes "
+                        f"overlap ({', '.join(sharing)})")
     problems = [t for t, ids in found if not ids <= done]
     info = [t for t, ids in found if ids <= done]
-    return out, problems, warnings, info
+    return {"waves": out, "problems": problems, "warnings": warnings, "info": info,
+            "lock_pairs": [{"lock": l, "groups": [a, b]} for l, a, b in pairs]}
 
 
 def cmd_check(args) -> int:
@@ -224,7 +241,8 @@ def cmd_check(args) -> int:
     if not (run / "work-packages").is_dir():
         print(f"{run}: no work-packages/ folder", file=sys.stderr)
         return 2
-    out, problems, warnings, info = check(run)
+    detail = check_detail(run)
+    out, problems, warnings, info = detail["waves"], detail["problems"], detail["warnings"], detail["info"]
     cap = max_parallel(run)
     packages = load(run)
     members, deps = groups(packages), group_deps(packages)
@@ -232,7 +250,8 @@ def cmd_check(args) -> int:
     if args.json:
         print(json.dumps({"done": done, "waves": out, "groups": members,
                           "group_deps": {g: sorted(d) for g, d in deps.items()}, "max_parallel": cap,
-                          "problems": problems, "warnings": warnings, "info": info}, indent=2))
+                          "problems": problems, "warnings": warnings, "lock_pairs": detail["lock_pairs"],
+                          "info": info}, indent=2))
     else:
         parts = [f"wave {n}: {', '.join(w)}" + (f" (parallel, {min(len(w), cap)} at a time)" if len(w) > 1 else "")
                  for n, w in enumerate(out, 1)]
@@ -246,6 +265,9 @@ def cmd_check(args) -> int:
             print(f"group {g}: {', '.join(ids)}; after {', '.join(sorted(deps[g])) or 'nothing'}")
         for w in warnings:
             print(f"warning: {w}")
+        if args.verbose:
+            for pair in detail["lock_pairs"]:
+                print(f"  lock {pair['lock']}: {pair['groups'][0]} and {pair['groups'][1]} may build at the same time")
         for i in info:
             print(f"info (done packages, left as they are): {i}")
         for p in problems:
@@ -258,6 +280,7 @@ def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("check"); c.add_argument("--run", required=True); c.add_argument("--json", action="store_true")
+    c.add_argument("--verbose", action="store_true", help="also list each pair of groups behind a lock warning")
     args = p.parse_args(argv)
     return cmd_check(args)
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1 (2026-11-12)
+- `waves.py check` prints one warning per Runner lock, naming every not-done group that shares it, instead of one
+  line per pair (a 45-package plan went from about 120 lines to 1). The pairs are under `--verbose` and in `--json`
+  (`lock_pairs`).
+- A pair with a done group is never a lock warning, and a file both change is info, not a problem: a done group
+  never builds again.
+
 ## 0.3.0 (2026-11-12)
 The installed `INSTALLED.json` said 0.2.0 across every change below; from here each release bumps the version.
 
