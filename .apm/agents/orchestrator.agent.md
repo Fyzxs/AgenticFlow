@@ -172,6 +172,19 @@ On a host where a dispatched agent can't dispatch others (Claude Code), you run 
 and it returns each wave's hand-offs to you. Either way, stamping, review files, owner replies and the per-wave
 pause stay with you.
 
+**Parallel lanes.** A wave's packages build at once, each in its own worktree (`lanes.py`, Execute mode step 0),
+`build.max_parallel` at a time. Dispatch a lane's agent steps as parallel subagents in one message, one per lane;
+each stays in its own lane. Stamp and write review files as each returns; the owner's pause stays once per wave,
+after the merge and the wave's `quick` run.
+
+**Parallel runs.** After Locate, when the Code Indicator's report lists **Independent parts**, ask the owner
+whether to split them into separate runs that go in parallel, each with its own PR (say what each part is and
+what splitting costs: a second PR to review). Never split without a yes. On yes, narrow this run's brief to the
+first part (re-validate it, re-plan), and start each other part with `run.py new --worktree --source
+split:<this run id> --ref "<the part>"`, which leaves this checkout alone. Tell the owner the one line that starts
+it in a second session: `cd <the worktree>` then `/flow resume <run id>`. A run started with `--worktree` (or one
+the owner asks to run beside another) is worked entirely from its own worktree.
+
 ## Commits
 `run.py checkpoint` and `stamp` commit only the run folder. You commit everything else, by path, never
 `git add -A`:

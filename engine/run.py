@@ -1,15 +1,17 @@
 """Create and track fyzxsflow run folders.
 
-  python -I engine/run.py new --source prompt --ref "add a pull list page" [--branch <name> | --stay]
+  python -I engine/run.py new --source prompt --ref "add a pull list page" [--branch <name> | --stay | --worktree]
       -> prints the run folder. In a git repo it first creates and switches to the run's working branch
          (default fyzxsflow/<run-id>) from HEAD, and records branch, base commit and base branch in input.md;
-         --stay keeps the current branch (only when the owner asks for it)
+         --stay keeps the current branch (only when the owner asks for it); --worktree leaves this checkout alone
+         and gives the run its own worktree beside the repo (<repo>.runs/<run-id>/), so several runs can be in
+         flight at once: work on that run from there
   python -I engine/run.py log <run-dir> <stage> <status> "<message>"          -> appends a ledger line
   python -I engine/run.py status <run-dir> [--lines 8]                        -> prints the latest ledger lines
   python -I engine/run.py checkpoint <run-dir> <stage>                        -> commits the run folder (only it)
   python -I engine/run.py edits <run-dir> [--record]                          -> lists files changed since the last checkpoint
   python -I engine/run.py close <run-dir> --outcome completed|abandoned [--note "PR #12"]
-  python -I engine/run.py list [--root .]                                      -> active runs with their last ledger line
+  python -I engine/run.py list [--root .]          -> active runs in every worktree of the repo, with their last ledger line
   python -I engine/run.py packages <run-dir> [--current WP-04 [--agent implementer]]
       -> the plan with each package's status; with --current, "Package n of N: <title>", done packages, the next
          package, and (with --agent) the readable review file name reviews/<package file stem>.<agent>.md
@@ -82,6 +84,25 @@ def slug(text: str) -> str:
     return (s[:30].rstrip("-")) or "run"
 
 
+def run_worktree(root: pathlib.Path, run_id: str, name: str):
+    """A new worktree beside the repo for this run, on its own branch from HEAD; the current checkout is untouched.
+    Returns (the worktree's root, frontmatter lines, ledger note) or exits 2."""
+    if git(root, "rev-parse", "--git-dir").returncode != 0:
+        raise SystemExit("--worktree needs a git repository")
+    head = git(root, "rev-parse", "HEAD")
+    if head.returncode != 0:
+        raise SystemExit("the repository has no commits yet: commit something before starting a run")
+    top = pathlib.Path(git(root, "rev-parse", "--show-toplevel").stdout.strip()).resolve()
+    base, current = head.stdout.strip(), git(root, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    branch = name or f"{HOME[1:]}/{run_id}"
+    path = top.parent / f"{top.name}.runs" / run_id
+    made = git(root, "worktree", "add", "-q", "-b", branch, str(path), "HEAD")
+    if made.returncode != 0:
+        raise SystemExit(f"could not create the run's worktree: {made.stderr.strip()}")
+    return path, [f"branch: {branch}", f"base: {base}", f"base_branch: {current}", f"worktree: {path}"], \
+        f"branch={branch} from {current}@{base[:9]} in worktree {path}"
+
+
 def working_branch(root: pathlib.Path, run_id: str, name: str, stay: bool):
     """Create and switch to the run's branch from HEAD. Returns (frontmatter lines, ledger note) or exits 2."""
     if git(root, "rev-parse", "--git-dir").returncode != 0:
@@ -103,11 +124,14 @@ def cmd_new(args) -> int:
     root = pathlib.Path(args.root).resolve()
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
     run_id = f"{stamp}-{slug(args.ref)}"
+    if args.worktree:
+        root, meta, branch_note = run_worktree(root, run_id, args.branch)
     run = root / HOME / "runs" / "active" / run_id
     if run.exists():
         print(f"{run} already exists", file=sys.stderr)
         return 2
-    meta, branch_note = working_branch(root, run_id, args.branch, args.stay)
+    if not args.worktree:
+        meta, branch_note = working_branch(root, run_id, args.branch, args.stay)
     for sub in ("work-packages", "reports", "runner"):
         (run / sub).mkdir(parents=True, exist_ok=False)
     front = "\n".join([f"source: {args.source}", f"run: {run_id}", *meta])
@@ -541,17 +565,39 @@ def cmd_ship_check(args) -> int:
     return 0 if ready else 1
 
 
+def checkouts(root: pathlib.Path) -> list:
+    """This checkout first, then the repo's other worktrees that hold runs (not parallel-build lanes)."""
+    out = [root]
+    listing = git(root, "worktree", "list", "--porcelain")
+    if listing.returncode == 0:
+        for line in listing.stdout.splitlines():
+            if line.startswith("worktree "):
+                p = pathlib.Path(line[len("worktree "):]).resolve()
+                if p != root and "fyzxsflow-lanes" not in p.parts:
+                    out.append(p)
+    return out
+
+
 def cmd_list(args) -> int:
-    runs = pathlib.Path(args.root).resolve() / HOME / "runs"
-    for state in ("active", "completed", "abandoned"):
-        folders = sorted(p for p in (runs / state).glob("*") if p.is_dir()) if (runs / state).is_dir() else []
-        if state != "active":
-            print(f"{state}: {len(folders)}")
-            continue
-        print(f"active: {len(folders)}")
-        for f in folders:
-            rows = [l for l in (f / "ledger.md").read_text(encoding="utf-8").splitlines() if l.startswith("| 20")]
-            print(f"  {f.name}  {rows[-1] if rows else ''}")
+    root = pathlib.Path(args.root).resolve()
+    runs = root / HOME / "runs"
+    seen, active = set(), []
+    for checkout in checkouts(root):
+        folder = checkout / HOME / "runs" / "active"
+        for f in sorted(p for p in folder.glob("*") if p.is_dir()) if folder.is_dir() else []:
+            if f.name in seen:
+                continue
+            seen.add(f.name)
+            active.append((f, checkout))
+    print(f"active: {len(active)}")
+    for f, checkout in active:
+        rows = [l for l in (f / "ledger.md").read_text(encoding="utf-8").splitlines() if l.startswith("| 20")] \
+            if (f / "ledger.md").exists() else []
+        where = "" if checkout == root else f"  (worktree {checkout})"
+        print(f"  {f.name}  {rows[-1] if rows else ''}{where}")
+    for state in ("completed", "abandoned"):
+        folders = [p for p in (runs / state).glob("*") if p.is_dir()] if (runs / state).is_dir() else []
+        print(f"{state}: {len(folders)}")
     return 0
 
 
@@ -675,6 +721,8 @@ def main(argv=None) -> int:
     nb = n.add_mutually_exclusive_group()
     nb.add_argument("--branch", default="", help="working branch name (default fyzxsflow/<run-id>)")
     nb.add_argument("--stay", action="store_true", help="work on the current branch (only when the owner asks)")
+    nb.add_argument("--worktree", action="store_true",
+                    help="give the run its own worktree beside the repo, so several runs can be in flight at once")
     l = sub.add_parser("log")
     l.add_argument("run"); l.add_argument("stage"); l.add_argument("status"); l.add_argument("note")
     s = sub.add_parser("status")

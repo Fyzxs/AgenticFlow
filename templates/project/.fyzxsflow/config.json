@@ -6,6 +6,9 @@
       "copilot"
     ]
   },
+  "build": {
+    "max_parallel": 3
+  },
   "models": {
     "claude": {
       "deep": "opus",

@@ -17,6 +17,7 @@ Sections:
 - [`models`](#models): which model each tier runs on
 - [`compare`](#compare): model compare, which tests whether a cheaper tier is good enough
 - [`docs`](#docs): doc size budget and which hosts get doc pointers
+- [`build`](#build): how many work packages build in parallel
 - [`gates_policy`](#gates_policy): when inferred acceptance criteria need your sign-off
 
 A key you leave out takes its default. Defaults are given below.
@@ -251,6 +252,16 @@ Nothing changes a tier automatically; the Curator proposes it where the summary 
 |---|---|---|
 | `pack_budget_kb` | `24` | largest context pack (a segment doc plus the docs it pulls in) an agent is handed; `docs_check.py` fails above it |
 | `host_pointers` | `["claude", "copilot"]` | hosts that get per-segment pointer files (`.claude/rules/`, `.github/instructions/`) so their own agents find the docs too |
+
+## build
+
+```json
+"build": { "max_parallel": 3 }
+```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `max_parallel` | `3` | how many work packages of one wave build at once, each in its own git worktree (`engine/lanes.py`). Each lane is a full Implementer, Validator, Tester, Validator and done-check chain, so this multiplies token cost and machine load while it runs. `1` builds every package in series |
 
 ## gates_policy
 

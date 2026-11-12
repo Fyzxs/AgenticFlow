@@ -22,7 +22,8 @@ A mode with no steps (and no "not_applicable") is a configuration error: exit 2,
 A service with a "port" fails the mode if that port is already answering before it starts (a stale process
 would otherwise be taken for it), or if the started process exits before the port answers.
 A mode with "lock": "<name>" (e.g. "local-db") refuses to start while another mode holding that lock runs, so two
-writers never share a resource.
+writers never share a resource. Locks are shared by every checkout of the repo (the git common directory), so
+parallel lanes and parallel runs wait for each other too.
 
 A mode's "network" says what it may reach (recorded in the summary):
   "connected"  it may call the external (never production) services the project approved (.fyzxsflow/e2e.md);
@@ -206,9 +207,19 @@ def pid_alive(pid: int) -> bool:
     return True
 
 
+def lock_dir(root: pathlib.Path) -> pathlib.Path:
+    """One lock folder for every checkout of the repo (lanes and parallel runs are worktrees): the git common
+    directory when there is one, else the checkout's own run folder."""
+    out = subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=root, capture_output=True, text=True)
+    if out.returncode == 0 and out.stdout.strip():
+        common = pathlib.Path(out.stdout.strip())
+        return (common if common.is_absolute() else root / common).resolve() / "fyzxsflow-locks"
+    return root / HOME / "runs" / "_adhoc" / "locks"
+
+
 def take_lock(root: pathlib.Path, name: str, mode: str):
     """Returns the lock file on success, or the holder's description when another live runner holds it."""
-    path = root / HOME / "runs" / "_adhoc" / "locks" / f"{name}.json"
+    path = lock_dir(root) / f"{name}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
         try:

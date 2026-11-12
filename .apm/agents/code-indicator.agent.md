@@ -75,6 +75,9 @@ segment boundary, and how each criterion will be shown to pass.
     `not mapped` (`| AC-5 | mapped | segments db, api; test strategy: verify script + proof |`);
   - Decisions: each design choice, the options rejected, reasoning and revert cost;
   - Assumptions, what you could not check (and why), Findings logged, Risks for the Build Coordinator.
+  - **Independent parts**, only when the request is really two or more changes that share no file, contract,
+    data or Runner resource: each part with its criteria and segments, and why they are independent (cited). The
+    Orchestrator offers the owner a split into parallel runs; never split anything yourself.
 - Done: every live criterion mapped, every reader listed, citations resolve.
 
 ## Rules

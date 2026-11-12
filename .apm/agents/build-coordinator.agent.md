@@ -36,8 +36,17 @@ traces every criterion to evidence you opened, so the delivery check and the PR 
 2. **Group them into packages,** one segment each. Keep together what must change at once: an interface and
    every implementer, fakes included; a generated file and its source; whatever a parity or contract test needs
    in one commit; a change and the existing tests it turns red. Split along a line that leaves everything green.
-3. **Order them** (`depends_on`, `blocks`) and form waves: a wave is the packages that can run before any package
-   that depends on them.
+3. **Order them for parallel work.** A wave is the packages that can run before any package that depends on
+   them; its packages build at once, each in its own lane (`build.max_parallel` at a time). Run in series only
+   what must be: every `depends_on` entry gets a line under `## Series reasons` with one of `contract` (it
+   consumes what the other produces), `same file` (both change a file), `shared resource` (a locked Runner mode)
+   or `risk first`. To widen the waves:
+   - **Contract first:** put an interface, schema or API shape in a small early package, so its consumers build in
+     parallel next instead of in a chain.
+   - **Hotspot files last:** edits every feature needs in one file (route tables, dependency registration, a
+     shared enum) go in one small integration package at the end, so they don't serialise the rest.
+   - **Balanced lanes:** a wave is as slow as its biggest package; split a large one along a green line.
+   Two packages of one wave never change the same file: the lanes would collide when they merge.
 4. **Write each package** from `.fyzxsflow/package/templates/run/work-package.md`, every section filled:
    criteria (`- Serves:`, then `**WP-nn.n**` lines; mark Tester-owned ones after the bold id, `- **WP-nn.n** (Tester): ...`,
    never inside it; name each existing test
@@ -54,7 +63,8 @@ traces every criterion to evidence you opened, so the delivery check and the PR 
    the segment's first instance names it, in its done-check, as the canonical example to be. In a greenfield run
    the first package makes the build and the Runner's `quick` and `ci` modes real, so no later package lands on a
    broken build.
-6. **Check:** `python -I .fyzxsflow/package/engine/ac_trace.py --run <run>` passes, and `python -I
+6. **Check:** `python -I .fyzxsflow/package/engine/waves.py check --run <run>` and
+   `python -I .fyzxsflow/package/engine/ac_trace.py --run <run>` pass, and `python -I
    .fyzxsflow/package/engine/checks.py citations <run>/work-packages/*.md <run>/reports/build-coordinator.plan.md`
    exits 0.
 
@@ -65,8 +75,17 @@ section (escalation, model compare) on every dispatch.
 With preceptee mode on (`steps.py enabled precept`), the Orchestrator's **Preceptee mode** decides, per
 package, whether the preceptee or the agent writes the Implementer and Tester steps; everything after each step
 (validator, Runner, contract checks, tracing) is the same either way.
-1. **Each package of the wave**, in plan order (in parallel only in separate worktrees whose base already holds
-   every package they depend on; while that work is uncommitted, one after another):
+0. **Lanes.** For a wave of more than one package, `python -I .fyzxsflow/package/engine/lanes.py open --run <run>
+   --wave <n>` gives each package (up to `build.max_parallel`) its own worktree, cut from the run branch after the
+   previous wave merged. Dispatch every lane's chain below at once (one message, one subagent per agent step,
+   each told its lane path: it works only there, writes its report to the run folder, and runs the Runner with
+   `--root <lane>`). A single-package wave (`in place`) builds in the run's own checkout. Commit each lane by path,
+   in the lane, from its reports' changed files; then `lanes.py merge --run <run> --wave <n>` merges them in plan
+   order. A `conflict` package re-runs in series on top of the merged branch, with a `replan` finding for the
+   overlap the plan missed. Open the `waiting` packages and repeat. Once the wave is merged, run
+   `runner.py quick --run <run>` on the run branch, so the merged packages are green together (a failure goes back
+   to the package whose files it names), then `lanes.py close --run <run>`.
+1. **Each package of the wave**, in plan order (in its lane when the wave has lanes):
    1. `status: building`; `python -I .fyzxsflow/package/engine/run.py log <run> build started "<stem>: implementer"`;
    2. `implementer` (`iac-implementer`, with the IaC context pack, for pipelines and infrastructure), given the
       package path and told to run its done-check through `runner.py`; then `validator` on it (the
@@ -102,8 +121,8 @@ package, whether the preceptee or the agent writes the Implementer and Tester st
 - Plan: `<run>/work-packages/WP-<nn>-<segment>-<what>.md`. `<nn>` is the build order, two digits; `<what>` is 2 to
   5 kebab-case words a person can read without opening the file (`WP-04-api-orders-export-contract`, not
   `WP-04-adapter-postgresql`). The file stem names the package everywhere a person sees it: reviews, reports, the
-  PR. `<run>/reports/build-coordinator.plan.md` (report template): a table `| Package | Segment | Agent | Wave |
-  Depends on | Done check | Size | Serves |`; each test-strategy bullet with its criterion; the contract checks
+  PR. `<run>/reports/build-coordinator.plan.md` (report template): the wave table `waves.py check` prints, then a
+  table `| Package | Segment | Agent | Wave | Depends on (reason) | Done check | Size | Serves |`; each test-strategy bullet with its criterion; the contract checks
   for execute mode; Decisions (reasoning, revert cost); items for the plan gate and the Orchestrator; a criteria
   table, one row per brief criterion (`| AC-3 | served | WP-01, WP-03 |`).
 - Execute: frontmatter `status:` kept current (`building` when dispatched, `done` when its done-check passes); a

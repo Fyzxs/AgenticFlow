@@ -24,7 +24,8 @@ request ──► Intake ──► Locate ──► Build ──► Prove ──
 - **Intake.** The Work Summarizer turns the request into `brief.md` with numbered acceptance criteria.
 - **Locate.** The Code Indicator maps what changes and where. The Build Coordinator splits it into work
   packages, one per segment of the codebase, each naming the docs it needs.
-- **Build.** One Implementer writes each package and a separate Tester writes its tests. A Validator
+- **Build.** Packages that don't depend on each other build in parallel, each in its own worktree. One
+  Implementer writes each package and a separate Tester writes its tests. A Validator
   checks each output by re-reading the agent's own instructions and acting as that agent.
 - **Prove.** The Build & Test Runner runs your build and test commands. The Gate Analyst runs your
   linters and scanners and decides, per result, whether to send it back, correct it, or move on. With the

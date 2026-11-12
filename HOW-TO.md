@@ -10,6 +10,7 @@ works, see the [README](README.md).
 - [Run the flow](#run-the-flow)
 - [Turn steps off](#turn-steps-off)
 - [Test end to end (opt-in)](#test-end-to-end-opt-in)
+- [Parallel work](#parallel-work)
 - [Precept an engineer (opt-in)](#precept-an-engineer-opt-in)
 - [Models](#models)
 - [What lands in your repo](#what-lands-in-your-repo)
@@ -218,6 +219,38 @@ every process's proxy settings at a closed local port and refuses container star
 watches the connections of every process the mode started. A connection to anything that isn't this machine (or
 an address range you allowed for containers) fails the mode and names the process and the address. One limit:
 processes inside containers aren't watched; `--pull never` proves their images are local.
+
+## Parallel work
+
+The flow builds in parallel wherever the work allows, and in series only where it must.
+
+**Inside a run.** The plan groups work packages into waves. The packages of one wave build at once, each in its
+own git worktree (a *lane*), then merge back into the run's branch in plan order. The next wave starts from the
+merged result. Every series dependency in the plan carries its reason: `contract` (it uses what the other
+produces), `same file`, `shared resource` (a locked Runner mode, such as the local database) or `risk first`. A
+script checks the plan before Build:
+
+```
+python -I .fyzxsflow/package/engine/waves.py check --run <run>
+# wave 1: WP-01, WP-02, WP-03 (parallel, 3 at a time) | wave 2: WP-04
+```
+
+It fails when two packages of one wave change the same file, on a dependency cycle, or on a dependency without a
+reason. To widen the waves, the planner puts shared contracts in a small early package, edits to hotspot files
+(route tables, registrations) in one small package at the end, and splits a large package so lanes stay balanced.
+
+How many lanes run at once is `config.json` → `build.max_parallel` (default 3; `1` builds in series). Each lane
+is a full chain of agents, so more lanes cost more tokens and load the machine more while they run. Runner locks
+are shared by every lane and every run, so two lanes never write to the same local database at once. If a merge
+conflicts anyway, that package is rebuilt in series on top of the others, and the overlap is logged for the
+planner. Lanes live in `.git/fyzxsflow-lanes/` and are removed after their wave; `lanes.py status --run <run>`
+shows them.
+
+**Several runs at once.** When the change map shows that a request is really two independent changes, the flow
+offers to split it into runs that go in parallel, each with its own PR. It only splits if you say yes. A run
+started with `run.py new --worktree` gets its own checkout beside the repo (`<repo>.runs/<run-id>/`), so it never
+switches your current branch. Work on it from there (`cd` into it, then `/flow resume <run id>`).
+`run.py list` shows the active runs in every checkout.
 
 ## Precept an engineer (opt-in)
 

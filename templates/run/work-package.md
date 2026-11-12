@@ -2,7 +2,7 @@
 id: WP-01
 segment: <segment>
 status: planned          # planned | building | done; the Build Coordinator keeps it current
-depends_on: []
+depends_on: []          # packages that must merge first; each needs a line under ## Series reasons
 blocks: []
 ---
 
@@ -24,6 +24,12 @@ blocks: []
 ## Scope
 - create: `path/...`
 - change: `path/...`
+
+## Series reasons
+<!-- One line per depends_on entry: why this package can't build in parallel with it (waves.py checks it).
+     Reasons: contract (consumes what it produces) | same file (both change a file) | shared resource (a locked
+     Runner mode, e.g. the local database) | risk first (a risky package goes alone, early). Delete when none. -->
+- WP-00: contract — <what it consumes from that package>
 
 ## Contract
 - produces | consumes: <shape>
