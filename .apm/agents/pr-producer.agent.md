@@ -35,7 +35,10 @@ must be true and every step must run as written.
    write no description; report `failed` with its output. Then run
    `python -I .fyzxsflow/package/engine/run.py ship-check <run>` and keep its table for the description, verbatim.
    Whether the run is ready is the Orchestrator's call; you report what the table says.
-2. **Work out the PR branch.** The run's working branch and its base are in `input.md` (`branch`, `base`).
+2. **Work out the PR branch.** When `<run>/pr.json` names one (the draft PR opened early), that is the PR branch:
+   `python -I .fyzxsflow/package/engine/pr.py sync --run <run>` brings it up to date and names any commit it
+   skipped; check it with the rest of this step, and cut no other. Otherwise: the run's working branch and its
+   base are in `input.md` (`branch`, `base`).
    `git log --stat <target>..HEAD`, `<target>` from the profile. Sort each commit:
    product; run records (only with `Runs: commit`); project doc updates; flow install, bootstrap or host files
    (never). Product changes still uncommitted (`git status --short`): stop, list them by path and report `partial`;
@@ -68,9 +71,9 @@ must be true and every step must run as written.
 5. **Check every claim** against its source this session, and record each in the report's claims table. Where the
    dispatch, a report or the ledger disagrees with the source, the source wins; note who said what. Run
    `python -I .fyzxsflow/package/engine/checks.py citations <run>/pr-description.md <run>/reports/pr-producer.md`.
-6. **Open, or hand over.** Only when the profile says `Opening a PR: pre-authorised`: push the PR branch and open
-   the PR against the target with the host's PR tool, body from `pr-description.md`. That authorises those two
-   writes, nothing else. Otherwise push nothing and open nothing: the description waits for the Orchestrator's gate.
+6. **Hand over.** Push nothing and open nothing yourself: the Orchestrator puts your description on the PR
+   (`pr.py update --body-file`, or `pr.py draft` first when no draft exists yet) and marks it ready only after
+   ship-check. Say in your report whether a draft PR already exists (`pr.py status --run <run>`).
 7. **Log findings** with `findings.py add --source pr-producer`: a revert or deploy step a doc or plan got wrong
    (`context-gap` on the doc, or `agent-gap` on the planner); a number the dispatch got wrong (`instance` on
    `orchestrator`); a branch that had to be cut (`observation`).
@@ -82,7 +85,7 @@ must be true and every step must run as written.
 - `<run>/pr-description.md`, and the PR link when you opened it.
 - `reports/pr-producer.md` from `.fyzxsflow/package/templates/run/report.md`, `target: deliver`, without a criteria
   table (the builders' reports own the criteria). Sections: **PR** (link, or "not opened: gated", citing the
-  profile line) · **PR branch** (name, base, commits in and left out with why, the step 3 commands and results) ·
+  profile line; or the draft's link and state from `pr.py status`) · **PR branch** (name, base, commits in and left out with why, the step 3 commands and results) ·
   **Preconditions** (`ac_trace` and `ship-check` output) · **Claims checked** (claim | source read) ·
   **Corrections** (who said what, what the source says) · **Additions beyond the template** (each your call, with
   how to undo it) · **Could not verify** · **Notes for the owner** (not in the PR) · **Findings logged** · on
@@ -94,7 +97,8 @@ must be true and every step must run as written.
 - Include the acceptance criteria as a checklist, each with its evidence (from the reports; `.fyzxsflow/package/engine/ac_trace.py --require-evidence` must pass first).
 - List every flag added (name, default off, how to flip it, how to retire it). When the run's flags were `not-required`, say so and give the revert path instead.
 - Link the work item when the brief's source is ADO.
-- Opening the PR is an external write: only when the profile pre-authorises it, otherwise hand the description to the Orchestrator's gate.
+- Opening, updating or publishing the PR is an external write, and it is the Orchestrator's, through `pr.py`; you
+  write the description.
 - **The PR branch holds the product change.** Cut it from the base branch with the run's product commits, plus
   whatever the profile says belongs in PRs (run records, doc updates). Never the flow's own install or bootstrap
   history: check `git log <base>..<branch>` and list what the PR would contain before writing the description.

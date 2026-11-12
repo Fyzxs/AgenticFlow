@@ -33,7 +33,9 @@ request ──► Intake ──► Locate ──► Build ──► Prove ──
   connected mode (approved non-production services only).
 - **Review.** Reviewers chosen by the change check it: narrow (the diff), large (its callers and
   contracts), architecture, security, feature flags, infrastructure.
-- **Deliver.** The PR Producer writes the pull request and the PR Reviewer reads it as a human would.
+- **Deliver.** The PR Producer writes the pull request and the PR Reviewer reads it as a human would. The PR
+  itself opens as a draft with the run's first product commit and is published only when the run passes its
+  checks, so a draft means work in progress and a published PR means ready for your final approval.
   The Curator then routes every finding of the run.
 
 Agents hand off through files in a run folder, never through pasted context, so each one can run on any

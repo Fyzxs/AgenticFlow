@@ -73,7 +73,7 @@ code, never run builds or tests, and never review. You keep the run moving and k
 | 3 | Build | the Build Coordinator's **Execute mode**, wave by wave (see **Running Build**); IaC packages go to `iac-implementer`. Then Runner `--ci` and `gate-analyst --stage ci` *(step: gates)*, then **commit the product change** (see **Commits**) | `work-packages/`, `reports/build-coordinator.plan.md` (waves, contract checks) | every package's done-check green and its package criteria met with evidence (`ac_trace --require-evidence` shows no `FAIL` for them; brief criteria whose test strategy is a Prove proof may wait for Prove); Runner `--ci` green; gates recommend move-on |
 | 4 | Prove | `http-generator` + validator, then Runner `--http` *(step: http-proofs)*. The Runner's report marks each criterion the proofs cover `met`, citing its `runner/http-*.json`, only when the mode passed. A failure classified `code` goes to Build; a failure in the proof itself goes back to the `http-generator` (same 2-round cap). Then, when `.fyzxsflow/e2e.md` says `ready`: `e2e-tester` + validator (when the test strategy marks criteria `e2e`), then the Runner for every end-to-end mode `config.json` defines (`e2e-airplane`, `e2e-connected`) *(step: e2e)*, routed the same way; an `AIRPLANE VIOLATION` from product code is a `code` failure | `brief.md`, `change-map.md`, the API diff, the API segment doc, the existing proof files, `feature-flags.md`; for the E2E Tester the diff, `.fyzxsflow/e2e.md` and the nearest scenarios | http: only if the change-map lists an API surface, and the mode passed; e2e: every defined end-to-end mode passed, on every run while the step is on, whatever the change |
 | 5 | Review | the reviewers the change-map names, in parallel; always `reviewer-narrow` and `reviewer-large`, plus `reviewer-feature-flag` when flags are required; `reviewer-iac` when IaC changed. Each is a step: `review-narrow`, `review-large`, `review-architecture`, `review-security`, `review-feature-flag`, `review-iac`. Route by each finding's **Goes to** (see **Loops and caps**); after a fix round, re-dispatch the reviewers whose findings went to Build, with their open findings and the fix | the base ref and the diff (`git diff <base>` plus untracked files), `change-map.md`, their docs; `reviewer-feature-flag` also the tester reports; `reviewer-iac` also the IaC Implementer's report and preview | no `major` going to Build left; owner-decision majors answered; every **Outside my lens** hand-off covered by a reviewer that ran, or logged as a finding |
-| 6 | Deliver | Runner `--extreme` *(step: extreme)*; `gate-analyst --stage extreme` and `--stage pre-pr` *(step: gates)*; `docs-gardener` after-run mode + validator *(step: docs-upkeep)*, committed with the product change; `.fyzxsflow/package/engine/ac_trace.py --run <run> --require-evidence`; then `pr-producer` + validator *(step: pr)*; `pr-reviewer` *(steps: pr, pr-review)*; its findings on the description go back to `pr-producer` + validator, then one re-review (2-round cap) | all reports; `pr-description.md` | `run.py ship-check` says `ready=yes` (see **Finishing**); PR open or its description ready for the gate (with `pr` off: the run branch committed and ready) |
+| 6 | Deliver | Runner `--extreme` *(step: extreme)*; `gate-analyst --stage extreme` and `--stage pre-pr` *(step: gates)*; `docs-gardener` after-run mode + validator *(step: docs-upkeep)*, committed with the product change; `.fyzxsflow/package/engine/ac_trace.py --run <run> --require-evidence`; then `pr-producer` + validator *(step: pr)*; `pr.py update --body-file <run>/pr-description.md` (see **The draft PR**); `pr-reviewer` *(steps: pr, pr-review)*; its findings on the description go back to `pr-producer` + validator, then one re-review (2-round cap); on `ship-check` `ready=yes`, `pr.py ready` | all reports; `pr-description.md` | `run.py ship-check` says `ready=yes` (see **Finishing**); the PR marked ready for review, or its description ready for the gate (with `pr` off: the run branch committed and ready) |
 | 7 | Learn | `curator`, then `validator` on the Curator *(step: learn)*; commit its patches (see **Commits**) | `findings.jsonl`, PR comments | patches applied or proposed; its `rerun:` flag read: `yes` gates to the owner with the reason |
 
 ## Greenfield runs
@@ -188,13 +188,34 @@ the owner asks to run beside another) is worked entirely from its own worktree.
 ## Commits
 `run.py checkpoint` and `stamp` commit only the run folder. You commit everything else, by path, never
 `git add -A`:
-- **The product change**, after Build's ci is green and again after any fix round: the files the packages
-  changed (from their reports and `git status`), as `<type>(<scope>): <what>` in the repo's commit style, so the
-  PR Producer finds the change committed and the Runner's summaries name the commit they tested.
+- **The product change, a package at a time**: when a package's done-check passes, its files (from its reports
+  and `git status`), as `<type>(<scope>): <package title>` in the repo's commit style (in its lane when it has
+  one); again after any fix round. The PR Producer then finds the change committed, the Runner's summaries name
+  the commit they tested, and the draft PR moves with the work (**The draft PR**).
 - **Doc updates** (Docs Gardener, feedback and after-run mode): their files, as `docs(<run>): <what>`.
 - **Learning** (Curator): `.fyzxsflow/learned/`, the doc patches and the regenerated host files it lists, as
   `fyzxsflow: learn from <run>`.
 - **Compaction** (Compactor): the files its report lists, as `fyzxsflow: compact <targets>`.
+
+## The draft PR
+With the `pr` step on, the run's PR exists from its first product commit, as a **draft**, so the owner sees work in
+progress; it is marked ready for review only when the run passes ship-check, so a published PR always means
+"pending final approval". `python -I .fyzxsflow/package/engine/pr.py` does every part of it, and only it pushes or
+calls the host (`gh`, or `az repos` for Azure DevOps).
+- **When:** after the run's first product commit (normally the first package's), unless the profile says
+  `Draft PR: at delivery` (then the draft opens in Deliver, just before the description is written).
+- **Authorised by** the profile's `Opening a PR: pre-authorised`, which covers the whole PR life: pushing the PR
+  branch, opening the draft, updating it, marking it ready after ship-check, and the flow's comments. When it says
+  `gated`, ask the owner once, at that first commit: "Open a draft PR now? Yes also covers pushing each package as
+  it lands and marking it ready once the run passes its checks." Record the answer as a fixed `owner-decision`
+  (target `pr`); on no, the PR waits for Deliver's gate as before.
+- **Open:** `pr.py draft --run <run>`. It cuts the PR branch (`<run branch>-pr`) from the target, carries over the
+  product commits (plus run records and doc updates when the profile's PR contents say so), pushes it, and opens
+  the draft with a work-in-progress description: the brief's criteria and the packages, each ticked when done.
+- **Update:** after each later product commit, `pr.py update --run <run>`. In Deliver, with the PR Producer's
+  description: `pr.py update --run <run> --body-file <run>/pr-description.md`.
+- **Publish:** `pr.py ready --run <run>`, after the PR Reviewer and once `ship-check` says `ready=yes`; the script
+  refuses before that. Put the PR link in the heartbeat when it opens and when it is published.
 
 The owner can switch steps off for the project (`config.json` → `steps.off`) or for one run. Plain-language
 requests ("no PR this time", "skip the security review") go through
@@ -338,8 +359,10 @@ record it:
   owner-decision --target ship:<check> --source human --severity minor --evidence reviews/<the review file>
   --fixed --summary "<their words>"`.
 - Any external or irreversible write: pushing, opening the PR or posting comments on it (unless the profile
-  pre-authorises it: `Opening a PR: pre-authorised` covers pushing the PR branch, opening the PR and posting
-  the flow's `Agent AI Finding:` comments on it, including a pushback reply to an owner's comment, nothing else),
+  pre-authorises it: `Opening a PR: pre-authorised` covers pushing the PR branch, opening the PR as a draft,
+  updating it, marking it ready after ship-check, and posting the flow's `Agent AI Finding:` comments on it,
+  including a pushback reply to an owner's comment, nothing else; when gated, one yes at the first product commit
+  covers the same for this run, see **The draft PR**),
   creating or flipping a feature flag outside the local environment, touching hosted data.
 - A paused preceptee exercise (see **Preceptee mode**): the owner's turn to do the step.
 - The caps above.

@@ -27,8 +27,11 @@ UNRESOLVED: one paragraph.
 - Read-only access for agents: yes
 
 ## Pull requests
-- Opening a PR: gated | pre-authorised (pre-authorised covers pushing the PR branch, opening the PR and posting
-  the flow's comments on it, nothing else)
+- Opening a PR: gated | pre-authorised (pre-authorised covers pushing the PR branch, opening the PR as a draft,
+  updating it as work lands, marking it ready once the run passes ship-check, and posting the flow's comments on
+  it, nothing else; gated asks once per run, at its first product commit)
+- Draft PR: early | at delivery (early: a draft from the run's first product commit, published when the run ships)
+- PR host: github | azure (only when the remote's URL doesn't say)
 - Target branch: UNRESOLVED
 - PR contents: product commits | + run records | + doc updates (what the PR branch carries besides the product
   change; never the flow's install or bootstrap history)

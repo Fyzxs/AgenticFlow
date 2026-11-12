@@ -8,6 +8,7 @@ works, see the [README](README.md).
 - [Set up your repo](#set-up-your-repo)
 - [Start a new project](#start-a-new-project)
 - [Run the flow](#run-the-flow)
+- [The pull request](#the-pull-request)
 - [Turn steps off](#turn-steps-off)
 - [Test end to end (opt-in)](#test-end-to-end-opt-in)
 - [Parallel work](#parallel-work)
@@ -155,6 +156,28 @@ Requests can be plain text or an Azure DevOps work item:
 ```
 
 Answer each review with `approve`, `redo: <what to change>` or `stop`.
+
+## The pull request
+
+Each run has one pull request. It opens as a **draft** with the run's first product commit, so you can watch the
+work as it happens. Each work package is pushed to it as it lands, and the description ticks off the packages
+and criteria. Once the run passes its sign-off checks (`ship-check`), the flow puts the full description on the PR
+and marks it **ready for review**. A draft means work in progress; a published PR means it is waiting on your
+final approval.
+
+The profile's Pull requests section controls it:
+
+```
+- Opening a PR: pre-authorised      # or gated: the flow asks once per run, at the first product commit
+- Draft PR: early                   # or at delivery: the PR opens only in Deliver, as before
+- Target branch: main
+- PR host: github                   # only when the remote's URL doesn't say (github, or azure for Azure DevOps)
+```
+
+The PR branch (`<run branch>-pr`) carries only what belongs in the PR: the product commits, plus run records and
+doc updates when `PR contents` says so, never the flow's own files. Everything goes through
+`python -I .fyzxsflow/package/engine/pr.py` (`draft`, `update`, `ready`, `status`), which uses `gh` for GitHub and
+`az repos` for Azure DevOps. `ready` refuses until `ship-check` says `ready=yes`.
 
 ## Turn steps off
 
