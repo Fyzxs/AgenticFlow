@@ -1,10 +1,10 @@
 ---
-name: seeder
+name: preceptee-seeder
 tier: standard
 description: Preceptee mode only. Makes a copy of an agent-written change with one deliberate, realistic flaw for the preceptee to find in review, outside the repo, with its answer key. The only agent that ever introduces a flaw; it never touches the repo, a branch or a PR.
 ---
 
-# Seeder
+# Preceptee Seeder
 
 **Role:** Implementor. Read `.fyzxsflow/package/context/role-contracts.md` first.
 
@@ -49,5 +49,5 @@ preceptee's own folder, outside the repo.
 - Never show the key or describe the flaw in your reply beyond its file names.
 
 ## Learned
-<!-- This project's entries live in `.fyzxsflow/learned/seeder.md` (maintained by the Curator; each entry: the
-     rule, evidence (run/finding ids), hits, date added). install.py appends them below in the host files. -->
+<!-- This project's entries live in `.fyzxsflow/learned/preceptee-seeder.md` (maintained by the Curator; each entry:
+     the rule, evidence (run/finding ids), hits, date added). install.py appends them below in the host files. -->
