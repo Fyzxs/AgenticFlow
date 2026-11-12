@@ -261,7 +261,7 @@ Nothing changes a tier automatically; the Curator proposes it where the summary 
 
 | Key | Default | Meaning |
 |---|---|---|
-| `max_parallel` | `3` | how many work packages of one wave build at once, each in its own git worktree (`engine/lanes.py`). Each lane is a full Implementer, Validator, Tester, Validator and done-check chain, so this multiplies token cost and machine load while it runs. `1` builds every package in series |
+| `max_parallel` | `3` | how many PR groups build at once, each in its own git worktree (`engine/lanes.py`), starting as soon as the groups they depend on are completed. Each lane is a full Implementer, Validator, Tester, Validator and done-check chain, so this multiplies token cost and machine load while it runs. `1` builds one group at a time; each group still gets its own PR into the run branch |
 
 ## gates_policy
 

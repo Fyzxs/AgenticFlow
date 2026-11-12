@@ -7,7 +7,7 @@ feature flag, proves it with your own build and test commands, reviews it, and o
 Every mistake along the way is logged as a finding, and the flow turns findings into better agent
 instructions and better repo docs. Each run should need fewer corrections than the one before.
 
-> **Status: early (v0.2.0).** The engine scripts are complete and tested, and all 22 agents are written in
+> **Status: early (v0.3.0).** The engine scripts are complete and tested, and all the agents are written in
 > full, shaped by a first end-to-end trial on a real application. More trials are under way. Expect
 > breaking changes.
 
@@ -24,8 +24,8 @@ request ──► Intake ──► Locate ──► Build ──► Prove ──
 - **Intake.** The Work Summarizer turns the request into `brief.md` with numbered acceptance criteria.
 - **Locate.** The Code Indicator maps what changes and where. The Build Coordinator splits it into work
   packages, one per segment of the codebase, each naming the docs it needs.
-- **Build.** Packages that don't depend on each other build in parallel, each in its own worktree. One
-  Implementer writes each package and a separate Tester writes its tests. A Validator
+- **Build.** Work starts as soon as what it depends on is done, each PR group in its own worktree and with its
+  own PR into the run's branch. One Implementer writes each package and a separate Tester writes its tests. A Validator
   checks each output by re-reading the agent's own instructions and acting as that agent.
 - **Prove.** The Build & Test Runner runs your build and test commands. The Gate Analyst runs your
   linters and scanners and decides, per result, whether to send it back, correct it, or move on. With the
@@ -33,9 +33,10 @@ request ──► Intake ──► Locate ──► Build ──► Prove ──
   connected mode (approved non-production services only).
 - **Review.** Reviewers chosen by the change check it: narrow (the diff), large (its callers and
   contracts), architecture, security, feature flags, infrastructure.
-- **Deliver.** The PR Producer writes the pull request and the PR Reviewer reads it as a human would. The PR
-  itself opens as a draft with the run's first product commit and is published only when the run passes its
-  checks, so a draft means work in progress and a published PR means ready for your final approval.
+- **Deliver.** Once you have completed every group PR, the run's branch gets one roll-up PR into the default
+  branch: the PR Producer writes it and the PR Reviewer reads it as a human would. Every PR starts as a draft and is
+  published only when its work is done, so a draft means work in progress and a published PR means ready for your
+  approval. You complete every PR; the flow never does.
   The Curator then routes every finding of the run.
 
 Agents hand off through files in a run folder, never through pasted context, so each one can run on any

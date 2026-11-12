@@ -1,7 +1,8 @@
 """The run's pull request: a draft from the first product commit, ready for review only once the run ships.
 
-  The PR is the run's own branch: every commit on it ships, run records included; they are how the PR shows the
-  work in progress.
+  This is the run's roll-up PR: the run's own branch into the default branch. Every commit on it ships, run records
+  included. With PR groups (engine/lanes.py) the work reaches the run branch through one PR per group, and this PR
+  lists them.
   python -I .fyzxsflow/package/engine/pr.py push --run <run>
       -> pushes the run's branch.
   python -I .fyzxsflow/package/engine/pr.py draft --run <run>
@@ -140,11 +141,25 @@ def wip_body(run: pathlib.Path) -> str:
     lines = [f"## {title}", "",
              "> **Draft: work in progress.** This PR is updated as each work package lands. FyzxsFlow marks it ready "
              "for review only when the run passes its ship check; the full description replaces this one then.", ""]
+    groups = group_prs(run)
+    if groups:
+        lines += ["### Group PRs (into the run branch)", ""] + groups + [""]
     if packages:
         lines += ["### Work packages", ""] + packages + [""]
     if criteria:
         lines += ["### Acceptance criteria", ""] + [f"- [ ] {c}" for c in criteria] + [""]
     return "\n".join(lines)
+
+
+def group_prs(run: pathlib.Path) -> list:
+    """One line per PR group of the run (engine/lanes.py), with its link and state."""
+    import lanes  # noqa: E402  (same folder; imported here because lanes imports this module)
+    try:
+        data = lanes.load(repo_root(run), run)
+    except SystemExit:
+        return []
+    return [f"- {g} ({', '.join(lane['packages'])}): {lane['state']}"
+            + (f", {lane['pr']['url']}" if lane.get("pr") else "") for g, lane in data.items()]
 
 
 def title_of(run: pathlib.Path) -> str:

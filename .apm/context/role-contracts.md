@@ -45,6 +45,10 @@ is a pattern a doc marks legacy, which you never copy, however often it appears 
 - **Orchestrator:** dispatches stages, hands off files, keeps the ledger, enforces caps and gates.
 - **Build Coordinator:** plans work packages (Locate) and executes them in dependency order (Build).
 - **Curator:** turns findings into agent and doc patches.
+- **Pull requests:** the Orchestrator opens, updates and publishes them through the engine (`lanes.py pr` for a
+  PR group's PR into the run branch, `pr.py` for the run branch's roll-up PR into the default branch); the PR
+  Producer writes the roll-up's description. Only the owner completes a PR; no agent merges, completes or sets
+  auto-complete on one.
 - **Preceptor** (preceptee mode): coaches the preceptee through the engineer's steps; run by the Orchestrator in
   its own session. Its coaching lives only in the preceptee's local record, never in the run folder.
 

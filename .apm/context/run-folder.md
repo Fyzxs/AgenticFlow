@@ -42,7 +42,9 @@ at every run start and hand-off (`.fyzxsflow/package/engine/feedback.py`). Handl
     feedback-<F-n|item>.docs-gardener.md           Docs Gardener, feedback mode; deliver.docs-gardener.md after-run (in Deliver)
     curator.md                                     Learn
     compactor.md                                   a compaction run (/fyzxsflow-compact)
-  pr-description.md    the PR Producer's description (the PR body), read by the PR Reviewer and the owner's gate
+  pr-description.md    the PR Producer's description of the roll-up PR (run branch into the default branch)
+  pr.json              the roll-up PR (pr.py); each PR group's lane and PR live in .git/fyzxsflow-lanes/<run-id>/
+                       (lanes.py status)
   runner/              Build & Test Runner summaries (<invocation>.json); raw logs in <invocation>/ stay local
   gates/               Gate Analyst summaries (<invocation>.json); raw tool output in <invocation>/ stays local
   findings.jsonl       every finding from every agent (.fyzxsflow/package/engine/findings.py)

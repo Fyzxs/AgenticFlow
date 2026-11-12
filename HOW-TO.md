@@ -8,7 +8,7 @@ works, see the [README](README.md).
 - [Set up your repo](#set-up-your-repo)
 - [Start a new project](#start-a-new-project)
 - [Run the flow](#run-the-flow)
-- [The pull request](#the-pull-request)
+- [Pull requests](#pull-requests)
 - [Turn steps off](#turn-steps-off)
 - [Test end to end (opt-in)](#test-end-to-end-opt-in)
 - [Parallel work](#parallel-work)
@@ -157,27 +157,37 @@ Requests can be plain text or an Azure DevOps work item:
 
 Answer each review with `approve`, `redo: <what to change>` or `stop`.
 
-## The pull request
+## Pull requests
 
-Each run has one pull request. It opens as a **draft** with the run's first product commit, so you can watch the
-work as it happens. Each work package is pushed to it as it lands, and the description ticks off the packages
-and criteria. Once the run passes its sign-off checks (`ship-check`), the flow puts the full description on the PR
-and marks it **ready for review**. A draft means work in progress; a published PR means it is waiting on your
-final approval.
+The pull request is where you review the work. Each distinct piece of work gets its own PR; related work shares
+one only when one part can't be reviewed without the other. Building in parallel is never a reason to bundle.
+
+- **Group PRs, into the run branch.** The plan puts each work package in a PR group (`pr_group:` in the
+  package; by default a group of one). Each group builds in its own worktree and opens a **draft** PR into the run's
+  branch with its first commit. Each package is pushed as it lands, and the PR is **published** (marked ready for
+  review) once the group's checks are green and its reviews are done. A draft means work in progress; a published
+  PR means done and waiting on you.
+- **You complete them.** The flow never completes, merges or auto-completes a PR. A group that depends on another
+  starts as soon as you complete that one, and never waits for unrelated work. When everything left is waiting on
+  you, the run says so with the links and stops. `/flow resume` picks up what you completed and carries on.
+  Comments you leave on a group PR are reworked in that group's worktree and pushed to the same PR.
+- **One roll-up PR, into the default branch.** When every group PR is completed and the run's checks pass, the
+  run branch gets one PR into the default branch. It links the group PRs and summarises them, without repeating
+  their reviews, and it is published once `ship-check` says the run is ready. Every commit on the run branch
+  ships, the run's own record (`.fyzxsflow/runs/<run>/`) included: it is the history of the work.
 
 The profile's Pull requests section controls it:
 
 ```
 - Opening a PR: pre-authorised      # or gated: the flow asks once per run, at the first product commit
-- Draft PR: early                   # or at delivery: the PR opens only in Deliver, as before
+- Draft PR: early                   # or at delivery: group PRs open only when their group is done
 - Target branch: main
 - PR host: github                   # only when the remote's URL doesn't say (github, or azure for Azure DevOps)
 ```
 
-The PR is the run's own branch, and every commit on it ships: the product change, the doc updates, and the run's
-record (`.fyzxsflow/runs/<run>/`), which is the history of the work. Everything goes through
-`python -I .fyzxsflow/package/engine/pr.py` (`draft`, `update`, `ready`, `status`), which uses `gh` for GitHub and
-`az repos` for Azure DevOps. `ready` refuses until `ship-check` says `ready=yes`.
+The engine does every PR action: `lanes.py pr` (group PRs), `lanes.py refresh` (reads their states),
+`pr.py` (the roll-up). It uses `gh` for GitHub and `az repos` for Azure DevOps. With the `pr` step off, groups
+merge into the run branch locally (`lanes.py merge`) and there are no PRs.
 
 ## Turn steps off
 
@@ -247,30 +257,30 @@ processes inside containers aren't watched; `--pull never` proves their images a
 
 The flow builds in parallel wherever the work allows, and in series only where it must.
 
-**Inside a run.** The plan groups work packages into waves. The packages of one wave build at once, each in its
-own git worktree (a *lane*), then merge back into the run's branch in plan order. The next wave starts from the
-merged result. Every series dependency in the plan carries its reason: `contract` (it uses what the other
-produces), `same file`, `shared resource` (a locked Runner mode, such as the local database) or `risk first`. A
-script checks the plan before Build:
+**Inside a run.** Work starts as soon as what it depends on is done. Each PR group builds in its own git worktree
+(a *lane*) once the groups it depends on are completed into the run's branch (see
+[Pull requests](#pull-requests)); it never waits for unrelated work. Packages already built count as done, so
+anything that depended only on them starts straight away. Every series dependency in the plan carries its reason:
+`contract` (it uses what the other produces), `same file`, `shared resource` (a locked Runner mode, such as the
+local database) or `risk first`. A script checks the plan before Build:
 
 ```
 python -I .fyzxsflow/package/engine/waves.py check --run <run>
 # wave 1: WP-01, WP-02, WP-03 (parallel, 3 at a time) | wave 2: WP-04
+# group WP-04: WP-04; after WP-01, WP-02
 ```
 
-It fails when two packages of one wave change the same file, on a dependency cycle, or on a dependency without a
-reason. A run planned before this existed (or planned too serially) can be re-ordered with
+It fails when two groups that may build at the same time change the same file, on a dependency cycle, or on a
+dependency without a reason. Problems that name only packages already built are shown as info and never block. A
+run planned before this existed (or planned too serially) can be re-ordered with
 **`/fyzxsflow-parallelize [run id]`**. It keeps the dependencies that have a real reason, removes the ones that
 were only plan order, and leaves every package's content and every package already built untouched. Then
-`/flow resume` continues the run with the new waves. To widen the waves, the planner puts shared contracts in a small early package, edits to hotspot files
-(route tables, registrations) in one small package at the end, and splits a large package so lanes stay balanced.
+`/flow resume` continues the run.
 
-How many lanes run at once is `config.json` → `build.max_parallel` (default 3; `1` builds in series). Each lane
-is a full chain of agents, so more lanes cost more tokens and load the machine more while they run. Runner locks
-are shared by every lane and every run, so two lanes never write to the same local database at once. If a merge
-conflicts anyway, that package is rebuilt in series on top of the others, and the overlap is logged for the
-planner. Lanes live in `.git/fyzxsflow-lanes/` and are removed after their wave; `lanes.py status --run <run>`
-shows them.
+How many lanes run at once is `config.json` → `build.max_parallel` (default 3). Each lane is a full chain of
+agents, so more lanes cost more tokens and load the machine more while they run. Runner locks are shared by every
+lane and every run, so two lanes never write to the same local database at once. Lanes live in
+`.git/fyzxsflow-lanes/`; `lanes.py status --run <run>` shows each group, its PR and what it waits for.
 
 **Several runs at once.** When the change map shows that a request is really two independent changes, the flow
 offers to split it into runs that go in parallel, each with its own PR. It only splits if you say yes. A run

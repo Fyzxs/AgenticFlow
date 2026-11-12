@@ -3,6 +3,7 @@ id: WP-01
 segment: <segment>
 status: planned          # planned | building | done; the Build Coordinator keeps it current
 depends_on: []          # packages that must merge first; each needs a line under ## Series reasons
+pr_group: WP-01          # its PR: its own id, or a slug shared with packages that can't be reviewed apart
 blocks: []
 ---
 

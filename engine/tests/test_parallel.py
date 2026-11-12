@@ -1,6 +1,7 @@
 """Tests for parallel work: engine/waves.py, engine/lanes.py, run.py new --worktree, and shared Runner locks."""
 
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -109,7 +110,7 @@ class WavesTests(ParallelBase):
         self.wp("WP-02", ["src/b.py", "src/shared.py"])
         code, out = self.waves()
         self.assertEqual(code, 1)
-        self.assertIn("WP-01 and WP-02 are in the same wave but both change src/shared.py", out)
+        self.assertIn("groups WP-01 and WP-02 may build at the same time but both change src/shared.py", out)
         self.wp("WP-02", ["src/b.py", "src/shared.py"], deps=["WP-01"], reasons={"WP-01": "same file"})
         self.assertEqual(self.waves()[0], 0)
 
@@ -128,6 +129,53 @@ class WavesTests(ParallelBase):
         self.assertEqual(code, 0, out)
         self.assertIn("share the Runner lock local-db", out)
 
+    def done(self, wp_id):
+        f = next((self.run / "work-packages").glob(f"{wp_id}-*.md"))
+        f.write_text(f.read_text(encoding="utf-8").replace("status: planned", "status: done"), encoding="utf-8")
+
+    def test_problems_naming_only_done_packages_are_info(self):
+        self.wp("WP-01", ["src/a.py"])
+        self.wp("WP-02", ["src/b.py"], deps=["WP-01"], reasons={})
+        self.done("WP-01")
+        self.done("WP-02")
+        self.wp("WP-03", ["src/c.py"], deps=["WP-02"])
+        code, out = self.waves()
+        self.assertEqual(code, 0, out)
+        self.assertIn("info (done packages, left as they are): WP-02: depends_on WP-01 with no reason", out)
+
+    def test_a_package_whose_dependencies_are_done_is_in_the_first_wave(self):
+        self.wp("WP-01", ["src/a.py"])
+        self.wp("WP-02", ["src/b.py"], deps=["WP-01"])
+        self.wp("WP-03", ["src/c.py"], deps=["WP-02"])
+        self.wp("WP-04", ["src/d.py"], deps=["WP-01"])
+        self.done("WP-01")
+        self.done("WP-02")
+        code, out = self.waves()
+        self.assertIn("done: WP-01, WP-02", out)
+        self.assertIn("wave 1: WP-03, WP-04 (parallel, 2 at a time)", out)
+
+    def test_related_packages_share_a_group_and_may_share_files(self):
+        self.wp("WP-01", ["src/shared.py"])
+        self.wp("WP-02", ["src/shared.py"], deps=["WP-01"])
+        for wp in ("WP-01", "WP-02"):
+            f = self.run / "work-packages" / f"{wp}-x.md"
+            f.write_text(f.read_text(encoding="utf-8").replace("status: planned", "status: planned\npr_group: export"),
+                         encoding="utf-8")
+        code, out = self.waves()
+        self.assertEqual(code, 0, out)
+        self.assertIn("group export: WP-01, WP-02; after nothing", out)
+
+
+FAKE_GH = """#!/bin/sh
+echo "gh $*" >> "{log}"
+case "$1 $2" in
+  "pr create") n=$(( $(cat "{counter}" 2>/dev/null || echo 0) + 1 )); echo $n > "{counter}"
+               echo "https://github.com/acme/shop/pull/$n" ;;
+  "pr view") cat "{state}/$3" 2>/dev/null || echo '{{"state": "OPEN", "isDraft": true}}' ;;
+esac
+exit 0
+"""
+
 
 class LanesTests(ParallelBase):
     def lanes(self, *args):
@@ -141,87 +189,166 @@ class LanesTests(ParallelBase):
     def opened(self, out):
         return {l.split()[1]: l.split()[2] for l in out.splitlines() if l.startswith("lane ")}
 
-    def test_lanes_open_up_to_the_cap_merge_in_order_and_close(self):
-        self.plan()
+    def cap(self, n):
         cfg = json.loads((self.root / ".fyzxsflow" / "config.json").read_text())
-        cfg["build"]["max_parallel"] = 2
+        cfg["build"]["max_parallel"] = n
         (self.root / ".fyzxsflow" / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
+
+    def test_local_mode_starts_each_group_as_soon_as_its_dependencies_merge(self):
+        self.plan()
+        self.cap(2)
+        self.git("switch", "-q", "-c", "fyzxsflow/run")
         self.commit_all()
-        code, out = self.lanes("open", "--wave", "1")
+        code, out = self.lanes("open")
         self.assertEqual(code, 0, out)
         lanes = self.opened(out)
         self.assertEqual(sorted(lanes), ["WP-01", "WP-02"])
-        self.assertIn("waiting WP-03", out)
-        self.assertIn("/.git/fyzxsflow-lanes/", list(lanes.values())[0])  # out of the working tree
+        self.assertIn("queued WP-03", out)
+        self.assertIn("waiting WP-04 on WP-01, WP-02", out)
+        ship = self.py("run.py", "ship-check", str(self.run))[1]
+        self.assertIn("group-prs        open      NO  not yet completed into the run branch: WP-01 (open)", ship)
         self.build_in(lanes["WP-01"], "src/a.py", "# a, built\n")
         self.build_in(lanes["WP-02"], "src/b.py", "# b, built\n")
-        code, out = self.lanes("merge", "--wave", "1")
+        code, out = self.lanes("merge")
         self.assertEqual(code, 0, out)
         self.assertEqual(out.split(), ["merged", "WP-01", "merged", "WP-02"])
-        self.assertEqual((self.root / "src" / "a.py").read_text(), "# a, built\n")
-        code, out = self.lanes("open", "--wave", "1")
-        lanes = self.opened(out)
-        self.assertEqual(list(lanes), ["WP-03"])
-        self.build_in(lanes["WP-03"], "src/c.py", "# c, built\n")
-        self.assertEqual(self.lanes("merge", "--wave", "1")[0], 0)
-        log = self.git("log", "--format=%s").stdout
-        self.assertIn("build(20261112-000000-x): WP-03", log)
-        self.assertIn("in place WP-04", self.lanes("open", "--wave", "2")[1])
+        lanes = self.opened(self.lanes("open")[1])
+        self.assertEqual(sorted(lanes), ["WP-03", "WP-04"])  # WP-04 doesn't wait for WP-03's wave
+        self.build_in(lanes["WP-04"], "src/d.py", "# d\n")
+        self.build_in(lanes["WP-03"], "src/c.py", "# c\n")
+        self.assertEqual(self.lanes("merge")[0], 0)
+        self.assertIn("build(20261112-000000-x): WP-04", self.git("log", "--format=%s").stdout)
+        self.assertIn("group-prs        completed ok  4 group(s) completed",
+                      self.py("run.py", "ship-check", str(self.run))[1])
         code, out = self.lanes("close")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(out.count("closed"), 3)
+        self.assertEqual(out.count("closed"), 4, out)
         self.assertEqual(len(self.git("worktree", "list").stdout.splitlines()), 1)
-        self.assertNotIn("fyzxsflow-lanes", self.git("branch").stdout)
 
-    def test_a_replanned_run_never_rebuilds_a_done_package(self):
+    def test_pr_mode_waits_for_the_owner_to_complete_a_group_pr(self):
         self.plan()
-        wp1 = self.run / "work-packages" / "WP-01-x.md"
-        wp1.write_text(wp1.read_text(encoding="utf-8").replace("status: planned", "status: done"), encoding="utf-8")
+        bare = self.tmp / "remote.git"
+        subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+        self.git("remote", "add", "origin", "https://github.com/acme/shop.git")
+        self.git("remote", "set-url", "--push", "origin", str(bare))
+        self.git("config", "remote.origin.url", str(bare))  # fetch from the bare too
+        (self.root / ".fyzxsflow" / "profile.md").write_text("- PR host: github\n", encoding="utf-8")
+        self.git("switch", "-q", "-c", "fyzxsflow/run")
         self.commit_all()
-        self.assertIn("wave 1: WP-01 (done), WP-02, WP-03 (parallel, 2 at a time)",
-                      self.py("waves.py", "check", "--run", str(self.run))[1])
-        code, out = self.lanes("open", "--wave", "1")
-        self.assertEqual(code, 0, out)
-        self.assertIn("done WP-01", out)
-        self.assertEqual(sorted(self.opened(out)), ["WP-02", "WP-03"])
+        bindir, log, states = self.tmp / "bin", self.tmp / "gh.log", self.tmp / "states"
+        bindir.mkdir()
+        states.mkdir()
+        (bindir / "gh").write_text(FAKE_GH.format(log=log, counter=self.tmp / "n", state=states), encoding="utf-8")
+        (bindir / "gh").chmod(0o755)
+        old = os.environ["PATH"]
+        os.environ["PATH"] = f"{bindir}{os.pathsep}{old}"
+        try:
+            lanes = self.opened(self.lanes("open")[1])
+            self.assertIn("nothing committed", self.lanes("pr", "--group", "WP-01")[1])
+            self.build_in(lanes["WP-01"], "src/a.py", "# a, built\n")
+            code, out = self.lanes("pr", "--group", "WP-01")
+            self.assertEqual(code, 0, out)
+            self.assertIn("draft WP-01 https://github.com/acme/shop/pull/1", out)
+            calls = log.read_text()
+            self.assertIn("gh pr create --draft --base fyzxsflow/run --head fyzxsflow-lanes/20261112-000000-x/WP-01",
+                          calls)
+            self.assertIn("published WP-01", self.lanes("pr", "--group", "WP-01", "--publish")[1])
+            self.assertIn("gh pr ready 1", log.read_text())
+            self.assertIn("kept WP-01: its PR is still open", self.lanes("close")[1])
+            self.assertIn("waiting WP-04 on WP-01, WP-02", self.lanes("status")[1])
+            # the owner completes WP-01's PR on the host: its commit lands on the remote run branch
+            subprocess.run(["git", "push", "-q", str(bare), "fyzxsflow-lanes/20261112-000000-x/WP-01:fyzxsflow/run"],
+                           cwd=self.root, check=True)
+            (states / "1").write_text('{"state": "MERGED", "isDraft": false}', encoding="utf-8")
+            code, out = self.lanes("refresh")
+            self.assertEqual(code, 0, out)
+            self.assertIn("WP-01: published -> completed", out)
+            self.assertIn("pulled", out)
+            self.assertEqual((self.root / "src" / "a.py").read_text(), "# a, built\n")
+            self.assertIn("waiting WP-04 on WP-02", out)
+            self.assertIn("closed WP-01 (completed)", self.lanes("close")[1])
+            self.assertNotIn("gh pr merge", log.read_text())  # the engine never completes a PR
+        finally:
+            os.environ["PATH"] = old
 
-    def test_a_conflict_the_plan_missed_falls_back_to_series(self):
+    def test_group_prs_on_azure_devops_go_through_az(self):
         self.plan()
+        bare = self.tmp / "remote.git"
+        subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+        self.git("remote", "add", "origin", str(bare))
+        (self.root / ".fyzxsflow" / "profile.md").write_text("- PR host: azure\n", encoding="utf-8")
+        self.git("switch", "-q", "-c", "fyzxsflow/run")
         self.commit_all()
-        lanes = self.opened(self.lanes("open", "--wave", "1")[1])
+        bindir, log = self.tmp / "bin", self.tmp / "az.log"
+        bindir.mkdir()
+        (bindir / "az").write_text(f"""#!/bin/sh
+echo "az $*" >> "{log}"
+[ "$3" = "create" ] && echo '{{"pullRequestId": 9, "url": "https://dev.azure.com/acme/_git/shop/pullrequest/9"}}'
+[ "$3" = "show" ] && echo '{{"status": "completed", "isDraft": false}}'
+exit 0
+""", encoding="utf-8")
+        (bindir / "az").chmod(0o755)
+        old = os.environ["PATH"]
+        os.environ["PATH"] = f"{bindir}{os.pathsep}{old}"
+        try:
+            lanes = self.opened(self.lanes("open")[1])
+            self.build_in(lanes["WP-02"], "src/b.py", "# b\n")
+            code, out = self.lanes("pr", "--group", "WP-02", "--publish")
+            self.assertEqual(code, 0, out)
+            calls = log.read_text()
+            self.assertIn("az repos pr create --draft true --source-branch fyzxsflow-lanes/20261112-000000-x/WP-02 "
+                          "--target-branch fyzxsflow/run", calls)
+            self.assertIn("az repos pr update --id 9 --draft false", calls)
+            self.assertNotIn("--auto-complete", calls)
+            self.assertIn("WP-02: published -> completed", self.lanes("refresh")[1])
+        finally:
+            os.environ["PATH"] = old
+
+    def test_a_conflict_the_plan_missed_restarts_the_group(self):
+        self.plan()
+        self.git("switch", "-q", "-c", "fyzxsflow/run")
+        self.commit_all()
+        lanes = self.opened(self.lanes("open")[1])
         self.build_in(lanes["WP-01"], "src/shared.py", "# from WP-01\n")
         self.build_in(lanes["WP-02"], "src/shared.py", "# from WP-02\n")
         self.build_in(lanes["WP-03"], "src/c.py", "# c\n")
-        code, out = self.lanes("merge", "--wave", "1")
+        code, out = self.lanes("merge")
         self.assertEqual(code, 1, out)
-        self.assertIn("merged WP-01", out)
-        self.assertIn("conflict WP-02: merge aborted; re-run WP-02 in series", out)
-        self.assertIn("merged WP-03", out)
-        self.assertEqual(self.git("status", "--porcelain").stdout.strip(), "")  # nothing half-merged
-        self.assertIn("conflict", self.lanes("status")[1])
+        self.assertIn("conflict WP-02", out)
+        self.assertEqual(self.git("status", "--porcelain").stdout.strip(), "")
+        self.assertIn("lane WP-02", self.lanes("open")[1])  # starts again on the merged branch
 
     def test_a_lane_with_uncommitted_work_is_not_merged(self):
         self.plan()
+        self.git("switch", "-q", "-c", "fyzxsflow/run")
         self.commit_all()
-        lanes = self.opened(self.lanes("open", "--wave", "1")[1])
+        lanes = self.opened(self.lanes("open")[1])
         (pathlib.Path(lanes["WP-01"]) / "src" / "a.py").write_text("# unsaved\n", encoding="utf-8")
-        code, out = self.lanes("merge", "--wave", "1")
+        code, out = self.lanes("merge")
         self.assertEqual(code, 1)
         self.assertIn("skipped WP-01: uncommitted in its lane: src/a.py", out)
         self.assertIn("skipped WP-02: nothing committed in its lane", out)
-        self.assertIn("kept WP-01: still open", self.lanes("close")[1])
+        self.assertIn("kept WP-01: its work isn't merged", self.lanes("close")[1])
 
     def test_lanes_refuse_a_dirty_checkout_or_a_broken_plan(self):
         self.plan()
         self.commit_all()
         (self.root / "src" / "a.py").write_text("# local edit\n", encoding="utf-8")
-        code, out = self.lanes("open", "--wave", "1")
+        code, out = self.lanes("open")
         self.assertEqual(code, 1)
         self.assertIn("uncommitted changes a lane would not see", out)
         self.git("checkout", "src/a.py")
         self.wp("WP-02", ["src/a.py"])
         self.commit_all("overlap")
-        self.assertIn("fix the plan first", self.lanes("open", "--wave", "1")[1])
+        self.assertIn("fix the plan first", self.lanes("open")[1])
+
+    def test_done_packages_are_never_built_again(self):
+        self.plan()
+        f = self.run / "work-packages" / "WP-01-x.md"
+        f.write_text(f.read_text(encoding="utf-8").replace("status: planned", "status: done"), encoding="utf-8")
+        self.commit_all()
+        lanes = self.opened(self.lanes("open")[1])
+        self.assertEqual(sorted(lanes), ["WP-02", "WP-03"])
+        self.assertIn("waiting WP-04 on WP-02", self.lanes("status")[1])
 
 
 class RunWorktreeTests(ParallelBase):

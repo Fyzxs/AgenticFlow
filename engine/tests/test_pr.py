@@ -115,6 +115,12 @@ class PrTests(unittest.TestCase):
         self.assertIn("- [ ] WP-02-ui-button", body)
         self.assertIn("- [ ] **AC-1**: a header line", body)
         self.assertIn("Draft: work in progress", body)
+        lanes_dir = self.root / ".git" / "fyzxsflow-lanes" / "r1"
+        lanes_dir.mkdir(parents=True)
+        (lanes_dir / "lanes.json").write_text(json.dumps({"export": {
+            "packages": ["WP-01"], "state": "completed", "path": "x", "branch": "b",
+            "pr": {"host": "github", "number": "5", "url": "https://github.com/acme/shop/pull/5"}}}), encoding="utf-8")
+        self.assertIn("- export (WP-01): completed, https://github.com/acme/shop/pull/5", self.p("body")[1])
         code, out = self.p("update")
         self.assertEqual(code, 0, out)
         self.assertIn("gh pr edit 42 --body-file", self.calls())

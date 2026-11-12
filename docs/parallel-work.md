@@ -1,6 +1,7 @@
 # Parallel work: a plan
 
-Status: **built** and trialled; how to use it: [HOW-TO → Parallel work](../HOW-TO.md#parallel-work). Written 2026-11-12. Owner decisions: build all three parts; `build.max_parallel` defaults to 3.
+Status: **built** and trialled; since 0.3.0 groups start as soon as their dependencies' PRs are completed
+(no waiting for a wave): see [`pr-groups.md`](pr-groups.md); how to use it: [HOW-TO → Parallel work](../HOW-TO.md#parallel-work). Written 2026-11-12. Owner decisions: build all three parts; `build.max_parallel` defaults to 3.
 
 ## The ask (owner)
 "As part of the work breakdown, identify what can be run in parallel, and how to do that effectively. This will

@@ -8,8 +8,10 @@ description: Produces the pull request from the run's reports, in the profile's 
 
 **Role:** Implementor. Read `.fyzxsflow/package/context/role-contracts.md` first.
 
-You run in Deliver, after the extreme run, the gate stages and the criteria trace. You turn the finished run into
-a pull request a human can judge without opening the run folder: what changed and why, every criterion with its
+You run in Deliver, after the extreme run, the gate stages and the criteria trace. You write the run's **roll-up**
+PR, the run branch into the default branch, once every group PR has been completed into the run branch. The owner
+reviewed each group on its own PR, so you summarise and link them rather than re-review; the reader must still be
+able to judge the whole change without opening the run folder: what changed and why, every criterion with its
 evidence, the flags or the revert path, the deploy order, and what is still open. The PR Reviewer checks your
 description against the diff, and the owner follows your revert and deploy steps under pressure, so every line
 must be true and every step must run as written.
@@ -47,6 +49,8 @@ must be true and every step must run as written.
 4. **Write `<run>/pr-description.md`** under the profile's description headings, in order, and no other top-level
    headings. Place each of these under the heading it fits:
    - title; source and target branch; the work item link when the brief's source is `ado:<id>`;
+   - the group PRs, each with its link, its packages and one line on what it did (`python -I
+     .fyzxsflow/package/engine/lanes.py status --run <run>`);
    - what and why, in the brief's words, with one worked example copied from a proof's output (say whether a
      position is 0- or 1-based);
    - the criteria checklist, `- [x] **AC-n:** <behaviour>. Evidence: <path:line | test | runner summary>`, from

@@ -68,7 +68,7 @@ REVIEW_REQUESTS = """# Review requests for this run
        - review: package=WP-03         - review: segment=db-migration     - review: agent=implementer
        - review: stage=deliver          - review: path=**/Auth/**          - review: all
        - autopilot                      (skip agent-level reviews this run; config review.always still applies)
-       - pause: each                    (in Build, pause at every hand-off instead of once per wave)
+       - pause: each                    (in Build, pause at every hand-off instead of reviewing on each group's PR)
      Replying to any review with -less-review or -more-review changes that agent's level for future runs. -->
 """
 RUNS_MODE = re.compile(r"^\s*-?\s*Runs:\s*`?(commit|local)`?", re.M | re.I)
@@ -519,6 +519,17 @@ def cmd_ship_check(args) -> int:
         leaks = preceptee.seed_leaks(run)
         rows.append(("precept:seeds", "leaked" if leaks else "clean", not leaks,
                      f"{len(leaks)} seeded line(s) in the repo: run preceptee.py seed-check" if leaks else ""))
+
+    if git(root, "rev-parse", "--git-dir").returncode == 0:
+        import lanes as lmod  # noqa: E402
+        lanes_data = lmod.load(root, run)
+        if lanes_data:
+            # PR groups: every group's PR (or local merge) must have reached the run branch before the roll-up ships.
+            pending = [f"{g} ({lane['state']})" for g, lane in lanes_data.items()
+                       if lane["state"] not in lmod.DONE_STATES + ("abandoned",)]
+            rows.append(("group-prs", "open" if pending else "completed", not pending,
+                         ("not yet completed into the run branch: " + ", ".join(pending)) if pending
+                         else f"{len(lanes_data)} group(s) completed"))
 
     trace = subprocess.run([sys.executable, "-I", str(pathlib.Path(__file__).resolve().parent / "ac_trace.py"),
                             "--run", str(run), "--require-evidence"], capture_output=True, text=True)
