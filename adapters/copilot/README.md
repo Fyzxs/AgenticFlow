@@ -7,7 +7,7 @@ onto Copilot and what the PoC must confirm. Nothing here has been verified again
 ## What the docs say (2026-11, not yet tried)
 - **VS Code Copilot Chat:** `.github/prompts/*.prompt.md` run as `/name <text>` in the Chat view (Local
   harness); the prompt's `agent:` frontmatter picks the custom agent it runs in (`flow` → `orchestrator`,
-  `fyzxsflow-init` → `repo-cartographer`, `fyzxsflow-greenfield` → `orchestrator`). Custom agents in `.github/agents/` can be dispatched as subagents by
+  `fyzxsflow-init` → `repo-cartographer`, `fyzxsflow-greenfield` → `orchestrator`, `fyzxsflow-compact` → `orchestrator`). Custom agents in `.github/agents/` can be dispatched as subagents by
   an agent with the `agent` tool set (`runSubagent`); subagents can't dispatch further subagents unless
   `chat.subagents.allowInvocationsFromSubagents` is on, so the Orchestrator runs Build itself (as on Claude Code).
   A subagent doesn't inherit the conversation, which suits the run-folder hand-offs.

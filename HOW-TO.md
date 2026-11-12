@@ -109,9 +109,10 @@ After that, `/flow` works as it does on any repo, and the skeleton's files are t
 
 ## Run the flow
 
-The flow has three entry points: **`flow`** (run a request through the Orchestrator), **`fyzxsflow-init`**
-(bootstrap the repo with the Repo Cartographer) and **`fyzxsflow-greenfield`** (start a new project from its
-design; see [Start a new project](#start-a-new-project)). Open your repo and start them like this:
+The flow has four entry points: **`flow`** (run a request through the Orchestrator), **`fyzxsflow-init`**
+(bootstrap the repo with the Repo Cartographer), **`fyzxsflow-greenfield`** (start a new project from its
+design; see [Start a new project](#start-a-new-project)) and **`fyzxsflow-compact`** (shrink the agent files; see
+[Compact the agent files](#compact-the-agent-files)). Open your repo and start them like this:
 
 | Where | Bootstrap | Run a request |
 |---|---|---|
@@ -280,6 +281,31 @@ write code run their shadow in a throwaway worktree. A separate Validator checks
 
 Nothing lowers a tier automatically. The Curator proposes it, and only where the summary says `reduce`.
 
+## Compact the agent files
+
+Learned entries, docs and the agents themselves only grow, and every agent dispatch pays for what it loads. When
+they feel heavy, run **`/fyzxsflow-compact`** (Claude Code, or Copilot Chat; on the Copilot CLI,
+`copilot --agent=orchestrator --prompt "compaction run: <targets>"`). It never runs on its own.
+
+```
+/fyzxsflow-compact                  # everything
+/fyzxsflow-compact learned docs     # only the learned entries and the project docs
+/fyzxsflow-compact orchestrator     # one agent
+```
+
+It is a short run of its own (refused while another run is active): the Compactor shrinks the files, a Validator
+checks each one against its original, and you review a table of sizes before and after. Nothing is lost silently:
+`compact.py check` lists any heading, command, path, id or number that disappeared, and the Compactor must restore
+it or name it in **Accepted drops** with a reason.
+
+- **Learned entries and docs** are your files and are changed in place. `profile.md` and `feature-flags.md` are
+  only ever proposed.
+- **The package's agents** are replaced by every install, so a compacted one is kept in
+  `.fyzxsflow/compacted/`, and the installer copies it back over the package after each install. When an upgrade
+  changes that agent upstream, the installer keeps the new upstream file and warns that the compaction is stale:
+  run `/fyzxsflow-compact <that agent>` again. `python -I .fyzxsflow/package/engine/compact.py status` lists
+  them all; `compact.py drop <path>` and a reinstall undo one.
+
 ## What lands in your repo
 
 ```
@@ -290,6 +316,7 @@ Nothing lowers a tier automatically. The Curator proposes it, and only where the
   docs/              the repo docs agents are specialised by
   feedback/          drop notes for the flow here, any time
   learned/           rules the Curator has learned for this project, per agent
+  compacted/         smaller copies of package files, from /fyzxsflow-compact; re-applied by each install
   runs/              every run: brief, plans, reports, reviews, findings
   package/           the installed engine and agents; replaced on every install, never edited
 .claude/  .github/   host files generated from package/ + learned/
@@ -313,7 +340,7 @@ python -I engine/install.py --target <path to repo B> --host claude
 `post-update` lifecycle hook run it).
 
 The installer replaces `.fyzxsflow/package/` and regenerates the host files (`.claude/`, `.github/`) from it,
-adding your project's Learned entries back in. It never overwrites your project's files: settings, docs,
+adding your project's Learned entries and compacted files back in. It never overwrites your project's files: settings, docs,
 feedback, learned rules and runs. New settings take their defaults until you add them to `config.json`;
 `.fyzxsflow/config.json.readme.md` is refreshed by the same install and lists every one.
 
@@ -323,6 +350,7 @@ Then, in the upgraded repo:
    `.fyzxsflow/runs/active/` would continue on the new agents and engine, and checks added since it started can
    fail it. Finish or close the run first.
 2. **Check the docs still pass:** `python -I .fyzxsflow/package/engine/docs_check.py` and
-   `python -I .fyzxsflow/package/engine/pointers.py --check`.
+   `python -I .fyzxsflow/package/engine/pointers.py --check`. If you compacted package files, the installer
+   names any that went stale; re-run `/fyzxsflow-compact` on them.
 3. **Commit the upgrade** on its own: the changed files under `.fyzxsflow/`, `.claude/` and `.github/`.
    `.fyzxsflow/package/INSTALLED.json` records the version and the FyzxsFlow commit it came from.

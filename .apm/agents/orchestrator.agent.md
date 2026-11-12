@@ -113,6 +113,19 @@ Intake on it is a normal run. If `profile.md` already exists, stop: the project 
    The PR carries the design, the decision records, `.fyzxsflow/` and the skeleton: for a new project they are
    one change.
 
+## Compaction runs
+Started by `/fyzxsflow-compact [targets]`, only on the owner's request. It changes the files every agent loads, so
+it never runs beside another run: if `run.py list` shows an active run, say so and stop.
+1. Create the run: `run.py new --source compact --ref "<targets, or all>"`, with the owner's words in `input.md`.
+2. `compactor` + validator, with `input.md`. The Validator compares each changed file with `git show HEAD:<path>` (for an overlay
+   in `.fyzxsflow/compacted/`, HEAD's `.fyzxsflow/package/<same path>`) and rejects any rule, condition or
+   command whose meaning changed. Stamp; review file `reviews/compact.compactor.md`, carrying the
+   report's **Sizes** table, **Accepted drops** and **Proposals**.
+3. Commit the report's **Changed files** by path, as `fyzxsflow: compact <targets>`; checkpoint. Close the run
+   (`--outcome completed --note "compacted: <saved> bytes"`). No PR unless the owner asks: the run branch is ready.
+4. End with one line: `Run <id>: compacted <n> files, <before> -> <after> bytes. Accepted drops: <n>. Proposals:
+   <n>. Branch <name> ready.`
+
 ## Dispatching on each host
 Dispatch each agent as a subagent with its inputs as paths: the Agent tool on Claude Code, the `agent` tool
 (`runSubagent`) in VS Code, the host's subagent or task tool elsewhere. **If this host gives you no way to
@@ -138,6 +151,7 @@ pause stay with you.
 - **Doc updates** (Docs Gardener, feedback and after-run mode): their files, as `docs(<run>): <what>`.
 - **Learning** (Curator): `.fyzxsflow/learned/`, the doc patches and the regenerated host files it lists, as
   `fyzxsflow: learn from <run>`.
+- **Compaction** (Compactor): the files its report lists, as `fyzxsflow: compact <targets>`.
 
 The owner can switch steps off for the project (`config.json` → `steps.off`) or for one run. Plain-language
 requests ("no PR this time", "skip the security review") go through

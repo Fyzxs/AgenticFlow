@@ -11,8 +11,8 @@ it and writes its output back into it. `.fyzxsflow/package/engine/run.py new` cr
 ```
 
 `.fyzxsflow/` holds only the project's own files (config, profile, docs, feedback, runs, `learned/` agent
-entries); `.fyzxsflow/package/` is the installed FyzxsFlow package, replaced by every install: read it, never
-write to it. Beside the runs, `.fyzxsflow/feedback/` is the owner's inbox: any file, any time, read by the Orchestrator
+entries, `compacted/` package files); `.fyzxsflow/package/` is the installed FyzxsFlow package, replaced by every
+install: read it, never write to it (install.py copies the `compacted/` overlays into it). Beside the runs, `.fyzxsflow/feedback/` is the owner's inbox: any file, any time, read by the Orchestrator
 at every run start and hand-off (`.fyzxsflow/package/engine/feedback.py`). Handled items move to `feedback/done/`.
 
 ```
@@ -39,6 +39,7 @@ at every run start and hand-off (`.fyzxsflow/package/engine/feedback.py`). Handl
     pr-producer.md, pr-reviewer.md                 Deliver
     feedback-<F-n|item>.docs-gardener.md           Docs Gardener, feedback mode; deliver.docs-gardener.md after-run (in Deliver)
     curator.md                                     Learn
+    compactor.md                                   a compaction run (/fyzxsflow-compact)
   pr-description.md    the PR Producer's description (the PR body), read by the PR Reviewer and the owner's gate
   runner/              Build & Test Runner summaries (<invocation>.json); raw logs in <invocation>/ stay local
   gates/               Gate Analyst summaries (<invocation>.json); raw tool output in <invocation>/ stays local

@@ -67,8 +67,9 @@ host or model. Each run is committed at every stage, so you can read it, edit it
    project maps tiers to its host's models. An agent that keeps failing moves up a tier for that run.
    An optional model compare shadows a cheaper tier, so a tier is only lowered once the cheaper model
    has proven itself. See [Models](HOW-TO.md#models).
-10. **Bounded everything.** Fix loops stop after two rounds, docs and agent files have size budgets, and
-    the Curator's own changes are validated before they land.
+10. **Bounded everything.** Fix loops stop after two rounds, context packs have a size budget, agent files and
+    learned entries can be compacted on request without losing a rule, and the Curator's own changes are
+    validated before they land.
 
 ## Getting started
 
@@ -82,6 +83,9 @@ A new project with no code yet starts from its system design instead:
 `/fyzxsflow-greenfield <design files> [seed: <rules folder>]`. The flow reads the design, decides what it leaves
 open (you approve every decision in one review), writes the project's docs, and builds a reviewed walking
 skeleton in the same run.
+
+When learned entries, docs and agents grow heavy, `/fyzxsflow-compact [targets]` shrinks them without losing a
+rule, so every agent dispatch costs fewer tokens.
 
 [HOW-TO.md](HOW-TO.md) has the full steps: installing (from a clone or with APM), setting up, running on each
 Claude Code and Copilot surface, turning steps off, and choosing models.
@@ -111,6 +115,7 @@ Claude Code and Copilot surface, turning steps off, and choosing models.
 | Design Reader | New projects: a cited inventory of the system design |
 | Greenfield Architect | New projects: decides what the design leaves open, writes the project's docs and the walking-skeleton plan |
 | Docs Gardener | Applies your feedback to docs and keeps them in step with the code |
+| Compactor | On request (`/fyzxsflow-compact`): shrinks agent files, learned entries and docs without losing a rule |
 | Curator | Turns findings into agent rules, doc fixes and proposed checks |
 
 ## Repository layout
@@ -118,7 +123,7 @@ Claude Code and Copilot surface, turning steps off, and choosing models.
 ```
 .apm/
   agents/            the agents (*.agent.md)
-  prompts/           entry points: flow, fyzxsflow-init, fyzxsflow-greenfield
+  prompts/           entry points: flow, fyzxsflow-init, fyzxsflow-greenfield, fyzxsflow-compact
   instructions/      the always-on working agreement
   context/           shared contracts: roles, run folder, findings schema
   skills/            reusable skills (e.g. mining past transcripts for corrections)

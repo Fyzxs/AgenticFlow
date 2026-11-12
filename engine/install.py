@@ -10,6 +10,8 @@ Installed layout (engine/layout.py):
     config.json profile.md gates.json feature-flags.md docs/ feedback/ runs/ baselines/
     config.json.readme.md (installer-owned: rewritten on every install)
     learned/<agent>.md       the Curator's Learned entries for this project, one file per agent
+    compacted/               the Compactor's smaller package files; copied into package/ while they still fit
+                             the upstream file they were made from (engine/compact.py)
   .fyzxsflow/package/        installer-owned: deleted and rewritten by every install; never edit it
     engine/ (no tests)  agents/  context/  templates/  skills/  instructions/  prompts/  INSTALLED.json
 Host files generated from it (each agent = package/agents/<a>.agent.md + its learned/<a>.md entries):
@@ -354,6 +356,9 @@ def main(argv=None) -> int:
     elif not (target / HOME / PACKAGE / "agents").is_dir():
         print(f"{NAME} is not installed in {target}", file=sys.stderr)
         return 2
+    import compact  # noqa: E402  (same engine folder)
+    for warning in compact.apply(target, written):
+        print("warning:", warning)
     sync_hosts(target, args.host, written)
     if not args.sync:
         write_pointers(target)  # segment pointers follow the installed names (fyzxsflow-<segment>)
