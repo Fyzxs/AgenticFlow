@@ -174,8 +174,8 @@ The profile's Pull requests section controls it:
 - PR host: github                   # only when the remote's URL doesn't say (github, or azure for Azure DevOps)
 ```
 
-The PR branch (`<run branch>-pr`) carries only what belongs in the PR: the product commits, plus run records and
-doc updates when `PR contents` says so, never the flow's own files. Everything goes through
+The PR is the run's own branch, and every commit on it ships: the product change, the doc updates, and the run's
+record (`.fyzxsflow/runs/<run>/`), which is the history of the work. Everything goes through
 `python -I .fyzxsflow/package/engine/pr.py` (`draft`, `update`, `ready`, `status`), which uses `gh` for GitHub and
 `az repos` for Azure DevOps. `ready` refuses until `ship-check` says `ready=yes`.
 

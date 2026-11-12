@@ -37,7 +37,7 @@ class PrTests(unittest.TestCase):
             self.git(*a)
         (self.root / "app.py").write_text("v1\n", encoding="utf-8")
         (self.root / ".fyzxsflow").mkdir()
-        self.profile("product commits")
+        self.profile()
         self.commit("base", "app.py", ".fyzxsflow/profile.md")
         base = self.git("rev-parse", "HEAD").stdout.strip()
         self.git("switch", "-q", "-c", "fyzxsflow/r1")
@@ -68,10 +68,10 @@ class PrTests(unittest.TestCase):
     def git(self, *args, cwd=None):
         return subprocess.run(["git", *args], cwd=cwd or self.root, capture_output=True, text=True)
 
-    def profile(self, contents, extra=""):
+    def profile(self, extra=""):
         (self.root / ".fyzxsflow" / "profile.md").write_text(
-            f"# Profile\n## Pull requests\n- Opening a PR: pre-authorised\n- Target branch: main\n"
-            f"- PR contents: {contents}\n{extra}", encoding="utf-8")
+            f"# Profile\n## Pull requests\n- Opening a PR: pre-authorised\n- Target branch: main\n{extra}",
+            encoding="utf-8")
 
     def commit(self, msg, *paths):
         self.git("add", *paths)
@@ -86,35 +86,17 @@ class PrTests(unittest.TestCase):
     def calls(self):
         return self.log.read_text(encoding="utf-8") if self.log.exists() else ""
 
-    def pr_files(self):
-        return self.git("ls-tree", "-r", "--name-only", "fyzxsflow/r1-pr").stdout.split()
-
-    def test_the_pr_branch_carries_product_commits_only(self):
+    def test_the_pr_is_the_run_branch_with_every_commit_on_it(self):
         (self.root / "app.py").write_text("v2\n", encoding="utf-8")
         self.commit("feat: export", "app.py")
-        (self.root / ".claude").mkdir()
-        (self.root / ".claude" / "x.md").write_text("x", encoding="utf-8")
-        self.commit("fyzxsflow: host files", ".claude")
-        (self.root / "lib.py").write_text("x\n", encoding="utf-8")
-        (self.run / "note.md").write_text("n\n", encoding="utf-8")
-        mixed = self.commit("mixed", "lib.py", ".fyzxsflow/runs")
-        code, out = self.p("sync")
+        code, out = self.p("draft")
         self.assertEqual(code, 0, out)
-        self.assertIn(f"skipped {mixed[:9]}: it mixes", out)
-        self.assertIn("1 new commit(s), 1 in all, target main", out)
-        files = self.pr_files()
-        self.assertIn("app.py", files)
-        self.assertFalse(any(f.startswith((".claude/", ".fyzxsflow/runs/")) for f in files), files)
-        self.assertEqual(self.git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip(), "fyzxsflow/r1")  # untouched
-        (self.root / "app.py").write_text("v3\n", encoding="utf-8")
-        self.commit("feat: more", "app.py")
-        self.assertIn("1 new commit(s), 2 in all", self.p("sync")[1])
-
-    def test_run_records_ride_along_when_the_profile_says_so(self):
-        self.profile("product commits + run records")
-        code, out = self.p("sync")
-        self.assertEqual(code, 0, out)
-        self.assertTrue(any(f.startswith(".fyzxsflow/runs/") for f in self.pr_files()))
+        self.assertIn("--head fyzxsflow/r1 ", self.calls())
+        remote = subprocess.run(["git", "ls-tree", "-r", "--name-only", "fyzxsflow/r1"], cwd=self.bare,
+                                capture_output=True, text=True).stdout.split()
+        self.assertIn("app.py", remote)
+        self.assertTrue(any(f.startswith(".fyzxsflow/runs/") for f in remote))  # the run's record ships too
+        self.assertNotIn("-pr", self.git("branch").stdout)
 
     def test_a_draft_opens_with_the_first_product_commit_and_is_updated_as_packages_land(self):
         (self.root / "app.py").write_text("v2\n", encoding="utf-8")
@@ -122,9 +104,9 @@ class PrTests(unittest.TestCase):
         code, out = self.p("draft")
         self.assertEqual(code, 0, out)
         self.assertIn("draft https://github.com/acme/shop/pull/42", out)
-        self.assertIn("gh pr create --draft --base main --head fyzxsflow/r1-pr --title Orders CSV export", self.calls())
-        self.assertIn("fyzxsflow/r1-pr", subprocess.run(["git", "branch"], cwd=self.bare, capture_output=True,
-                                                         text=True).stdout)  # pushed
+        self.assertIn("gh pr create --draft --base main --head fyzxsflow/r1 --title Orders CSV export", self.calls())
+        self.assertIn("fyzxsflow/r1", subprocess.run(["git", "branch"], cwd=self.bare, capture_output=True,
+                                                      text=True).stdout)  # pushed
         state = json.loads((self.run / "pr.json").read_text(encoding="utf-8"))
         self.assertEqual((state["number"], state["state"]), ("42", "draft"))
         self.assertIn("already open", self.p("draft")[1])
@@ -164,11 +146,11 @@ class PrTests(unittest.TestCase):
         self.assertEqual(json.loads((self.run / "pr.json").read_text(encoding="utf-8"))["state"], "ready")
 
     def test_azure_devops_through_az(self):
-        self.profile("product commits", "- PR host: azure\n")
+        self.profile("- PR host: azure\n")
         self.first_commit()
         code, out = self.p("draft")
         self.assertEqual(code, 0, out)
-        self.assertIn("az repos pr create --draft true --source-branch fyzxsflow/r1-pr --target-branch main", self.calls())
+        self.assertIn("az repos pr create --draft true --source-branch fyzxsflow/r1 --target-branch main", self.calls())
         self.assertIn("pullrequest/7", out)
         old = pr.ship_ready
         pr.ship_ready = lambda run: (True, "")

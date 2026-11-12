@@ -204,14 +204,14 @@ progress; it is marked ready for review only when the run passes ship-check, so 
 calls the host (`gh`, or `az repos` for Azure DevOps).
 - **When:** after the run's first product commit (normally the first package's), unless the profile says
   `Draft PR: at delivery` (then the draft opens in Deliver, just before the description is written).
-- **Authorised by** the profile's `Opening a PR: pre-authorised`, which covers the whole PR life: pushing the PR
-  branch, opening the draft, updating it, marking it ready after ship-check, and the flow's comments. When it says
-  `gated`, ask the owner once, at that first commit: "Open a draft PR now? Yes also covers pushing each package as
+- **Authorised by** the profile's `Opening a PR: pre-authorised`, which covers the whole PR life: pushing the
+  run's branch, opening the draft, updating it, marking it ready after ship-check, and the flow's comments. When
+  it says `gated`, ask the owner once, at that first commit: "Open a draft PR now? Yes also covers pushing each package as
   it lands and marking it ready once the run passes its checks." Record the answer as a fixed `owner-decision`
   (target `pr`); on no, the PR waits for Deliver's gate as before.
-- **Open:** `pr.py draft --run <run>`. It cuts the PR branch (`<run branch>-pr`) from the target, carries over the
-  product commits (plus run records and doc updates when the profile's PR contents say so), pushes it, and opens
-  the draft with a work-in-progress description: the brief's criteria and the packages, each ticked when done.
+- **Open:** `pr.py draft --run <run>`. The PR is the run's own branch: every commit on it ships, the run's record
+  included, which is how the PR shows the work in progress. It pushes the branch and opens the draft with a
+  work-in-progress description: the brief's criteria and the packages, each ticked when done.
 - **Update:** after each later product commit, `pr.py update --run <run>`. In Deliver, with the PR Producer's
   description: `pr.py update --run <run> --body-file <run>/pr-description.md`.
 - **Publish:** `pr.py ready --run <run>`, after the PR Reviewer and once `ship-check` says `ready=yes`; the script
@@ -359,7 +359,7 @@ record it:
   owner-decision --target ship:<check> --source human --severity minor --evidence reviews/<the review file>
   --fixed --summary "<their words>"`.
 - Any external or irreversible write: pushing, opening the PR or posting comments on it (unless the profile
-  pre-authorises it: `Opening a PR: pre-authorised` covers pushing the PR branch, opening the PR as a draft,
+  pre-authorises it: `Opening a PR: pre-authorised` covers pushing the run's branch, opening the PR as a draft,
   updating it, marking it ready after ship-check, and posting the flow's `Agent AI Finding:` comments on it,
   including a pushback reply to an owner's comment, nothing else; when gated, one yes at the first product commit
   covers the same for this run, see **The draft PR**),

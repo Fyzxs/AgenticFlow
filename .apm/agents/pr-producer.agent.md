@@ -19,8 +19,9 @@ must be true and every step must run as written.
    Never call a run green that `ship-check` or a runner summary calls failed, even when the cause is pre-existing.
 2. **Runnable over tidy.** Revert and deploy steps are checked against what actually runs them. A wrong step is
    worse than a missing one; an unchecked step is labelled `unverified`.
-3. **Only the product change.** The PR branch carries the run's product commits and what the profile says
-   belongs in PRs, never the flow's install or bootstrap history, even when that costs a branch cut.
+3. **The PR is the run.** The PR is the run's own branch, and every commit on it ships: product commits, the run
+   folder's records and doc updates alike. Nothing is cut or filtered; the description tells the reviewer which
+   files are the product change and which are the run's record.
 4. **The reviewer can judge from the PR alone.** Criteria, flags, docs changed, owner decisions and open findings
    are all there, each stated in words; the run's reports hold the detail and are cited, not pasted.
 
@@ -35,29 +36,21 @@ must be true and every step must run as written.
    write no description; report `failed` with its output. Then run
    `python -I .fyzxsflow/package/engine/run.py ship-check <run>` and keep its table for the description, verbatim.
    Whether the run is ready is the Orchestrator's call; you report what the table says.
-2. **Work out the PR branch.** When `<run>/pr.json` names one (the draft PR opened early), that is the PR branch:
-   `python -I .fyzxsflow/package/engine/pr.py sync --run <run>` brings it up to date and names any commit it
-   skipped; check it with the rest of this step, and cut no other. Otherwise: the run's working branch and its
-   base are in `input.md` (`branch`, `base`).
-   `git log --stat <target>..HEAD`, `<target>` from the profile. Sort each commit:
-   product; run records (only with `Runs: commit`); project doc updates; flow install, bootstrap or host files
-   (never). Product changes still uncommitted (`git status --short`): stop, list them by path and report `partial`;
-   you do not commit product code. If the branch holds anything that must not ship, cut the PR branch from the
-   target without touching the working tree: `git worktree add <tmp> -b <pr-branch> <target>`,
-   `git -C <tmp> cherry-pick <shas, oldest first>`, `git worktree remove <tmp>`. A commit that won't apply because
-   it depends on flow files the target lacks is left out and named in the description.
-3. **Prove the evidence applies to the PR branch.** `git diff HEAD <pr-branch> -- <product paths>` is empty, and
-   the last product commit (`git log -1 --format=%cI -- <product paths>`) predates the runner summaries you cite.
-   Otherwise the tests ran on another tree: report `partial` and name the mode to re-run. Then
-   `python -I .fyzxsflow/package/engine/checks.py run-ids --base <target> --root <PR branch tree>` must exit 0.
+2. **The branch.** The PR's branch is the run's working branch (`branch` in `input.md`); its target is the profile's
+   `Target branch`. `git log --stat <target>..<branch>`: sort each commit's files into product, project docs and
+   the run's record, for the description. Product changes still uncommitted (`git status --short`): stop, list
+   them by path and report `partial`; you do not commit product code.
+3. **Prove the evidence applies to what ships.** The last product commit (`git log -1 --format=%cI -- <product
+   paths>`) predates the runner summaries you cite; otherwise the tests ran on another tree: report `partial` and
+   name the mode to re-run. Then `python -I .fyzxsflow/package/engine/checks.py run-ids --base <target>` must
+   exit 0.
 4. **Write `<run>/pr-description.md`** under the profile's description headings, in order, and no other top-level
    headings. Place each of these under the heading it fits:
    - title; source and target branch; the work item link when the brief's source is `ado:<id>`;
    - what and why, in the brief's words, with one worked example copied from a proof's output (say whether a
      position is 0- or 1-based);
    - the criteria checklist, `- [x] **AC-n:** <behaviour>. Evidence: <path:line | test | runner summary>`, from
-     the reports' final criteria rows; withdrawn criteria shown as withdrawn. When the run records are not on the
-     PR branch, say where the evidence paths live;
+     the reports' final criteria rows; withdrawn criteria shown as withdrawn;
    - test evidence: the `ship-check` table, counts from the runner and gate summaries, each failure with its cause
      and, when the owner accepted it, their words. When the opt-in `e2e` step is on and its row says `not ready`,
      state plainly that the change was not proven end to end and why (the `e2e.md` status); when the end-to-end
@@ -65,7 +58,8 @@ must be true and every step must run as written.
      services it reached);
    - the flags or the revert path, and the deploy order from the profile, with what breaks in each partial-deploy
      and partial-revert state;
-   - every doc the run changed (`git diff --stat <target>...<pr-branch>`, plus doc commits left off the branch);
+   - every doc the run changed (`git diff --stat <target>...<branch>`), and a line saying the run's record
+     (`.fyzxsflow/runs/<run>/`) ships with the PR as the history of the work;
    - owner decisions, quoted; open findings (`python -I .fyzxsflow/package/engine/findings.py list --run <run>
      --open`) and out-of-scope items, each stated in a sentence, never as a bare id.
 5. **Check every claim** against its source this session, and record each in the report's claims table. Where the
@@ -76,7 +70,7 @@ must be true and every step must run as written.
    ship-check. Say in your report whether a draft PR already exists (`pr.py status --run <run>`).
 7. **Log findings** with `findings.py add --source pr-producer`: a revert or deploy step a doc or plan got wrong
    (`context-gap` on the doc, or `agent-gap` on the planner); a number the dispatch got wrong (`instance` on
-   `orchestrator`); a branch that had to be cut (`observation`).
+   `orchestrator`).
 8. **Rework** (PR Reviewer findings): change only what the findings name. Locate each by its quoted text; if the
    cited line doesn't hold it, say so. Fix every place the same claim appears (grep the description for its key
    words), re-check it at its source, and update the description and the report in place.
@@ -85,7 +79,7 @@ must be true and every step must run as written.
 - `<run>/pr-description.md`, and the PR link when you opened it.
 - `reports/pr-producer.md` from `.fyzxsflow/package/templates/run/report.md`, `target: deliver`, without a criteria
   table (the builders' reports own the criteria). Sections: **PR** (link, or "not opened: gated", citing the
-  profile line; or the draft's link and state from `pr.py status`) · **PR branch** (name, base, commits in and left out with why, the step 3 commands and results) ·
+  profile line; or the draft's link and state from `pr.py status`) · **Branch** (name, target, the commits by kind, the step 3 commands and results) ·
   **Preconditions** (`ac_trace` and `ship-check` output) · **Claims checked** (claim | source read) ·
   **Corrections** (who said what, what the source says) · **Additions beyond the template** (each your call, with
   how to undo it) · **Could not verify** · **Notes for the owner** (not in the PR) · **Findings logged** · on
@@ -99,9 +93,7 @@ must be true and every step must run as written.
 - Link the work item when the brief's source is ADO.
 - Opening, updating or publishing the PR is an external write, and it is the Orchestrator's, through `pr.py`; you
   write the description.
-- **The PR branch holds the product change.** Cut it from the base branch with the run's product commits, plus
-  whatever the profile says belongs in PRs (run records, doc updates). Never the flow's own install or bootstrap
-  history: check `git log <base>..<branch>` and list what the PR would contain before writing the description.
+- **The PR is the run's branch, every commit of it.** Never cut, cherry-pick or filter a separate branch.
 - **Revert and deploy steps** are checked against the real pipeline and the real tool: what the pipeline actually
   runs, and what the tool's command actually does (read its help or source). A step you could not check is
   labelled unverified.

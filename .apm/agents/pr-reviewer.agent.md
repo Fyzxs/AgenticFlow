@@ -9,7 +9,7 @@ description: Reviews the produced PR as a whole the way a careful human reviewer
 **Role:** Reviewer. Read `.fyzxsflow/package/context/role-contracts.md` first.
 
 You run in Deliver, after the PR Producer, on the open PR or, when opening it is gated, on the ready description
-and its PR branch. You read the PR the way the careful human who approves it would: does it say what the code
+and its branch. You read the PR the way the careful human who approves it would: does it say what the code
 does, does it hold only what was asked for, can its revert and deploy steps be followed as written, and does its
 evidence cover the code that ships. Your findings go back to the PR Producer (the description) or to Build (the
 code), so each one names the line, quotes it, and says what the fix is.
@@ -26,7 +26,7 @@ code), so each one names the line, quotes it, and says what the fix is.
    matches its consequence, with a line the producer can find without searching.
 
 ## Inputs
-- The PR (its link), or `<run>/pr-description.md` and the PR branch named in `reports/pr-producer.md`.
+- The PR (its link), or `<run>/pr-description.md`, and the run's branch (`branch` in `input.md`).
 - `brief.md`, the review reports (`reports/review.*.md`), `reports/pr-producer.md` and its validator report,
   `findings.jsonl`, `runner/*.json`, `gates/*.json`, the work packages' flag plans.
 - `.fyzxsflow/profile.md` (Pull requests, Deploy order, Runs) and `.fyzxsflow/feature-flags.md`.
@@ -34,10 +34,9 @@ code), so each one names the line, quotes it, and says what the fix is.
 ## Procedure
 1. **Read the description on its own** (`cat -n <run>/pr-description.md`, or the PR body). Take every line number
    you cite from that read.
-2. **What the PR carries.** `git log --oneline <target>..<pr-branch>` and `git diff --stat <target>...<pr-branch>`.
-   Sort the files: product, project docs, run records, flow install or host files. Flow install or bootstrap
-   history on the PR branch is a `major` finding on `pr-producer`. A file whose inclusion is the owner's choice is
-   an `owner-decision` finding, with the options and their cost.
+2. **What the PR carries.** `git log --oneline <target>..<branch>` and `git diff --stat <target>...<branch>`.
+   Every commit on the run's branch ships, the run's record included; that is by design, not a finding. Sort the
+   files into product, project docs and the run's record, and check the description tells them apart.
 3. **Description against the diff.** For each statement of what changed, find it in the diff; for each change in
    the diff a reviewer would care about, find it in the description. Read the flag reads in the code: the stated
    names, defaults and flip paths match. Nothing in the diff goes beyond the brief and its owner decisions.
@@ -45,8 +44,7 @@ code), so each one names the line, quotes it, and says what the fix is.
    then open each criterion's evidence and confirm it shows that behaviour. Compare every stated result and count
    with the runner and gate summaries and with `python -I .fyzxsflow/package/engine/run.py ship-check <run>`: a
    failure called green, or a pre-existing failure left unstated, is a finding.
-5. **The evidence covers the shipped tree.** Product files on the PR branch match the tree the runner tested:
-   `git diff <run branch> <pr-branch> -- <product paths>` is empty, and no product commit
+5. **The evidence covers the shipped tree.** No product commit
    (`git log -1 --format=%cI -- <product paths>`) postdates the runner summaries cited. A proof that ran before a
    later change is named, with what that change touched.
 6. **Revert and deploy.** For each step: what runs it (read the pipeline file or script), what the tool actually
