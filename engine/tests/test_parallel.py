@@ -156,7 +156,7 @@ class WavesTests(ParallelBase):
         code, out = self.waves()
         self.assertEqual(code, 0, out)
         self.assertNotIn("warning", out)
-        self.assertIn("info (done packages, left as they are): groups WP-01 and WP-02", out)
+        self.assertIn("info (done or deferred packages, left as they are): groups WP-01 and WP-02", out)
 
     def test_a_lock_is_seen_when_the_done_check_names_the_mode_in_prose(self):
         self.wp("WP-01", ["src/a.py"], mode="quick")
@@ -179,7 +179,7 @@ class WavesTests(ParallelBase):
         self.wp("WP-03", ["src/c.py"], deps=["WP-02"])
         code, out = self.waves()
         self.assertEqual(code, 0, out)
-        self.assertIn("info (done packages, left as they are): WP-02: depends_on WP-01 with no reason", out)
+        self.assertIn("info (done or deferred packages, left as they are): WP-02: depends_on WP-01 with no reason", out)
 
     def test_a_package_whose_dependencies_are_done_is_in_the_first_wave(self):
         self.wp("WP-01", ["src/a.py"])
@@ -213,6 +213,16 @@ case "$1 $2" in
 esac
 exit 0
 """
+
+
+class GroupNameTests(ParallelBase):
+    def test_a_named_group_keeps_its_case_like_the_default(self):
+        self.plan()
+        f = self.run / "work-packages" / "WP-03-x.md"
+        f.write_text(f.read_text(encoding="utf-8").replace("status: planned", "status: planned\npr_group: WP-03"),
+                     encoding="utf-8")
+        code, out = self.py("waves.py", "check", "--run", str(self.run), "--json")
+        self.assertIn("WP-03", json.loads(out)["groups"])
 
 
 class LanesTests(ParallelBase):
@@ -387,6 +397,129 @@ exit 0
         lanes = self.opened(self.lanes("open")[1])
         self.assertEqual(sorted(lanes), ["WP-02", "WP-03"])
         self.assertIn("waiting WP-04 on WP-02", self.lanes("status")[1])
+
+
+class LaneLifeTests(LanesTests):
+    def test_lanes_are_sibling_worktrees_and_close_takes_one_group(self):
+        self.plan()
+        self.git("switch", "-q", "-c", "fyzxsflow/run")
+        self.commit_all()
+        lanes = self.opened(self.lanes("open")[1])
+        self.assertEqual(pathlib.Path(lanes["WP-01"]), self.tmp / "repo-WP-01")
+        self.build_in(lanes["WP-01"], "src/a.py", "# a\n")
+        self.assertEqual(self.lanes("merge", "--group", "WP-01")[0], 0)
+        out = self.lanes("close", "--group", "WP-01")[1]
+        self.assertEqual(out.split()[:2], ["closed", "WP-01"])
+        self.assertTrue((self.tmp / "repo-WP-02").is_dir())
+        self.assertFalse((self.tmp / "repo-WP-01").exists())
+
+    def test_move_brings_an_old_lane_beside_the_checkout(self):
+        self.plan()
+        self.git("switch", "-q", "-c", "fyzxsflow/run")
+        self.commit_all()
+        self.opened(self.lanes("open")[1])
+        old = self.tmp / "inside-git-WP-03"
+        self.assertEqual(self.lanes("move", "--group", "WP-03", "--to", str(old))[0], 0)
+        code, out = self.lanes("move", "--group", "WP-03")
+        self.assertEqual(code, 0, out)
+        self.assertIn(f"-> {self.tmp / 'repo-WP-03'}", out)
+        self.assertIn(str(self.tmp / "repo-WP-03"), self.lanes("status")[1])
+
+    def test_park_sets_a_group_aside_and_unpark_brings_its_work_back(self):
+        self.plan()
+        self.git("switch", "-q", "-c", "fyzxsflow/run")
+        self.commit_all()
+        lanes = self.opened(self.lanes("open")[1])
+        self.build_in(lanes["WP-01"], "src/a.py", "# a, held\n")
+        code, out = self.lanes("park", "--group", "WP-01", "--reason", "hold WP-01 for now")
+        self.assertEqual(code, 0, out)
+        self.assertIn("status: deferred", (self.run / "work-packages" / "WP-01-x.md").read_text(encoding="utf-8"))
+        self.assertFalse(pathlib.Path(lanes["WP-01"]).exists())
+        self.assertTrue((self.tmp / "repo-WP-02").is_dir())  # only that lane closed
+        code, out = self.py("waves.py", "check", "--run", str(self.run))
+        self.assertEqual(code, 0, out)
+        self.assertIn("warning: deferred: WP-01; held until it returns: WP-04", out)
+        self.assertNotIn("WP-04", out.split("\n")[0])
+        self.assertNotIn("waiting WP-01", self.lanes("status")[1])
+        self.commit_all("park WP-01")
+        self.assertEqual(self.lanes("unpark", "--group", "WP-01")[0], 0)
+        self.assertIn("status: planned", (self.run / "work-packages" / "WP-01-x.md").read_text(encoding="utf-8"))
+        self.commit_all("unpark WP-01")
+        lanes = self.opened(self.lanes("open")[1])
+        self.assertEqual((pathlib.Path(lanes["WP-01"]) / "src" / "a.py").read_text(), "# a, held\n")
+
+    def test_sync_merges_the_run_folder_without_conflicts_and_publish_refuses_a_conflict(self):
+        self.plan()
+        bare = self.tmp / "remote.git"
+        subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+        self.git("remote", "add", "origin", "https://github.com/acme/shop.git")
+        self.git("remote", "set-url", "--push", "origin", str(bare))
+        self.git("config", "remote.origin.url", str(bare))
+        (self.root / ".fyzxsflow" / "profile.md").write_text("- PR host: github\n", encoding="utf-8")
+        self.git("switch", "-q", "-c", "fyzxsflow/run")
+        self.commit_all()
+        lanes = self.opened(self.lanes("open")[1])
+        lane = pathlib.Path(lanes["WP-01"])
+        add = lambda where, summary: self.py("findings.py", "add", "--run", str(where), "--source", "validator",
+                                             "--target", "code", "--kind", "instance", "--severity", "minor",
+                                             "--summary", summary, "--evidence", "a:1")[1].strip()
+        lane_run = lane / self.run.relative_to(self.root)
+        self.assertEqual(add(lane_run, "in the lane"), "F-1")
+        self.assertEqual(add(self.run, "in the run checkout"), "F-2")
+        rel = str((self.run / "findings.jsonl").relative_to(self.root))
+        self.git("add", rel, cwd=lane)
+        self.git("commit", "-qm", "lane finding", cwd=lane)
+        self.build_in(lane, "src/shared.py", "# from the lane\n")
+        self.git("add", rel)
+        self.git("commit", "-qm", "run finding")
+        (self.root / "src" / "shared.py").write_text("# from the run branch\n", encoding="utf-8")
+        self.git("add", "src/shared.py")
+        self.git("commit", "-qm", "run edit")
+        bindir = self.tmp / "bin"
+        bindir.mkdir()
+        (bindir / "gh").write_text(FAKE_GH.format(log=self.tmp / "gh.log", counter=self.tmp / "n",
+                                                  state=self.tmp), encoding="utf-8")
+        (bindir / "gh").chmod(0o755)
+        old = os.environ["PATH"]
+        os.environ["PATH"] = f"{bindir}{os.pathsep}{old}"
+        try:
+            code, out = self.lanes("pr", "--group", "WP-01", "--publish")
+            self.assertEqual(code, 1, out)
+            self.assertIn("would conflict with the run branch in src/shared.py", out)
+            self.assertIn("conflict WP-01", self.lanes("refresh")[1])
+            code, out = self.lanes("sync", "--group", "WP-01")
+            self.assertEqual(code, 1)
+            self.assertIn("src/shared.py", out)
+            self.assertNotIn("findings.jsonl", out)  # merged by id, not a conflict
+            self.build_in(lane, "src/shared.py", "# from the run branch\n")
+            code, out = self.lanes("sync", "--group", "WP-01")
+            self.assertEqual(code, 0, out)
+            ids = [json.loads(l)["id"] for l in (lane_run / "findings.jsonl").read_text().splitlines()]
+            self.assertEqual(sorted(ids), ["F-1", "F-2"])
+            code, out = self.lanes("pr", "--group", "WP-01", "--publish")
+            self.assertEqual(code, 0, out)
+            calls = (self.tmp / "gh.log").read_text()
+            self.assertIn("--title WP-01 — s", calls)
+            self.assertIn("gh pr edit 1 --title WP-01 — s --body", calls)
+            self.assertIn("Ready for review", calls)
+        finally:
+            os.environ["PATH"] = old
+
+
+class AzureLinkTests(unittest.TestCase):
+    def test_the_web_link_not_the_api_link(self):
+        import pr as prmod
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="fyzxsflow-az-"))
+        try:
+            subprocess.run(["git", "init", "-q", str(tmp)], check=True)
+            subprocess.run(["git", "remote", "add", "origin", "https://acme@dev.azure.com/acme/Shop/_git/shop"],
+                           cwd=tmp, check=True)
+            api = {"url": "https://dev.azure.com/acme/guid/_apis/git/repositories/guid/pullRequests/27"}
+            self.assertEqual(prmod.web_url(tmp, api, "27"), "https://dev.azure.com/acme/Shop/_git/shop/pullrequest/27")
+            self.assertEqual(prmod.web_url(tmp, {**api, "repository": {"webUrl": "https://x/_git/r"}}, "27"),
+                             "https://x/_git/r/pullrequest/27")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 class RunWorktreeTests(ParallelBase):

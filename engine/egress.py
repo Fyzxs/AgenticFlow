@@ -42,11 +42,38 @@ _CONTAINER_START = re.compile(r"\b(docker|podman)(?:-compose|\s+compose)?\b[^&|;
 _PULL_NEVER = re.compile(r"--pull[ =]never\b")
 
 
-def docker_pull_problem(command: str):
-    """None, or why an airplane-mode command could fetch a container image over the network."""
-    if _CONTAINER_START.search(command) and not _PULL_NEVER.search(command):
-        return ("starts containers without '--pull never': an image missing locally would be downloaded. Add "
-                "--pull never (images are fetched by the e2e-prefetch mode)")
+_SCRIPT = re.compile(r"""(?:^|[\s;&|(])(?:(?:bash|sh|pwsh|powershell)(?:\s+-\w+)*\s+)?["']?((?:\.{0,2}/)?[\w./\\-]+\.(?:sh|ps1|cmd|bat))\b""")
+
+
+def wrapped(command: str, root=None) -> str:
+    """The command plus the text of any script it calls (one level), so a container start inside a wrapper is seen."""
+    if root is None:
+        return command
+    import pathlib
+    out = [command]
+    for m in _SCRIPT.finditer(command):
+        f = pathlib.Path(root) / m.group(1)
+        try:
+            if f.is_file() and f.stat().st_size < 512 * 1024:
+                out.append(f.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            pass
+    return "\n".join(out)
+
+
+def docker_pull_problem(command: str, root=None, pulls: str = ""):
+    """None, or why an airplane-mode command could fetch a container image over the network. Scripts the command
+    calls are read too (one level, from root). A step that declares "pulls": "never" in config is taken at its word:
+    its own wrapper guarantees local images only."""
+    if str(pulls).lower() == "never":
+        return None
+    text = wrapped(command, root)
+    starts = [l for l in text.splitlines() if _CONTAINER_START.search(l)]
+    if starts and not all(_PULL_NEVER.search(l) for l in starts):
+        where = "" if _CONTAINER_START.search(command) else " (in the script it calls)"
+        return (f"starts containers without '--pull never'{where}: an image missing locally would be downloaded. "
+                "Add --pull never (images are fetched by the e2e-prefetch mode), or declare \"pulls\": \"never\" "
+                "on the step when its wrapper already guarantees it")
     return None
 
 

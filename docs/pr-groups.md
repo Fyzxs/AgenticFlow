@@ -1,7 +1,7 @@
 # PR groups into the run branch, one roll-up PR to the default branch
 
-Status: **built** (0.3.0). Written 2026-11-12, from the owner's suggestion (a prompt written in another session) with
-the amendments below.
+Status: **built** (0.3.0; 0.4.0 added below). Written 2026-11-12, from the owner's suggestion (a prompt written in
+another session) with the amendments below.
 
 ## The ask (owner, verbatim)
 "We can do work earlier; and it can have it's OWN PR. Let's not bundle PRs just cause the work is parallal. If the
@@ -51,3 +51,21 @@ into the run branch, and that run branch is PRd into main."
 - [x] Version 0.3.0, CHANGELOG.md
 - [x] Tests: group PR commands against stubbed gh/az, readiness by completed PR, done-package problems ignored,
       close refusing an open PR, pull-before-cut
+
+## 0.4.0: from the first long run on PR groups
+A 45-package run in DocMcStorage showed what the first version missed; each is now in the engine:
+- **Lanes are sibling worktrees** (`<checkout>-<group>`), so the owner and their tools see them; `lanes.json` stays in
+  the git common directory. `lanes.py move` brings out a lane opened inside `.git/` by 0.3.x.
+- **The run folder merges by itself.** Finding ids come from one counter shared by every worktree, so two lanes
+  never mint the same id. `lanes.py` registers merge drivers in the repo's local git config: `findings.jsonl` merges
+  by id, field by field (`findings.py merge-driver`); `ledger.md` and `reviews.jsonl` by union. `findings.py
+  resolve` closes a finding with what fixed it.
+- **Publishing means it merges cleanly.** `lanes.py sync` merges the run branch into a lane; `pr --publish` refuses
+  while the lane would conflict with the run branch, or the host reports conflicts, and replaces the draft's
+  description with the group's summary (`--body-file`). `refresh` names open lanes the run branch now conflicts
+  with. Titles come from the package heading; links are the PR's web page (Azure DevOps included).
+- **Holding a group.** `lanes.py park` keeps a group's work on `fyzxsflow-parked/<run>/<group>`, closes only that
+  lane and marks its packages `status: deferred`; `waves.py` sets them and their dependents aside, `ac_trace.py`
+  shows their criteria as deferred. `unpark` brings it back. `close --group` closes one lane.
+- Group names keep their case whether named or default.
+

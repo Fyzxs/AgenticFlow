@@ -116,6 +116,10 @@ the PR yourself.
   flagged?"): `preceptee.py ask ...`, and post the same question on the PR it concerns
   (`preceptee.py comment --at pr`) when there is one. They answer when they like (`preceptee.py answered ...`); reveal and score then. At run close,
   score each one still unanswered with `--unanswered`.
+- **Stopping mid-run.** When precept is switched off for the run, or the preceptee says they want to stop, never
+  score an exercise on its reveal alone: `preceptee.py stop --run <run> --as skip --reason "<why>"` closes every
+  exercise not yet scored as not-counted (open questions as unanswered) and lists them. Tell the preceptee what was
+  closed and that their streaks are unchanged.
 - **Area 9, learning hygiene** (Deliver, before the PR). `deliver.explain`: they explain every changed product
   file in their own words, one note each (`note --kind explain --path <file>`); `preceptee.py explained --run
   <run>` must pass (ship-check checks it). Score `--medium N` for each explanation that is wrong, or that leaves

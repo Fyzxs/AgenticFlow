@@ -209,3 +209,18 @@ class RunnerNetworkTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WrapperPullTests(unittest.TestCase):
+    def test_a_container_start_inside_a_called_script_is_seen_and_pulls_never_is_trusted(self):
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="fyzxsflow-wrap-"))
+        try:
+            (tmp / "up.sh").write_text("#!/bin/sh\ndocker compose up -d db\n", encoding="utf-8")
+            self.assertIn("in the script it calls", egress.docker_pull_problem("./up.sh", tmp))
+            self.assertIsNone(egress.docker_pull_problem("./up.sh", tmp, "never"))
+            (tmp / "up.sh").write_text("#!/bin/sh\ndocker compose up --pull never -d db\n", encoding="utf-8")
+            self.assertIsNone(egress.docker_pull_problem("bash ./up.sh", tmp))
+            self.assertIsNotNone(egress.docker_pull_problem("docker run img"))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+

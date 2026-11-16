@@ -26,6 +26,10 @@ one exercise in spot_every) > off. Areas 2, 4, 5 and 8 never pause: they are ask
   preceptee.py score --run <run> --step <id> [--major N] [--medium N] [--caught N] [--missed-major N]
                      [--false-alarms N] [--quiz-right N --quiz-total N] [--skip | --unanswered]
       -> "outcome=good|miss|not-counted streak=<n> [prompt=step-down|step-up to=<level>]"
+  preceptee.py stop --run <run> --as skip|unanswered [--reason "..."]
+      -> closes every exercise of the run that isn't scored yet (precept switched off mid-run, or the preceptee
+         stopped): each is recorded not-counted, as skipped or as unanswered, and listed, so nothing is scored on a
+         reveal alone. Questions still open are listed as unanswered.
   preceptee.py answer <area> yes|no                               the preceptee's reply to a pending prompt
   preceptee.py note --run <run> --kind reason|explain|criteria|attempt|coaching [--path <file>] [--step <id>]
                     (--text "..." | --file <f>)
@@ -401,6 +405,28 @@ def cmd_score(args) -> int:
     if prompt:
         log("prompt", area=area, **prompt)
     print(f"outcome={outcome} streak={a['streak']}" + (f" prompt={prompt['type']} to={prompt['to']}" if prompt else ""))
+    return 0
+
+
+def cmd_stop(args) -> int:
+    rid = run_id(args.run)
+    evs = [e for e in events() if e.get("run") == rid and e.get("step")]
+    steps = list(dict.fromkeys(e["step"] for e in evs))
+    closed = 0
+    for step in steps:
+        mine = [e for e in evs if e["step"] == step]
+        if any(e["kind"] == "score" for e in mine):
+            continue
+        area = next((e["area"] for e in mine if e.get("area")), "")
+        asked = any(e["kind"] == "ask" for e in mine)
+        open_question = asked and not any(e["kind"] == "answered" for e in mine)
+        how = "unanswered" if open_question else args.as_
+        log("score", run=rid, step=step, area=area, outcome="not-counted", stopped=how, reason=args.reason)
+        closed += 1
+        print(f"{step} area {area}: not-counted ({how})" + ("; its question was never answered" if open_question
+                                                             else ""))
+    log("stop", run=rid, closed=closed, how=args.as_, reason=args.reason)
+    print(f"stopped: {closed} open exercise(s) closed as not-counted; streaks unchanged")
     return 0
 
 
@@ -868,6 +894,8 @@ def main(argv=None) -> int:
         c.add_argument(f"--{k}", type=int)
     c.add_argument("--skip", action="store_true"); c.add_argument("--unanswered", action="store_true")
     r = sub.add_parser("answer"); r.add_argument("area"); r.add_argument("reply", choices=["yes", "no"])
+    so = sub.add_parser("stop"); so.add_argument("--run", required=True)
+    so.add_argument("--as", dest="as_", required=True, choices=["skip", "unanswered"]); so.add_argument("--reason")
     n = sub.add_parser("note"); n.add_argument("--run", required=True); n.add_argument("--kind", required=True)
     n.add_argument("--path"); n.add_argument("--step"); n.add_argument("--text"); n.add_argument("--file")
     e = sub.add_parser("explained"); e.add_argument("--run", required=True)
@@ -886,7 +914,7 @@ def main(argv=None) -> int:
             "attempt": cmd_attempt, "reveal": cmd_reveal, "ask": cmd_ask, "answered": cmd_answered,
             "score": cmd_score, "answer": cmd_answer, "note": cmd_note, "explained": cmd_explained,
             "seed": cmd_seed, "seed-check": cmd_seed_check, "digest": cmd_digest, "import": cmd_import,
-            "export": cmd_export, "comment": cmd_comment, "activity": cmd_activity}[args.cmd](args)
+            "export": cmd_export, "comment": cmd_comment, "activity": cmd_activity, "stop": cmd_stop}[args.cmd](args)
 
 
 if __name__ == "__main__":

@@ -31,8 +31,12 @@ python -I .fyzxsflow/package/engine/steps.py set precept on --reason "this repo 
 That writes `"steps": { "on": ["precept"] }` into `.fyzxsflow/config.json`. To switch it off again:
 `steps.py set precept off --reason "<why>"`. To check where it stands: `steps.py enabled precept`.
 
+**Stopping partway through a run** (switching it off for the run, or just saying you want to stop): the Preceptor
+closes every exercise that isn't finished as *not counted*, and lists them, so nothing is judged on half an
+exercise and your streaks stay as they were (`preceptee.py stop --run <run> --as skip`).
+
 **What it needs:**
-- FyzxsFlow 0.3.0 or later installed in the repo (reinstall to upgrade; see [HOW-TO → Upgrade](HOW-TO.md#upgrade)).
+- FyzxsFlow 0.4.0 or later installed in the repo (reinstall to upgrade; see [HOW-TO → Upgrade](HOW-TO.md#upgrade)).
 - For coaching on pull requests (the default): the `pr` step on, a remote on GitHub or Azure DevOps, and `gh` or
   `az` signed in. Without them, coaching happens in the chat session instead.
 - One preceptee per machine. The person running the flow is the preceptee. Their handle comes from

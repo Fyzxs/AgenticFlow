@@ -51,6 +51,9 @@ is a pattern a doc marks legacy, which you never copy, however often it appears 
   auto-complete on one.
 
 ## Rules for every role
+- **Work in the worktree your dispatch names.** Before anything else, run `git rev-parse --show-toplevel` and
+  check it is the `Worktree:` your dispatch gives (`cd` there if not). Resolve every path, Runner call and git
+  command against it: a repo can have several checkouts open at once (lanes, parallel runs).
 - **No acceptance criteria, no implementation.** Work is implemented only against numbered acceptance
   criteria (brief `AC-n`, package `WP-xx.n`). They are the checks and the end state. An implementor
   reports every criterion it was responsible for as met / not met / partial, with evidence.
@@ -73,8 +76,9 @@ is a pattern a doc marks legacy, which you never copy, however often it appears 
 - **Copy, don't recall.** Code, SQL, error text, orders and positions you quote come from the source, copied.
   Say whether a position is 0- or 1-based.
 - **Findings** go only through `.fyzxsflow/package/engine/findings.py`. Read the run's `findings.jsonl` first
-  and don't log a duplicate: `findings.py amend <F-n>` updates one. `--fixed` means the target itself was
-  corrected, not that a fix is planned.
+  and don't log a duplicate: `findings.py amend <F-n>` updates one, `findings.py resolve <F-n> --by <commit|F-n>`
+  closes one. `--fixed` means the target itself was corrected, not that a fix is planned. Never write ids, ranges
+  or fields by hand. A question only the owner can answer is `--kind owner-decision`; no other kind reaches them.
 - **Rework updates the report in place**: its criteria and change tables show the current state, not a
   history to reconcile.
 - **Criteria rows start with the bare id** (`AC-3`, `WP-02.1`) in the first cell; `ac_trace.py` reads nothing

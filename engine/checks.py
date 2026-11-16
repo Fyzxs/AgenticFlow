@@ -6,6 +6,10 @@
   python -I .fyzxsflow/package/engine/checks.py run-ids [--base main] [--root .]
       -> no run-local ids (F-12, AC-3, WP-04, WP-04.2) or run-folder paths in lines added to product code since
          the merge base with --base (committed or not). Exit 0 = clean, 1 = found.
+  python -I .fyzxsflow/package/engine/checks.py report <report> [--agent <agent>]
+      -> the report has a `## ` section for every item its agent file lists under "Report must include" (items
+         marked "(if any)" are optional), and every criterion marked met has evidence. The agent comes from the
+         report's `agent:` frontmatter unless given. Exit 0 = complete, 1 = something missing (listed).
 
 Citations: a path with a folder must exist (from the repo root, else from the run folder the file is in); a bare
 file name is checked only when it exists at the root. Ranges must lie inside the file. `run.py stamp` runs the
@@ -118,6 +122,60 @@ def cmd_run_ids(args) -> int:
     return 1 if hits else 0
 
 
+def agent_file(agent: str):
+    here = pathlib.Path(__file__).resolve().parent
+    for folder in (here.parent / "agents", here.parent / ".apm" / "agents"):
+        f = folder / f"{agent}.agent.md"
+        if f.exists():
+            return f
+    return None
+
+
+def required_sections(agent: str) -> list:
+    """The items an agent file lists under '## Report must include' (separated by '·'), minus '(if any)' ones."""
+    f = agent_file(agent)
+    if f is None:
+        return []
+    m = re.search(r"^## Report must include\s*\n(.*?)(?=^## |\Z)", f.read_text(encoding="utf-8"), re.M | re.S)
+    if not m:
+        return []
+    out = []
+    for item in " ".join(m.group(1).split()).split("·"):
+        item = item.strip().rstrip(".")
+        if not item or "(if any)" in item:
+            continue
+        out.append(re.sub(r"\s*\(.*$", "", item).strip())
+    return out
+
+
+def report_problems(report: pathlib.Path, agent: str = "") -> list:
+    text = report.read_text(encoding="utf-8")
+    if not agent:
+        m = re.search(r"^agent:\s*(\S+)", text, re.M)
+        agent = m.group(1) if m else ""
+    headings = [re.sub(r"\s*\(.*$", "", h).strip().lower() for h in re.findall(r"^##\s+(.+)$", text, re.M)]
+    problems = []
+    for item in required_sections(agent):
+        want = item.lower()
+        if not any(h.startswith(want) or want.startswith(h) for h in headings if h):
+            problems.append(f"missing section: {item} (the {agent} agent file requires it)")
+    crit = re.search(r"^## Acceptance criteria[^\n]*\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+    for row in (crit.group(1).splitlines() if crit else []):
+        cells = [c.strip() for c in row.strip().strip("|").split("|")]
+        if len(cells) >= 3 and re.match(r"^(AC|WP)-\d", cells[0]) and cells[1].lower() == "met" and \
+                cells[2] in ("", "-", "—", "..."):
+            problems.append(f"{cells[0]} is met with no evidence")
+    return problems
+
+
+def cmd_report(args) -> int:
+    problems = report_problems(pathlib.Path(args.report), args.agent or "")
+    for p in problems:
+        print(p)
+    print(f"report: {'complete' if not problems else 'incomplete'} ({len(problems)} problems)")
+    return 1 if problems else 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -127,8 +185,11 @@ def main(argv=None) -> int:
     r = sub.add_parser("run-ids")
     r.add_argument("--base", default="main")
     r.add_argument("--root", default=".")
+    rp = sub.add_parser("report")
+    rp.add_argument("report")
+    rp.add_argument("--agent")
     args = p.parse_args(argv)
-    return {"citations": cmd_citations, "run-ids": cmd_run_ids}[args.cmd](args)
+    return {"citations": cmd_citations, "run-ids": cmd_run_ids, "report": cmd_report}[args.cmd](args)
 
 
 if __name__ == "__main__":

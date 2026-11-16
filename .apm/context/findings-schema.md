@@ -2,11 +2,13 @@
 
 A finding is one JSON object per line in `findings.jsonl`. Write findings with
 `python -I .fyzxsflow/package/engine/findings.py add ...`, which validates them, and change one with
-`findings.py amend <F-n> --note "..." [--fixed]`. Never hand-edit the file.
+`findings.py amend <F-n> --note "..." [--fixed]`, and close one with `findings.py resolve <F-n> --by <commit sha |
+F-n> --note "..."`. Never hand-edit the file, allocate ids yourself or reserve ranges: ids come from one counter
+shared by every worktree of the repo (lanes included), and the file merges between lanes by finding id.
 
 | Field | Required | Meaning |
 |---|---|---|
-| `id` | auto | `F-<n>` within the run |
+| `id` | auto | `F-<n>` within the run, unique across its lanes |
 | `run` | auto | run id |
 | `source` | yes | agent that found it (`validator`, `reviewer-narrow`, `runner`, `human`, ...) |
 | `target` | yes | what it is about: an agent name (`implementer`), a doc path, `code`, a package id (`WP-06`: a weakness handed forward to that package, added to its inputs when it is dispatched), or `ship:<check>` (the owner accepting a failed sign-off check) |
@@ -15,7 +17,8 @@ A finding is one JSON object per line in `findings.jsonl`. Write findings with
 | `summary` | yes | one sentence |
 | `evidence` | yes | list of `path:line` (or a URL for a PR comment) |
 | `rule` | no | the general rule that would have prevented it, written as an instruction |
-| `fixed` | no | `true` if the source already corrected the output |
+| `fixed` | no | `true` if the source already corrected the output, or once `resolve` closed it |
+| `resolution` | auto | written by `resolve`: `by` (the commit that fixed it, or the finding that supersedes it), `note`, `time` |
 | `detail` | no | full text where a sentence is not enough: the owner's feedback, verbatim |
 
 ## Kinds
@@ -30,7 +33,9 @@ A finding is one JSON object per line in `findings.jsonl`. Write findings with
 - `escalation`: an agent was re-run one model tier up after repeated Validator failures.
 - `scope-request`: an agent needed to touch something outside its package.
 - `replan`: the plan was wrong; Locate must redo it.
-- `owner-decision`: only the owner can decide; goes to the next gate.
+- `owner-decision`: only the owner can decide; goes to the next gate. **Every question for the owner is this
+  kind**, whatever raised it: no other kind reaches them. Its target may be `owner`; `findings.py` refuses
+  `owner` as the target of any other kind.
 - `owner-feedback`: the owner's feedback on a review (reply note plus the review file's `## Human Feedback`),
   written by `review.py decide`, verbatim in `detail`. The Orchestrator routes it before the next dispatch.
 

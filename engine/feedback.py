@@ -13,7 +13,9 @@
 
 The owner writes plain text; the system adds a frontmatter block (status, actions, note, refs, seen_hash, updated)
 and never edits the owner's words. seen_hash covers the text below the frontmatter, so an item the owner edits
-after it was handled shows up in scan again, even from done/ (it is reopened). README.md is the folder's guide,
+after it was handled shows up in scan again, even from done/ (it is reopened). An item whose frontmatter says it
+is closed (status applied, declined or done) but has no seen_hash, because it was closed by hand, is not new.
+README.md is the folder's guide,
 not an item. A file that isn't UTF-8 text (a screenshot, a PDF) is an item too: scan and list show it as
 "(binary file <path>, <size> bytes; open it to read)", its record goes in a sidecar <name>.feedback-meta.md
 (the owner's file is never rewritten), and seen_hash covers its bytes.
@@ -39,6 +41,7 @@ from layout import HOME, PACKAGE  # noqa: E402
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 STATUSES = ("in-progress", "waiting", "applied", "declined")
+CLOSED = ("applied", "declined", "done")  # "done": an item closed by hand, without feedback.py set
 ACTIONS = ("docs", "agent-input", "rework", "new-work", "none")
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n?", re.S)
 KEYS = ("status", "actions", "note", "refs", "seen_hash", "updated")
@@ -188,6 +191,8 @@ def cmd_scan(args) -> int:
         meta, body, digest, _ = read_item(root, f)
         if not body.strip():
             continue
+        if not meta.get("seen_hash") and meta.get("status", "").lower() in CLOSED:
+            continue  # closed by hand (no seen_hash): handled, not new
         if not meta.get("seen_hash"):
             state = "new"
         elif meta["seen_hash"] != digest:

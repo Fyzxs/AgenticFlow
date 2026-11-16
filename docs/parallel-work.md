@@ -1,7 +1,9 @@
 # Parallel work: a plan
 
 Status: **built** and trialled; since 0.3.0 groups start as soon as their dependencies' PRs are completed
-(no waiting for a wave): see [`pr-groups.md`](pr-groups.md); how to use it: [HOW-TO → Parallel work](../HOW-TO.md#parallel-work). Written 2026-11-12. Owner decisions: build all three parts; `build.max_parallel` defaults to 3.
+(no waiting for a wave): see [`pr-groups.md`](pr-groups.md). Since 0.4.0 lanes are folders beside the run's
+checkout (`<checkout>-<group>`), not inside `.git/`, and the run folder merges between lanes by itself (finding ids
+from one shared counter); the paths and commands below are the original plan's; how to use it: [HOW-TO → Parallel work](../HOW-TO.md#parallel-work). Written 2026-11-12. Owner decisions: build all three parts; `build.max_parallel` defaults to 3.
 
 ## The ask (owner)
 "As part of the work breakdown, identify what can be run in parallel, and how to do that effectively. This will

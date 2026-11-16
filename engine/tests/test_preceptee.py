@@ -76,6 +76,21 @@ class PreceptorTests(unittest.TestCase):
         self.p("area", "1", "off")
         self.assertIn("pause=no level=off", self.p("decide", "1", "--run", self.run, "--step", "r")[1])
 
+    def test_stop_closes_open_exercises_as_not_counted_and_keeps_the_streak(self):
+        self.exercise("s1")
+        self.p("decide", "6:python", "--run", self.run, "--step", "s2")
+        self.p("attempt", "--run", self.run, "--step", "s2")
+        self.p("reveal", "--run", self.run, "--step", "s2")
+        self.p("ask", "--run", self.run, "--step", "q1", "--area", "2", "--text", "why did it hang?")
+        code, out = self.p("stop", "--run", self.run, "--as", "skip", "--reason", "precept off")
+        self.assertEqual(code, 0, out)
+        self.assertIn("s2 area 6:python: not-counted (skip)", out)
+        self.assertIn("q1 area 2: not-counted (unanswered); its question was never answered", out)
+        self.assertNotIn("s1 ", out)
+        self.assertIn("2 open exercise(s) closed", out)
+        self.assertIn("refused: s2 is already scored", self.p("score", "--run", self.run, "--step", "s2")[1])
+        self.assertIn("streak=2", self.exercise("s3"))
+
     def test_decide_answers_the_same_for_the_same_step(self):
         self.p("decide", "1", "--run", self.run, "--step", "WP-01.review")
         self.p("area", "1", "off")

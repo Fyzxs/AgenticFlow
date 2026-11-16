@@ -7,6 +7,9 @@
 
 Done packages (`status: done`) count as already built: they are never built again, and a package whose only
 remaining dependencies are done is in the first wave.
+Deferred packages (`status: deferred`, set by `lanes.py park` when the owner holds one) are set aside: they and
+every package that depends on them, directly or not, are left out of the waves and listed as held (a warning), and
+a group with a held package waits on the deferred group. Problems that name only done or deferred packages are info.
 
 PR groups: each package names its group in frontmatter (`pr_group: <slug>`; default, its own id). A group is one
 lane and one PR into the run branch; packages share one only when one can't be reviewed without the other. A group
@@ -78,10 +81,11 @@ def parse(path: pathlib.Path) -> dict:
         if "Runner" in line or "runner.py" in line:
             for tok in BACKTICK.findall(line) or [line]:
                 modes.update(m for m in MODE.findall(tok) if m not in ("scope", "run", "root", "allow-destructive"))
-    named = re.sub(r"[^a-z0-9-]+", "-", meta.get("pr_group", "").lower()).strip("-")
+    named = re.sub(r"[^A-Za-z0-9-]+", "-", meta.get("pr_group", "")).strip("-")  # kept as written, like the default
     group = named or wp
     return {"id": wp, "file": path.name, "depends_on": deps, "scope": sorted(scope), "reasons": reasons,
             "modes": sorted(modes), "done": meta.get("status", "").lower() == "done", "group": group,
+            "deferred": meta.get("status", "").lower() == "deferred",
             "done_check": done_check}
 
 
@@ -111,7 +115,8 @@ def waves(packages: list):
             if d not in by_id:
                 problems.append(f"{p['id']}: depends_on {d}, which is not a package of this run")
     built = {p["id"] for p in packages if p["done"]}
-    remaining = [p["id"] for p in packages if not p["done"]]
+    held = held_ids(packages)
+    remaining = [p["id"] for p in packages if not p["done"] and p["id"] not in held]
     out = []
     while remaining:
         ready = [i for i in remaining if all(d in built or d not in by_id for d in by_id[i]["depends_on"])]
@@ -123,6 +128,27 @@ def waves(packages: list):
         built.update(ready)
         remaining = [i for i in remaining if i not in ready]
     return out, problems
+
+
+def held_ids(packages: list) -> set:
+    """Deferred packages and every not-done package that depends on one, directly or not."""
+    by_id = {p["id"]: p for p in packages}
+    held = {p["id"] for p in packages if p.get("deferred")}
+    grew = True
+    while grew:
+        grew = False
+        for p in packages:
+            if p["id"] not in held and not p["done"] and any(d in held for d in p["depends_on"] if d in by_id):
+                held.add(p["id"])
+                grew = True
+    return held
+
+
+def parked_groups(packages: list) -> set:
+    """Groups with a deferred package and nothing left to build otherwise: set aside until it returns."""
+    return {g for g, ids in groups(packages).items()
+            if any(p.get("deferred") for p in packages if p["group"] == g)
+            and all(p.get("deferred") or p["done"] for p in packages if p["group"] == g)}
 
 
 def groups(packages: list) -> dict:
@@ -167,7 +193,9 @@ def waiting(packages: list, completed: set) -> list:
     """(group, the groups it still waits for) for every group not completed, in plan order. Done groups count as
     completed; a group may start when its list is empty."""
     deps, completed = group_deps(packages), set(completed) | done_groups(packages)
-    return [(g, sorted(d for d in deps[g] if d not in completed)) for g in groups(packages) if g not in completed]
+    parked = parked_groups(packages)
+    return [(g, sorted(d for d in deps[g] if d not in completed)) for g in groups(packages)
+            if g not in completed and g not in parked]
 
 
 def check(run: pathlib.Path):
@@ -181,10 +209,17 @@ def check_detail(run: pathlib.Path) -> dict:
     packages = load(run)
     by_id = {p["id"]: p for p in packages}
     done = {p["id"] for p in packages if p["done"]}
+    held = held_ids(packages)
+    settled = done | {p["id"] for p in packages if p.get("deferred")}  # left exactly as they are
     out, raw = waves(packages)
     found = [(t, {i for i in by_id if not by_id[i]["done"]} if t.startswith("dependency cycle")
               else {t.split(":")[0]}) for t in raw]
     warnings = []
+    deferred = [p["id"] for p in packages if p.get("deferred")]
+    if deferred:
+        waits = [p["id"] for p in packages if p["id"] in held and not p.get("deferred")]
+        warnings.append(f"deferred: {', '.join(deferred)}" + (f"; held until it returns: {', '.join(waits)}"
+                                                                 if waits else ""))
     modes = config(run).get("modes") or {}
     for p in packages:
         for d in p["depends_on"]:
@@ -206,20 +241,20 @@ def check_detail(run: pathlib.Path) -> dict:
         if g in ds:
             found.append((f"group {g} depends on itself through: {', '.join(sorted(ds - {g}))}", set(members[g])))
     names = list(members)
-    finished = done_groups(packages)
+    finished = done_groups(packages) | {g for g, ids in members.items() if all(i in held or i in done for i in ids)}
     pairs = []  # (lock, group a, group b) for not-done groups that may build at the same time
     for i, a in enumerate(names):
         for b in names[i + 1:]:
             if b in reach[a] or a in reach[b]:
                 continue
             pa, pb = [by_id[x] for x in members[a]], [by_id[x] for x in members[b]]
-            either_done = a in finished or b in finished  # a done group never builds again
+            either_done = a in finished or b in finished  # a done (or held) group doesn't build now
             shared = sorted({f for p in pa for f in p["scope"]} & {f for p in pb for f in p["scope"]})
             if shared:
                 text = (f"groups {a} and {b} may build at the same time but both change {', '.join(shared)}: "
                         "make one depend on the other (reason: same file), or move that edit to an "
                         "integration package")
-                found.append((text, done if either_done else set(members[a]) | set(members[b])))
+                found.append((text, settled if either_done else set(members[a]) | set(members[b])))
             if either_done:
                 continue
             locks = {(modes.get(m) or {}).get("lock") for p in pa for m in p["modes"]} & \
@@ -230,8 +265,8 @@ def check_detail(run: pathlib.Path) -> dict:
         sharing = [g for g in names if any(l == lock and g in (a, b) for l, a, b in pairs)]
         warnings.append(f"lock {lock}: {len(sharing)} groups' done-checks queue one at a time when their lanes "
                         f"overlap ({', '.join(sharing)})")
-    problems = [t for t, ids in found if not ids <= done]
-    info = [t for t, ids in found if ids <= done]
+    problems = [t for t, ids in found if not ids <= settled]
+    info = [t for t, ids in found if ids <= settled]
     return {"waves": out, "problems": problems, "warnings": warnings, "info": info,
             "lock_pairs": [{"lock": l, "groups": [a, b]} for l, a, b in pairs]}
 
@@ -258,7 +293,7 @@ def cmd_check(args) -> int:
         if done:
             print(f"done: {', '.join(done)}")
         print(" | ".join(parts) if parts else "nothing left to build")
-        finished = done_groups(packages)
+        finished = done_groups(packages) | parked_groups(packages)
         for g, ids in members.items():
             if g in finished:
                 continue
@@ -269,7 +304,7 @@ def cmd_check(args) -> int:
             for pair in detail["lock_pairs"]:
                 print(f"  lock {pair['lock']}: {pair['groups'][0]} and {pair['groups'][1]} may build at the same time")
         for i in info:
-            print(f"info (done packages, left as they are): {i}")
+            print(f"info (done or deferred packages, left as they are): {i}")
         for p in problems:
             print(f"FAIL {p}")
         print(f"waves: {'pass' if not problems else 'fail'} ({len(problems)} problems)")
@@ -282,6 +317,10 @@ def main(argv=None) -> int:
     c = sub.add_parser("check"); c.add_argument("--run", required=True); c.add_argument("--json", action="store_true")
     c.add_argument("--verbose", action="store_true", help="also list each pair of groups behind a lock warning")
     args = p.parse_args(argv)
+    if getattr(args, "run", None):  # a bare run id resolves under .fyzxsflow/runs/
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+        from layout import resolve_run
+        args.run = str(resolve_run(args.run))
     return cmd_check(args)
 
 

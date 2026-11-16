@@ -25,8 +25,10 @@ code, never run builds or tests, and never review. You keep the run moving and k
    `fyzxsflow/<run-id>`, cut from the current HEAD, recording `branch`, `base` and `base_branch` in `input.md`.
    Pass `--stay` only when the owner asks to work on the current branch. Never commit run or product work to
    the base branch. Write the raw request to `input.md`.
-3. Post a heartbeat after every stage transition:
-   `python -I .fyzxsflow/package/engine/run.py log <run> <stage> <started|done|failed|gated|skipped> "<one line>"`.
+3. Post a heartbeat after every stage transition, and tell the owner each time you dispatch an agent that will
+   take a while ("Running: implementer on WP-04 in <lane>, about 20 min"). Then log the transition:
+   `python -I .fyzxsflow/package/engine/run.py log <run> <stage> <started|done|failed|gated|skipped|decided> "<one line>"`;
+   an owner's decision (a choice, a hold, "leave it as is") is `decided` with "owner: <what they chose>".
 4. **Hand off, checkpoint and pick up owner edits:**
    - **as each agent returns** (validators and reviewers too), stamp its report:
      `python -I .fyzxsflow/package/engine/run.py stamp <report> --agent <agent> --host <host>`. Stamping commits
@@ -137,6 +139,8 @@ session at each preceptee step: read `.fyzxsflow/package/agents/preceptor.agent.
 `.fyzxsflow/learned/preceptor.md`) and follow it, because the preceptee talks with you, not with a subagent.
 - **At the start**, tell them in two sentences what will pause for them and that they can turn any area off
   (`preceptee.py area <n> off [--run <run>]`).
+- **Switched off mid-run** (`steps.py set precept off --run <run>`): as the Preceptor, run `preceptee.py stop
+  --run <run> --as skip` before anything else, so no open exercise is scored on a reveal alone.
 - **Where it plugs in**, each guarded by the Preceptor's `preceptee.py decide`:
   - Intake: `intake.criteria` (area 3) before the Work Summarizer's brief is shown.
   - Build, each package: `WP-nn.implementer` and `WP-nn.tester` (area 6, per stack) decide who writes the step;
@@ -219,8 +223,10 @@ approval. The owner completes every PR: the flow never completes, merges or sets
   Deliver's gate.
 - **Group PRs** (`lanes.py pr`, Build Coordinator Execute mode step 0): a draft from the group's first commit
   (with `Draft PR: at delivery` in the profile, opened only when the group is done), pushed as each package lands,
-  published with `--publish` once the group's done-check is green and its reviews are finished. Put each link in
-  the heartbeat when it opens and when it is published.
+  published with `--publish --body-file <the group's summary and evidence>` once the group's done-check is green,
+  its reviews are finished and `lanes.py sync` left it free of conflicts with the run branch. Put each link in the
+  heartbeat when it opens and when it is published. When the owner holds a group, `lanes.py park` it (log
+  `build decided "owner: hold <group>: <their words>"`); never move lanes or edit `lanes.json` by hand.
 - **The roll-up PR** (`python -I .fyzxsflow/package/engine/pr.py`): in Deliver, once every group PR is completed
   (ship-check's `group-prs` row) and the run's checks pass on the run branch, `pr.py draft --run <run>` opens the
   run branch's PR into the target, listing the group PRs; `pr.py update --run <run> --body-file
@@ -381,8 +387,19 @@ Ask each question in a self-contained way: 2–4 sentences on what it is and whe
 options with their cost, and your recommendation. Never use bare ids.
 
 ## Dispatch wording
-Hand each agent its inputs as paths and say what to produce. For tests and builds say "ask the Build & Test
-Runner for <mode>", never "do not run tests": the agent should know who runs them, not just that it may not.
+Every dispatch starts with two lines:
+
+```
+Worktree: <absolute path of the checkout or lane this step works in>
+Role: read <worktree>/.fyzxsflow/package/agents/<agent>.agent.md (and <worktree>/.fyzxsflow/learned/<agent>.md) and act as it.
+```
+
+The worktree line matters most with lanes and parallel runs, where several checkouts of one repo are open; the
+role line makes the step work even where the host hasn't loaded the agent types (an Orchestrator started outside
+the checkout). Then hand the agent its inputs as paths, relative to that worktree, and say what to produce. For
+the implementer, say "prove it with the package's done-check through the Runner"; for any other build or test say
+"ask the Build & Test Runner for <mode>". Never write "do not run builds or tests": the agent should know who runs
+them, not just that it may not, and the implementer does run its own done-check.
 
 ## Finishing
 Before saying the work is ready, run `python -I .fyzxsflow/package/engine/run.py ship-check <run>`. Say "Ready to

@@ -1,12 +1,17 @@
 """Create and track fyzxsflow run folders.
 
   python -I engine/run.py new --source prompt --ref "add a pull list page" [--branch <name> | --stay | --worktree]
+                              [--base-branch <branch>]
       -> prints the run folder. In a git repo it first creates and switches to the run's working branch
          (default fyzxsflow/<run-id>) from HEAD, and records branch, base commit and base branch in input.md;
          --stay keeps the current branch (only when the owner asks for it); --worktree leaves this checkout alone
          and gives the run its own worktree beside the repo (<repo>.runs/<run-id>/), so several runs can be in
-         flight at once: work on that run from there
+         flight at once: work on that run from there. base_branch (the roll-up PR's target unless the profile
+         names one) is the branch you were on; from a detached HEAD it is --base-branch, else the remote's default
+         branch (origin/HEAD), else the run refuses to start: it never records "HEAD"
   python -I engine/run.py log <run-dir> <stage> <status> "<message>"          -> appends a ledger line
+      status: started | done | failed | gated | resumed | skipped | decided (an owner decision: "owner: <what they
+      chose>", in their words where they gave them)
   python -I engine/run.py status <run-dir> [--lines 8]                        -> prints the latest ledger lines
   python -I engine/run.py checkpoint <run-dir> <stage>                        -> commits the run folder (only it)
   python -I engine/run.py edits <run-dir> [--record]                          -> lists files changed since the last checkpoint
@@ -57,7 +62,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from layout import HOME, PACKAGE  # noqa: E402
 
-STATUSES = ("started", "done", "failed", "gated", "resumed", "skipped")
+STATUSES = ("started", "done", "failed", "gated", "resumed", "skipped", "decided")
 RUN_GITIGNORE = ("# Raw logs stay local; their summaries (runner/*.json, gates/*.json) and every other\n"
                  "# artifact are kept so the run can be reviewed and edited.\n"
                  "runner/*/\ngates/*/\n")
@@ -84,7 +89,21 @@ def slug(text: str) -> str:
     return (s[:30].rstrip("-")) or "run"
 
 
-def run_worktree(root: pathlib.Path, run_id: str, name: str):
+def base_branch(root: pathlib.Path, given: str = "") -> str:
+    """The branch the run starts from: --base-branch, the current branch, or (detached HEAD) the remote's default."""
+    if given:
+        return given
+    current = git(root, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    if current and current != "HEAD":
+        return current
+    default = git(root, "symbolic-ref", "--short", "refs/remotes/origin/HEAD").stdout.strip()
+    if default.startswith("origin/"):
+        return default[len("origin/"):]
+    raise SystemExit("HEAD is detached and the remote names no default branch: pass --base-branch <branch> (the "
+                     "branch the run's PR goes into)")
+
+
+def run_worktree(root: pathlib.Path, run_id: str, name: str, given: str = ""):
     """A new worktree beside the repo for this run, on its own branch from HEAD; the current checkout is untouched.
     Returns (the worktree's root, frontmatter lines, ledger note) or exits 2."""
     if git(root, "rev-parse", "--git-dir").returncode != 0:
@@ -93,7 +112,7 @@ def run_worktree(root: pathlib.Path, run_id: str, name: str):
     if head.returncode != 0:
         raise SystemExit("the repository has no commits yet: commit something before starting a run")
     top = pathlib.Path(git(root, "rev-parse", "--show-toplevel").stdout.strip()).resolve()
-    base, current = head.stdout.strip(), git(root, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    base, current = head.stdout.strip(), base_branch(root, given)
     branch = name or f"{HOME[1:]}/{run_id}"
     path = top.parent / f"{top.name}.runs" / run_id
     made = git(root, "worktree", "add", "-q", "-b", branch, str(path), "HEAD")
@@ -103,14 +122,16 @@ def run_worktree(root: pathlib.Path, run_id: str, name: str):
         f"branch={branch} from {current}@{base[:9]} in worktree {path}"
 
 
-def working_branch(root: pathlib.Path, run_id: str, name: str, stay: bool):
+def working_branch(root: pathlib.Path, run_id: str, name: str, stay: bool, given: str = ""):
     """Create and switch to the run's branch from HEAD. Returns (frontmatter lines, ledger note) or exits 2."""
     if git(root, "rev-parse", "--git-dir").returncode != 0:
         return [], "not a git repository: no working branch"
     head = git(root, "rev-parse", "HEAD")
     if head.returncode != 0:
         raise SystemExit("the repository has no commits yet: commit something before starting a run")
-    base, current = head.stdout.strip(), git(root, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    if stay and git(root, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip() == "HEAD":
+        raise SystemExit("--stay needs a branch: HEAD is detached")
+    base, current = head.stdout.strip(), base_branch(root, given)
     if stay:
         return [f"branch: {current}", f"base: {base}", f"base_branch: {current}"], f"branch={current} (stayed)"
     branch = name or f"{HOME[1:]}/{run_id}"
@@ -125,13 +146,13 @@ def cmd_new(args) -> int:
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
     run_id = f"{stamp}-{slug(args.ref)}"
     if args.worktree:
-        root, meta, branch_note = run_worktree(root, run_id, args.branch)
+        root, meta, branch_note = run_worktree(root, run_id, args.branch, args.base_branch)
     run = root / HOME / "runs" / "active" / run_id
     if run.exists():
         print(f"{run} already exists", file=sys.stderr)
         return 2
     if not args.worktree:
-        meta, branch_note = working_branch(root, run_id, args.branch, args.stay)
+        meta, branch_note = working_branch(root, run_id, args.branch, args.stay, args.base_branch)
     for sub in ("work-packages", "reports", "runner"):
         (run / sub).mkdir(parents=True, exist_ok=False)
     front = "\n".join([f"source: {args.source}", f"run: {run_id}", *meta])
@@ -171,7 +192,7 @@ def cmd_status(args) -> int:
     return 0
 
 
-PACKAGE_STATUSES = ("planned", "building", "done")
+PACKAGE_STATUSES = ("planned", "building", "done", "deferred")
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.S)
 
 
@@ -209,7 +230,7 @@ def cmd_packages(args) -> int:
     i = ids.index(args.current)
     cur = packages[i]
     done = [p["id"] for p in packages if p["status"] == "done"]
-    later = [p for p in packages[i + 1:] if p["status"] != "done"]
+    later = [p for p in packages[i + 1:] if p["status"] not in ("done", "deferred")]
     if args.agent:
         print(f"review_file=reviews/{cur['stem']}.{args.agent}.md")
     print(f"where=Package {i + 1} of {len(packages)} ({cur['id']}): {cur['title']}")
@@ -285,6 +306,8 @@ def cmd_stamp(args) -> int:
     cite_root = repo_root(run) if run is not None and HOME in run.resolve().parts else pathlib.Path.cwd()
     for problem in checks.citation_problems(report, cite_root):
         print(f"warning: {report.name}: citation {problem}")
+    for problem in checks.report_problems(report, args.agent):
+        print(f"warning: {report.name}: {problem}")
     if run is not None and not args.no_checkpoint:
         # The agent's output is committed the moment it returns, so nothing it wrote can later be taken for an owner edit.
         print(f"checkpoint: {checkpoint(run, f'{args.agent} output')}")
@@ -734,6 +757,8 @@ def main(argv=None) -> int:
     nb.add_argument("--stay", action="store_true", help="work on the current branch (only when the owner asks)")
     nb.add_argument("--worktree", action="store_true",
                     help="give the run its own worktree beside the repo, so several runs can be in flight at once")
+    n.add_argument("--base-branch", default="", help="the branch the run's PR goes into (default: the current branch; "
+                   "from a detached HEAD, the remote's default branch)")
     l = sub.add_parser("log")
     l.add_argument("run"); l.add_argument("stage"); l.add_argument("status"); l.add_argument("note")
     s = sub.add_parser("status")
@@ -754,6 +779,10 @@ def main(argv=None) -> int:
     sc = sub.add_parser("ship-check")
     sc.add_argument("run")
     args = p.parse_args(argv)
+    if getattr(args, "run", None):  # a bare run id resolves under .fyzxsflow/runs/
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+        from layout import resolve_run
+        args.run = str(resolve_run(args.run))
     return {"new": cmd_new, "log": cmd_log, "status": cmd_status, "packages": cmd_packages,
             "stamp": cmd_stamp, "models": cmd_models, "ship-check": cmd_ship_check,
             "checkpoint": cmd_checkpoint, "edits": cmd_edits, "close": cmd_close, "list": cmd_list}[args.cmd](args)

@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.4.0 (2026-11-16)
+From the first long run on PR groups (a 45-package plan in DocMcStorage).
+
+- **Lanes are folders beside the run's checkout** (`<checkout>-<group>`), not inside `.git/`, so you and your tools
+  can open them. `lanes.py move` brings out a lane opened by 0.3.x; `status` shows each lane's folder.
+- **Finding ids never collide across lanes**: one counter shared by every worktree, never below the highest id in
+  the file. The run folder merges between lanes by itself: `findings.jsonl` by finding id (a git merge driver,
+  `findings.py merge-driver`), `ledger.md` and `reviews.jsonl` by union, registered by `lanes.py` in the repo's local
+  git config.
+- **`findings.py resolve <F-n> --by <commit|F-n>`** closes a finding with what fixed it (`resolution`). `owner` as a
+  target is refused except on `owner-decision`, the one kind that reaches the owner.
+- **Group PRs**: titles from the package heading; `--publish` replaces the draft description (`--body-file`, or a
+  ready-for-review summary) and refuses while the lane would conflict with the run branch or the host reports
+  conflicts; `lanes.py sync` merges the run branch into a lane; `refresh` names lanes the run branch now conflicts
+  with; links are the PR's web page on Azure DevOps too (also `pr.py`).
+- **Holding a group**: `lanes.py park | unpark`, and `status: deferred`, which `waves.py` (dependents held),
+  `ac_trace.py` (criteria shown as deferred) and `run.py packages` understand. `lanes.py close --group`.
+- A named `pr_group` keeps its case, like the default group.
+- Every engine script that takes `--run` accepts a bare run id (`findings.py`, `gates.py`, `lanes.py`, ...), and none
+  creates a folder named after it.
+- `run.py new` from a detached HEAD records the remote's default branch (or `--base-branch`), never `HEAD`.
+- `run.py log ... decided` records an owner's decision in the ledger.
+- `feedback.py scan` no longer lists items closed by hand (`status: done` without a `seen_hash`) as new.
+- `docs_check.py` names a pack's largest files and the bytes over budget, and warns within 1 KB of it.
+- Runner: `scope_kind: "path"` resolves a bare `--scope` name to its file or fails before building; airplane modes
+  read the scripts a step calls for container starts, and trust a step marked `"pulls": "never"`.
+- `ac_trace.py` accepts `(stated, amended (...))`.
+- `checks.py report` (and `run.py stamp`, as warnings) finds a report missing a section its agent requires, or a
+  criterion marked met with no evidence. The report template gains Docs drift and Done-check result.
+- `preceptee.py stop`: switching preceptee mode off mid-run closes open exercises as not counted.
+- Agents: every dispatch names its worktree and the agent file to act as (role contracts: confirm it first); a
+  heartbeat at each long dispatch; the implementer's description says it runs its done-check through the Runner;
+  the tester asks for a Runner mode instead of running a test directly; the Work Summarizer splits a multi-behaviour
+  source criterion; the Build Coordinator joins small mechanical packages and makes `ci` real only when the stack
+  can hold; the Docs Gardener never cuts content to fit a budget.
+
 ## 0.3.1 (2026-11-12)
 - `waves.py check` prints one warning per Runner lock, naming every not-done group that shares it, instead of one
   line per pair (a 45-package plan went from about 120 lines to 1). The pairs are under `--verbose` and in `--json`

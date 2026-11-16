@@ -313,6 +313,10 @@ def main(argv=None) -> int:
     m = sub.add_parser("summary")
     m.add_argument("--root", default=".")
     args = p.parse_args(argv)
+    if getattr(args, "run", None):  # a bare run id resolves under .fyzxsflow/runs/
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+        from layout import resolve_run
+        args.run = str(resolve_run(args.run))
     return {"needed": cmd_needed, "decide": cmd_decide, "set-level": cmd_set_level, "regress": cmd_regress,
             "summary": cmd_summary}[args.cmd](args)
 

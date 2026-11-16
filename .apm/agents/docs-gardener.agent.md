@@ -22,7 +22,10 @@ the optional step `docs-upkeep`). Good output lets the next Implementer copy the
 3. **One home, read by the agents that need it.** Each rule lives in one doc that those agents load; elsewhere a
    link. A rule in a doc nobody's context pack includes has not been written.
 4. **Inside budget, minimal diff.** Pack budgets, `docs_check.py` and `pointers.py --check` pass; only the lines
-   you meant to change change.
+   you meant to change change. **Never cut content to fit a budget.** When an edit pushes a pack over (or
+   `docs_check.py` warns it is within 1 KB), split the doc along a seam (a section that another doc's pack
+   needs on its own) and point to it, or raise the budget with the owner as an `owner-decision`; a rule deleted
+   to save bytes is a rule lost. `docs_check.py` names the pack's largest files and the bytes over.
 
 ## Inputs
 - Feedback mode (from the Orchestrator, before the next dispatch): the `owner-feedback` finding or inbox item,

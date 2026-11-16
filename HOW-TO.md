@@ -138,7 +138,8 @@ Where a host can't dispatch one agent from another, the Orchestrator runs that a
 file and says so in the ledger. The run is the same, but the Validator's check is less independent.
 
 Each run works on its own branch, `fyzxsflow/<run-id>`, cut from whatever you had checked out; nothing lands on
-your base branch. Reply to reviews in the same conversation. If a session ends mid-run, start a new one and say `/flow resume`
+your base branch. Started from a detached HEAD (a worktree cut with `--detach`), the run's PR goes into the
+remote's default branch, or the branch you name with `run.py new --base-branch <branch>`. Reply to reviews in the same conversation. If a session ends mid-run, start a new one and say `/flow resume`
 (or ask the Orchestrator to resume): it picks the run up from `.fyzxsflow/runs/active/`.
 
 > **Copilot surfaces are not yet verified end to end.** The steps follow the
@@ -171,6 +172,13 @@ one only when one part can't be reviewed without the other. Building in parallel
   starts as soon as you complete that one, and never waits for unrelated work. When everything left is waiting on
   you, the run says so with the links and stops. `/flow resume` picks up what you completed and carries on.
   Comments you leave on a group PR are reworked in that group's worktree and pushed to the same PR.
+- **A published PR is ready to complete.** Its title is the package's own heading, its description says what
+  changed and the evidence, and it is published only once it merges cleanly into the run branch: the flow first
+  merges the run branch into the group's worktree (`lanes.py sync`) and checks the host's merge status. If the run
+  branch moves under an open group PR and they now conflict, `lanes.py refresh` says so.
+- **Holding a group.** Tell the flow to hold one ("hold WP-40 for now"): its work is kept on a parked branch, only
+  its worktree closes, and its packages are marked `deferred`, so whatever depends on them waits and their criteria
+  show as deferred rather than missing. Say when to bring it back.
 - **One roll-up PR, into the default branch.** When every group PR is completed and the run's checks pass, the
   run branch gets one PR into the default branch. It links the group PRs and summarises them, without repeating
   their reviews, and it is published once `ship-check` says the run is ready. Every commit on the run branch
@@ -186,8 +194,8 @@ The profile's Pull requests section controls it:
 ```
 
 The engine does every PR action: `lanes.py pr` (group PRs), `lanes.py refresh` (reads their states),
-`pr.py` (the roll-up). It uses `gh` for GitHub and `az repos` for Azure DevOps. With the `pr` step off, groups
-merge into the run branch locally (`lanes.py merge`) and there are no PRs.
+`pr.py` (the roll-up). It uses `gh` for GitHub and `az repos` for Azure DevOps, and prints each PR's web link. With
+the `pr` step off, groups merge into the run branch locally (`lanes.py merge`) and there are no PRs.
 
 ## Turn steps off
 
@@ -279,8 +287,17 @@ were only plan order, and leaves every package's content and every package alrea
 
 How many lanes run at once is `config.json` → `build.max_parallel` (default 3). Each lane is a full chain of
 agents, so more lanes cost more tokens and load the machine more while they run. Runner locks are shared by every
-lane and every run, so two lanes never write to the same local database at once. Lanes live in
-`.git/fyzxsflow-lanes/`; `lanes.py status --run <run>` shows each group, its PR and what it waits for.
+lane and every run, so two lanes never write to the same local database at once.
+
+Each lane is a folder beside your run's checkout, named after it and the group: a run checked out at
+`~/src/shop-run` builds WP-45 in `~/src/shop-run-WP-45`. Open it like any folder to see the work, and the review
+file of a lane that paused for you is in its run folder there. `lanes.py status --run <run>` shows each group, its
+folder, its PR and what it waits for. Lanes opened by FyzxsFlow 0.3.x live inside `.git/`; `lanes.py move --run
+<run> --group <g>` brings one out.
+
+The run's records merge between lanes by themselves: findings by id (the ids come from one counter every lane
+shares, so two lanes never hand out the same one), the ledger and review log line by line. You never renumber or
+hand-merge `findings.jsonl`.
 
 **Several runs at once.** When the change map shows that a request is really two independent changes, the flow
 offers to split it into runs that go in parallel, each with its own PR. It only splits if you say yes. A run

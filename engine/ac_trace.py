@@ -19,6 +19,9 @@ partial: the checker's verdict wins over the author's. Evidence resolves when it
   - a Runner summary (`runner/<invocation>.json`, relative to the run) whose result is pass;
   - a test, written `test <Name>` or test `<Name>`, whose name appears in a tracked source file;
   - an existing file, relative to the repo root or the run (a screenshot, a proof file).
+A package with `status: deferred` (the owner held it: lanes.py park) still traces, marked "(deferred)": a brief
+criterion only deferred packages serve is reported as deferred, not unserved, and neither it nor the deferred
+packages' own criteria need evidence at delivery. The PR description says what was deferred.
 Exit 0 = pass, 1 = fail, 2 = usage error.
 """
 
@@ -33,7 +36,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from layout import HOME, PACKAGE  # noqa: E402
 
-BRIEF_AC = re.compile(r"\*\*(AC-\d+)\*\*\s*\((stated|inferred)\)", re.I)
+BRIEF_AC = re.compile(r"\*\*(AC-\d+)\*\*\s*\((stated|inferred)\b", re.I)  # also "(stated, amended (owner, ...))"
 ANY_BRIEF_AC = re.compile(r"\*\*(AC-\d+)\*\*")
 SERVES = re.compile(r"^\s*-\s*Serves:\s*(.+)$", re.M | re.I)
 AC_ID = re.compile(r"\bAC-\d+\b")
@@ -173,8 +176,12 @@ def check(run: pathlib.Path, require_evidence: bool, root: pathlib.Path = None):
     packages = sorted((run / "work-packages").glob("*.md")) if (run / "work-packages").is_dir() else []
     if not packages:
         problems.append("no work packages")
+    deferred_acs, deferred_crits = set(), set()
+    live_served = set()
     for wp in packages:
         text = strip_comments(wp.read_text(encoding="utf-8"))
+        fm = re.match(r"\A---\n(.*?)\n---", text, re.S)
+        deferred = bool(fm and re.search(r"^status:\s*deferred\b", fm.group(1), re.M))
         sec = section(text, "Acceptance criteria")
         for m in SERVES.finditer(sec):
             if RANGE.search(m.group(1)):
@@ -186,14 +193,19 @@ def check(run: pathlib.Path, require_evidence: bool, root: pathlib.Path = None):
             problems.append(f"{wp.name}: criterion id **{bad}** is not traced: ids are digits only (WP-nn.n)")
         if not serves and not crits:
             problems.append(f"{wp.name}: acceptance criteria section is missing or empty")
+        if deferred:
+            deferred_crits.update(c.upper() for c in crits)
+        else:
+            live_served.update(serves)
         for a in serves:
-            served.setdefault(a, []).append(wp.name)
+            served.setdefault(a, []).append(wp.name + (" (deferred)" if deferred else ""))
             if a not in brief_acs:
                 problems.append(f"{wp.name}: serves {a}, which brief.md does not define")
         package_criteria.extend(crits)
         problems.extend(flag_problems(wp.name, section(text, "Flag plan"), allowed_not_required))
     for a in sorted(brief_acs - set(served)):
         problems.append(f"{a} is not served by any work package")
+    deferred_acs = {a for a in served if a not in live_served}
 
     if require_evidence:
         met, unresolved, refuted = {}, {}, {}
@@ -211,7 +223,7 @@ def check(run: pathlib.Path, require_evidence: bool, root: pathlib.Path = None):
                     met[crit] = r.name
                 else:
                     unresolved.setdefault(crit, f"{r.name}: '{evidence[:80]}' ({why})")
-        for crit in sorted(brief_acs | {c.upper() for c in package_criteria}):
+        for crit in sorted((brief_acs | {c.upper() for c in package_criteria}) - deferred_acs - deferred_crits):
             if crit in refuted:
                 problems.append(f"{crit} is marked not met by {refuted[crit]} (a Validator's verdict wins)")
             elif crit not in met:
@@ -226,13 +238,17 @@ def main(argv=None) -> int:
     p.add_argument("--require-evidence", action="store_true")
     p.add_argument("--root", help="repo root (default: the folder containing .fyzxsflow/)")
     args = p.parse_args(argv)
+    if getattr(args, "run", None):  # a bare run id resolves under .fyzxsflow/runs/
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+        from layout import resolve_run
+        args.run = str(resolve_run(args.run))
     run = pathlib.Path(args.run).resolve()
     if not run.is_dir():
         print(f"run folder not found: {run}", file=sys.stderr)
         return 2
     problems, served = check(run, args.require_evidence, pathlib.Path(args.root).resolve() if args.root else None)
     for a, wps in sorted(served.items()):
-        print(f"{a}: {', '.join(wps)}")
+        print(f"{a}: {', '.join(wps)}" + ("  -> deferred" if all(w.endswith("(deferred)") for w in wps) else ""))
     for prob in problems:
         print(f"FAIL {prob}")
     print(f"ac_trace: {'pass' if not problems else 'fail'} ({len(problems)} problems)")

@@ -43,11 +43,13 @@ hand-off (`.fyzxsflow/package/engine/feedback.py`). Handled items move to `feedb
     curator.md                                     Learn
     compactor.md                                   a compaction run (/fyzxsflow-compact)
   pr-description.md    the PR Producer's description of the roll-up PR (run branch into the default branch)
-  pr.json              the roll-up PR (pr.py); each PR group's lane and PR live in .git/fyzxsflow-lanes/<run-id>/
-                       (lanes.py status)
+  pr.json              the roll-up PR (pr.py); each PR group's lane is a worktree beside the run's checkout
+                       (<checkout>-<group>), recorded with its PR in the git common directory,
+                       fyzxsflow-lanes/<run-id>/lanes.json (lanes.py status)
   runner/              Build & Test Runner summaries (<invocation>.json); raw logs in <invocation>/ stay local
   gates/               Gate Analyst summaries (<invocation>.json); raw tool output in <invocation>/ stays local
-  findings.jsonl       every finding from every agent (.fyzxsflow/package/engine/findings.py)
+  findings.jsonl       every finding from every agent (.fyzxsflow/package/engine/findings.py); ids come from one
+                       counter shared by every worktree, and the file merges by finding id between lanes
   compare.jsonl        model-compare records, when compare is enabled (.fyzxsflow/package/engine/compare.py)
   review-requests.md   the owner's review requests for this run (editable any time)
   steps.json           this run's step overrides ({"off": [...], "on": [...]}), written only by steps.py set --run;

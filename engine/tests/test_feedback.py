@@ -37,6 +37,15 @@ class FeedbackTests(unittest.TestCase):
         self.assertNotIn("empty.md", out)
         self.assertIn("inbox: 1 to process", out)
 
+    def test_an_item_closed_by_hand_is_not_new(self):
+        (self.inbox / "wp17.md").write_text("---\nstatus: done\nnote: handled in run A\n---\n\n# WP-17 decisions\n",
+                                            encoding="utf-8")
+        (self.inbox / "open.md").write_text("---\nstatus: waiting\n---\n\n# still open\n", encoding="utf-8")
+        out = self.fb("scan")[1]
+        self.assertNotIn("wp17.md", out)
+        self.assertIn("new .fyzxsflow/feedback/open.md", out)
+        self.assertIn("inbox: 1 to process", out)
+
     def test_set_records_status_keeps_the_owners_words_and_moves_applied_items_to_done(self):
         item = self.inbox / "nulls.md"
         item.write_text("No ! in tests.\nOlder tests use it.\n", encoding="utf-8")

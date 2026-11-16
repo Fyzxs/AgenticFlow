@@ -235,6 +235,10 @@ def main(argv=None) -> int:
         s.add_argument("--run")
         s.add_argument("--root", default=".")
     args = p.parse_args(argv)
+    if getattr(args, "run", None):  # a bare run id resolves under .fyzxsflow/runs/
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+        from layout import resolve_run
+        args.run = str(resolve_run(args.run))
     return {"list": cmd_list, "enabled": cmd_enabled, "set": cmd_set}[args.cmd](args)
 
 

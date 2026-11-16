@@ -82,6 +82,7 @@ You can add other modes; agents use them when a work package names them.
 |---|---|---|
 | `steps` | required | the commands, run in order (see the step keys below). A mode with no steps is a configuration error (exit 2) unless it is `not_applicable` |
 | `default_scope` | `""` | what `{scope}` becomes when the caller passes no `--scope` |
+| `scope_kind` | none | `"path"`: `{scope}` must be a file or folder (a `.csproj`, a package folder). A bare name (`Orders.Api`) is looked up among the repo's tracked files; one match is used, anything else fails before a step runs, saying what form it expects |
 | `services` | `[]` | names from `services` to start before the steps and stop (by PID) afterwards |
 | `continue_on_failure` | `false` | keep running later steps after one fails (useful for `extreme`, to see every failure at once) |
 | `lock` | none | a name such as `"local-db"`. Two modes holding the same lock never run at once; the second exits 4 |
@@ -90,7 +91,7 @@ You can add other modes; agents use them when a work package names them.
 | `draft` | `false` | you haven't confirmed this mode yet; the Runner prints a reminder each time it runs |
 | `planned` | `false` | new projects only: the Greenfield Architect wrote this mode before the code existed. `docs_check.py` warns (fails with `--strict`) and a greenfield run's ship-check blocks until the Repo Cartographer clears it after the mode passes. Also allowed on a single step |
 | `not_applicable` | none | a reason the repo has no such capability. The mode exits 0 without running anything |
-| `network` | none | `"connected"` or `"airplane"`, recorded in the summary. **Airplane** means everything the mode needs lives on this machine. The network is never switched off. Instead, the Runner points every step's and service's proxy settings at a closed local port. It refuses container starts without `--pull never` (exit 2). It fails the mode if any process the mode started connects to an address that isn't loopback or in `offline_allow`. Any mode can be airplane, `http` included |
+| `network` | none | `"connected"` or `"airplane"`, recorded in the summary. **Airplane** means everything the mode needs lives on this machine. The network is never switched off. Instead, the Runner points every step's and service's proxy settings at a closed local port. It refuses container starts without `--pull never` (exit 2), in the step's command or in a script it calls (one level), unless the step says `"pulls": "never"`. It fails the mode if any process the mode started connects to an address that isn't loopback or in `offline_allow`. Any mode can be airplane, `http` included |
 | `offline_allow` | `[]` | for airplane modes: address ranges (CIDRs, e.g. a container network) the app may reach, and host names added to `NO_PROXY` |
 | `note` | none | free text for people and agents |
 
@@ -106,6 +107,7 @@ You can add other modes; agents use them when a work package names them.
 | `fail_if_output` | none | regex. The step fails if any output line matches. Use it for tools that exit 0 while reporting failures |
 | `expect_output` | none | regex. The step fails unless some output line matches, e.g. a "tests passed" line |
 | `destructive` | `false` | this step wipes or replaces local state (see the mode key) |
+| `pulls` | none | `"never"`: in an airplane mode, trust that this step starts only local container images (its wrapper passes `--pull never` in a way the Runner can't read). Also allowed on a service |
 
 A step passes when it exits 0 and its output checks hold. `UNRESOLVED: ...` in a command means the Cartographer
 couldn't find it; `docs_check.py` warns until you fill it in.
@@ -250,7 +252,7 @@ Nothing changes a tier automatically; the Curator proposes it where the summary 
 
 | Key | Default | Meaning |
 |---|---|---|
-| `pack_budget_kb` | `24` | largest context pack (a segment doc plus the docs it pulls in) an agent is handed; `docs_check.py` fails above it |
+| `pack_budget_kb` | `24` | largest context pack (a segment doc plus the docs it pulls in) an agent is handed; `docs_check.py` fails above it, naming the pack's largest files and the bytes over, and warns within 1 KB of it. Split a doc or raise the budget; never cut content to fit |
 | `host_pointers` | `["claude", "copilot"]` | hosts that get per-segment pointer files (`.claude/rules/`, `.github/instructions/`) so their own agents find the docs too |
 
 ## build

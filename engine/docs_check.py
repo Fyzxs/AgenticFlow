@@ -245,15 +245,23 @@ def main(argv=None) -> int:
                 missing.append(f"{rel}: glob `{g}` matches no tracked file" + (" yet" if intended else ""))
         pack = frontmatter_list(text, "pack")
         if pack:
-            size = doc.stat().st_size
+            sizes = {rel: doc.stat().st_size}
             for item in pack:
                 f = root / item
                 if f.is_file():
-                    size += f.stat().st_size
+                    sizes[item] = f.stat().st_size
                 else:
                     failures.append(f"{rel}: pack file `{item}` does not exist")
-            if size > budget_kb * 1024:
-                failures.append(f"{rel}: context pack is {size // 1024} KB, over the {budget_kb} KB budget")
+            size, limit = sum(sizes.values()), budget_kb * 1024
+            largest = sorted(sizes.items(), key=lambda kv: -kv[1])[:3]
+            parts = ", ".join(f"{p} {n:,} B" for p, n in largest)
+            if size > limit:
+                failures.append(f"{rel}: context pack is {size:,} bytes, {size - limit:,} over the {budget_kb} KB "
+                                f"budget; largest: {parts}. Split a doc or raise the budget with the owner; never "
+                                "cut content to fit")
+            elif limit - size < 1024:
+                warnings.append(f"{rel}: context pack is {size:,} bytes, within {limit - size:,} of the {budget_kb} "
+                                f"KB budget; largest: {parts}")
         # Template comments explain UNRESOLVED; only the doc's own text counts.
         if "UNRESOLVED" in re.sub(r"<!--.*?-->", "", text, flags=re.S):
             (failures if args.strict else warnings).append(f"{rel}: contains UNRESOLVED")

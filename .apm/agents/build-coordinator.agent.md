@@ -67,8 +67,9 @@ traces every criterion to evidence you opened, so the delivery check and the PR 
    for the Repo Cartographer (segment mode), to run before that package builds, with a `context-gap` against
    `.fyzxsflow/docs/index.md`. A doc marked `status: planned` (greenfield) is not missing: the package that creates
    the segment's first instance names it, in its done-check, as the canonical example to be. In a greenfield run
-   the first package makes the build and the Runner's `quick` and `ci` modes real, so no later package lands on a
-   broken build.
+   the first package makes the build and the Runner's `quick` mode real, so no later package lands on a broken
+   build; `ci` becomes real in the first package where the stack it needs can hold (a database, a host), and
+   until then the done-checks name `quick` and the plan says which package makes `ci` real.
 6. **Check:** `python -I .fyzxsflow/package/engine/waves.py check --run <run>` and
    `python -I .fyzxsflow/package/engine/ac_trace.py --run <run>` pass, and `python -I
    .fyzxsflow/package/engine/checks.py citations <run>/work-packages/*.md <run>/reports/build-coordinator.plan.md`
@@ -112,22 +113,31 @@ section (escalation, model compare) on every dispatch.
 Some steps may be done by the owner instead of the agent, when the Orchestrator says so; everything after the
 step (validator, Runner, contract checks, tracing) is the same either way.
 0. **Lanes, one per PR group.** `python -I .fyzxsflow/package/engine/lanes.py open --run <run>` pulls the completed
-   group PRs into the run branch, then opens a lane (a worktree) for every group that may start now, up to
-   `build.max_parallel`; it names the groups `queued` (no free lane) and `waiting` (on other groups). Dispatch every
-   open lane's chain below at once (one message, one subagent per agent step, each told its lane path: it works only
-   there, writes its report to the run folder, and runs the Runner with `--root <lane>`). Commit each package in its
+   group PRs into the run branch, then opens a lane (a worktree beside the run's checkout, `<checkout>-<group>`)
+   for every group that may start now, up to `build.max_parallel`; it names the groups `queued` (no free lane) and
+   `waiting` (on other groups). Dispatch every open lane's chain below at once (one message, one subagent per agent
+   step, each dispatch starting `Worktree: <lane path>`: it works only there, writes its report to the run folder
+   in that lane, and runs the Runner with `--root <lane>`). Commit each package in its
    lane, by path, from its reports' changed files, as soon as its done-check passes. Then:
    - **With PRs** (the `pr` step on): after a group's first commit, `lanes.py pr --run <run> --group <g>` opens its
      draft PR into the run branch; after each later commit, the same command pushes it. When the group's last
-     package is done and its reviews are finished, `lanes.py pr --run <run> --group <g> --publish`: published means
-     done and ready for the owner. The owner completes it; never complete, merge or auto-complete a PR. Owner
-     comments on it are reworked in the same lane and pushed to the same PR.
+     package is done and its reviews are finished, `lanes.py sync --run <run> --group <g>` (merges the run branch
+     into the lane; rerun the done-check if it says product files changed), then `lanes.py pr --run <run> --group
+     <g> --publish --body-file <summary>`, where the summary is the group's reports' changes and evidence: published
+     means done and ready for the owner. Publishing refuses while the lane would conflict with the run branch. The
+     owner completes it; never complete, merge or auto-complete a PR. Owner comments on it are reworked in the same
+     lane and pushed to the same PR. `lanes.py refresh` names open lanes the moving run branch now conflicts with:
+     `sync` them.
    - **Without PRs** (the `pr` step off, or no PR host): `lanes.py merge --run <run>` merges each finished group
      into the run branch in dependency order; then `runner.py quick --run <run>` on the run branch, so what merged
      is green together (a failure goes back to the group whose files it names).
    A `conflict` group starts again on top of the merged branch (`lanes.py open`), with a `replan` finding for the
    overlap the plan missed. Run `lanes.py open` again whenever a group completes, to start what it unblocked;
-   `lanes.py close --run <run>` removes finished lanes.
+   `lanes.py close --run <run> [--group <g>]` removes finished lanes. When the owner holds a group, `lanes.py park
+   --run <run> --group <g> --reason "<their words>"` keeps its work on a parked branch, closes only that lane and
+   marks its packages `status: deferred` (their dependents wait; `unpark` brings it back). Findings, the ledger
+   and reviews merge between lanes by themselves (merge drivers lanes.py registers), and finding ids never collide:
+   never renumber or merge them by hand.
 1. **Each package of a group**, in plan order, in the group's lane:
    1. `status: building`; `python -I .fyzxsflow/package/engine/run.py log <run> build started "<stem>: implementer"`;
    2. `implementer` (`iac-implementer`, with the IaC context pack, for pipelines and infrastructure), given the
@@ -185,6 +195,10 @@ step (validator, Runner, contract checks, tracing) is the same either way.
   next number, never `WP-03.10b` or `WP-02.5 (a)`, which the scripts can't read). Together the packages serve
   every brief criterion.
 - Package size: 30 to 120 minutes of Implementer and Tester work, Runner time excluded. Split anything larger.
+  Join anything smaller that is the same mechanical change (a rename across files, one pattern applied to several
+  segments, adding the same attribute everywhere): one package with one done-check reviews and builds faster than
+  five tiny ones, each with its own lane, validator and PR. Keep packages apart only when they differ in kind, in
+  risk, or in who must review them.
 - Done-checks use non-destructive Runner capabilities. A database package proves itself with `db-migrate` then
   `db-verify` (then the scoped tests), never `db-reset`, so seeded data the proofs need survives.
 - **No broken window:** a change every implementer of an interface must pick up at once stays in one package,

@@ -39,8 +39,15 @@ config.json shape (see templates/project/.fyzxsflow/config.json):
   { "modes": { "<mode>": { "steps": [ {"name": "build", "run": "dotnet build {scope}", "cwd": ".",
                                        "env": {"K": "V"}, "timeout_s": 1800, "fail_if_output": "..."} ],
                            "default_scope": "...", "services": ["api"], "continue_on_failure": false,
-                           "lock": "local-db", "network": "airplane", "offline_allow": ["172.17.0.0/16"] } },
+                           "lock": "local-db", "network": "airplane", "offline_allow": ["172.17.0.0/16"],
+                           "scope_kind": "path" } },
     "services": { "api": { "start": "...", "port": 5000, "cwd": ".", "ready_timeout_s": 90 } } }
+
+"scope_kind": "path" says the mode's {scope} must be a file or folder (a .csproj, a package folder). A --scope that
+isn't one is looked up by name among the repo's tracked files (`Orders.Api` finds `src/Orders.Api/Orders.Api.csproj`):
+one match is used, and anything else fails before a step runs, naming the matches or the expected form.
+A step (or service) with "pulls": "never" is trusted to start only local images (its wrapper says --pull never);
+otherwise an airplane mode reads the step's command and any script it calls for container starts.
 """
 
 import argparse
@@ -245,16 +252,26 @@ def tested_tree(root: pathlib.Path) -> dict:
     return {"commit": head.stdout.strip(), "dirty": bool(status.stdout.strip())}
 
 
+def scope_path(root: pathlib.Path, scope: str):
+    """(the scope as a path, None) or (scope, why it isn't one). A bare name is looked up among tracked files."""
+    if (root / scope).exists():
+        return scope, None
+    listed = subprocess.run(["git", "ls-files"], cwd=root, capture_output=True, text=True).stdout.splitlines()
+    name = pathlib.PurePath(scope).name
+    hits = sorted({f for f in listed if pathlib.PurePosixPath(f).stem == name or pathlib.PurePosixPath(f).name == name})
+    if len(hits) == 1:
+        print(f"scope {scope} -> {hits[0]}")
+        return hits[0], None
+    if hits:
+        return scope, f"names {len(hits)} files ({', '.join(hits[:5])}); pass one path"
+    return scope, "not a file or folder in the repo, and no tracked file has that name; pass a path (e.g. a .csproj)"
+
+
 def resolve_run(root: pathlib.Path, value):
     if not value:
         return root / HOME / "runs" / "_adhoc"
-    path = pathlib.Path(value)
-    if path.exists() or len(path.parts) > 1:
-        return path
-    active = root / HOME / "runs" / "active" / value
-    if active.is_dir():
-        return active
-    raise SystemExit(f"--run {value}: not a folder and not an active run id (see run.py list)")
+    from layout import resolve_run as resolve
+    return resolve(value, root)
 
 
 def main(argv=None) -> int:
@@ -295,10 +312,13 @@ def main(argv=None) -> int:
         return 2
     extra_env, monitor = None, None
     if network == "airplane":
-        commands = [(f"step '{s['name']}'", s.get("run", "")) for s in mode["steps"]]
-        commands += [(f"service '{n}'", ((config.get("services") or {}).get(n) or {}).get("start", ""))
+        commands = [(f"step '{s['name']}'", s.get("run", ""), s.get("pulls", ""),
+                     root / s.get("cwd", ".")) for s in mode["steps"]]
+        commands += [(f"service '{n}'", ((config.get("services") or {}).get(n) or {}).get("start", ""),
+                      ((config.get("services") or {}).get(n) or {}).get("pulls", ""), root)
                      for n in mode.get("services", [])]
-        problems = [f"{where} {why}" for where, cmd in commands if (why := egress.docker_pull_problem(cmd))]
+        problems = [f"{where} {why}" for where, cmd, pulls, cwd in commands
+                    if (why := egress.docker_pull_problem(cmd, cwd, pulls))]
         if problems:
             print(f"refused: airplane mode '{args.mode}': " + "; ".join(problems), file=sys.stderr)
             return 2
@@ -307,6 +327,11 @@ def main(argv=None) -> int:
     if mode.get("draft"):
         print(f"note: mode '{args.mode}' is marked draft in config.json; the owner has not confirmed it")
     scope = args.scope or mode.get("default_scope", "")
+    if scope and mode.get("scope_kind") == "path":
+        scope, why = scope_path(root, scope)
+        if why:
+            print(f"refused: --scope {args.scope}: {why}", file=sys.stderr)
+            return 2
     run = resolve_run(root, args.run)
     lock = None
     if mode.get("lock"):

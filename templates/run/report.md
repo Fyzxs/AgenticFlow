@@ -29,6 +29,12 @@ model_reported: <the model you are running as, as you know it, e.g. claude-sonne
 ## Assumptions
 - <assumption> — basis: <why>
 
+## Docs drift
+- <a doc that disagrees with the code: the doc, the code, the finding id; or "none">
+
+## Done-check result
+- <the Runner's verdict and summary path, as it returned them>
+
 ## Findings logged
 - F-<n>: <summary>
 

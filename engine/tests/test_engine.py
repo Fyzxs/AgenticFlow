@@ -321,6 +321,109 @@ class FindingsTests(TempRepo):
         self.assertEqual(run("findings.py", "amend", "F-9", "--run", str(r), "--note", "x")[0], 2)
 
 
+    def test_ids_never_repeat_when_rows_are_missing(self):
+        r = self.new_run()
+        (r / "findings.jsonl").write_text(json.dumps({"id": "F-7", "summary": "from a merged lane"}) + "\n",
+                                          encoding="utf-8")
+        self.assertEqual(self.add(r, "--kind", "instance")[1].strip(), "F-8")
+
+    def test_ids_are_shared_by_every_worktree_of_the_repo(self):
+        r = self.new_run()
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        other = self.root / "elsewhere" / ".fyzxsflow" / "runs" / "active" / r.name  # a lane's copy of the run
+        other.mkdir(parents=True)
+        self.assertEqual(self.add(r, "--kind", "instance")[1].strip(), "F-1")
+        self.assertEqual(self.add(other, "--kind", "instance")[1].strip(), "F-2")
+        self.assertEqual(self.add(r, "--kind", "instance")[1].strip(), "F-3")
+
+    def test_bare_run_id(self):
+        r = self.new_run()
+        code, out = run("findings.py", "add", "--run", r.name, "--source", "validator", "--target", "code",
+                        "--kind", "instance", "--severity", "minor", "--summary", "x", "--evidence", "a:1",
+                        cwd=self.root)
+        self.assertEqual((code, out.strip()), (0, "F-1"))
+        self.assertFalse((self.root / r.name).exists())
+
+    def test_owner_target_only_for_an_owner_decision(self):
+        r = self.new_run()
+        code, out = run("findings.py", "add", "--run", str(r), "--source", "tester", "--target", "owner",
+                        "--kind", "instance", "--severity", "minor", "--summary", "which seed?", "--evidence", "a:1")
+        self.assertEqual(code, 2)
+        self.assertIn("--kind owner-decision", out)
+
+    def test_resolve_records_what_fixed_it(self):
+        r = self.new_run()
+        self.add(r, "--kind", "instance")
+        self.assertEqual(run("findings.py", "resolve", "F-1", "--run", str(r), "--by", "F-9", "--note", "x")[0], 2)
+        code, out = run("findings.py", "resolve", "F-1", "--run", str(r), "--by", "abc1234", "--note", "flag added")
+        self.assertEqual(code, 0, out)
+        f = json.loads((r / "findings.jsonl").read_text(encoding="utf-8"))
+        self.assertTrue(f["fixed"])
+        self.assertEqual((f["resolution"]["by"], f["resolution"]["note"]), ("abc1234", "flag added"))
+        self.assertEqual(f["amendments"][-1]["changes"], ["resolved by abc1234"])
+
+    def test_merge_driver_merges_by_id(self):
+        d = self.root
+        row = lambda i, **kw: json.dumps({"id": i, "summary": "s", "evidence": ["a:1"], **kw})
+        (d / "base").write_text(row("F-1") + "\n" + row("F-2") + "\n", encoding="utf-8")
+        (d / "ours").write_text(row("F-1", fixed=True) + "\n" + row("F-2") + "\n" + row("F-3") + "\n",
+                                encoding="utf-8")
+        (d / "theirs").write_text(row("F-1", evidence=["a:1", "b:2"]) + "\n" + row("F-2", severity="minor") + "\n"
+                                  + row("F-4") + "\n", encoding="utf-8")
+        code, out = run("findings.py", "merge-driver", str(d / "base"), str(d / "ours"), str(d / "theirs"))
+        self.assertEqual(code, 0, out)
+        got = {x["id"]: x for x in map(json.loads, (d / "ours").read_text(encoding="utf-8").splitlines())}
+        self.assertEqual(list(got), ["F-1", "F-2", "F-3", "F-4"])
+        self.assertTrue(got["F-1"]["fixed"])
+        self.assertEqual(got["F-1"]["evidence"], ["a:1", "b:2"])
+        self.assertEqual(got["F-2"]["severity"], "minor")
+        (d / "theirs").write_text(row("F-1", summary="other") + "\n", encoding="utf-8")
+        (d / "ours").write_text(row("F-1", summary="mine") + "\n", encoding="utf-8")
+        code, out = run("findings.py", "merge-driver", str(d / "base"), str(d / "ours"), str(d / "theirs"))
+        self.assertEqual(code, 1)
+        self.assertIn("F-1: changed on both sides (summary)", out)
+
+
+class ReportCheckTests(TempRepo):
+    def test_a_report_missing_a_required_section_fails(self):
+        report = self.root / "WP-01.implementer.md"
+        text = (TEMPLATES / "run" / "report.md").read_text(encoding="utf-8").replace("<agent name>", "implementer")
+        text = text.replace("| WP-01.1 | met | ... |", "| WP-01.1 | met | `src/a.cs:3` |")
+        report.write_text(text, encoding="utf-8")
+        code, out = run("checks.py", "report", str(report))
+        self.assertEqual(code, 0, out)
+        report.write_text(text.replace("## Docs drift", "## Notes").replace("`src/a.cs:3`", ""), encoding="utf-8")
+        code, out = run("checks.py", "report", str(report))
+        self.assertEqual(code, 1)
+        self.assertIn("missing section: Docs drift", out)
+        self.assertIn("WP-01.1 is met with no evidence", out)
+
+
+class DetachedHeadTests(TempRepo):
+    def test_a_run_from_a_detached_head_records_a_real_base_branch(self):
+        g = lambda *a: subprocess.run(["git", *a], cwd=self.root, capture_output=True, text=True)
+        g("init", "-q", "-b", "main"); g("config", "user.name", "T"); g("config", "user.email", "t@x")
+        (self.root / "a.txt").write_text("a", encoding="utf-8")
+        g("add", "a.txt"); g("commit", "-qm", "a")
+        g("checkout", "-q", "--detach")
+        code, out = run("run.py", "new", "--source", "prompt", "--ref", "x", "--root", str(self.root))
+        self.assertEqual(code, 1, out)
+        self.assertIn("--base-branch", out)
+        g("update-ref", "refs/remotes/origin/main", "HEAD")
+        g("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+        r = self.new_run()
+        self.assertIn("base_branch: main", (r / "input.md").read_text(encoding="utf-8"))
+        g("checkout", "-q", "--detach", "main")
+        code, out = run("run.py", "new", "--source", "prompt", "--ref", "y", "--root", str(self.root),
+                        "--base-branch", "release")
+        self.assertEqual(code, 0, out)
+        self.assertIn("base_branch: release", (pathlib.Path(out.strip().splitlines()[-1]) / "input.md").read_text())
+
+    def test_decided_is_a_ledger_status(self):
+        r = self.new_run()
+        self.assertEqual(run("run.py", "log", str(r), "build", "decided", "owner: leave WP-40 as is")[0], 0)
+
+
 class ShipCheckTests(TempRepo):
     def setUp(self):
         super().setUp()
@@ -613,6 +716,23 @@ class AcTraceTests(TempRepo):
         code, out = run("ac_trace.py", "--run", str(r))
         self.assertEqual(code, 1)
         self.assertIn("AC-2 is not tagged", out)
+
+    def test_an_amended_tag_counts(self):
+        r = self.setup_run(brief=BRIEF_OK.replace("**AC-2** (inferred)", "**AC-2** (stated, amended (owner, 2026-11-14))"))
+        code, out = run("ac_trace.py", "--run", str(r))
+        self.assertEqual(code, 0, out)
+
+    def test_a_criterion_only_a_deferred_package_serves_is_deferred_not_unserved(self):
+        r = self.setup_run(serves="AC-1")
+        (r / "work-packages" / "WP-02-held.md").write_text(
+            WP.format(serves="AC-2", flag=FLAG_ON).replace("id: WP-01\n", "id: WP-02\nstatus: deferred\n")
+            .replace("WP-01", "WP-02"), encoding="utf-8")
+        code, out = run("ac_trace.py", "--run", str(r))
+        self.assertEqual(code, 0, out)
+        self.assertIn("AC-2: WP-02-held.md (deferred)  -> deferred", out)
+        code, out = run("ac_trace.py", "--run", str(r), "--require-evidence")
+        self.assertNotIn("AC-2 has no report", out)
+        self.assertNotIn("WP-02.1", out)
 
     def test_unserved_and_unknown_criteria_fail(self):
         r = self.setup_run(serves="AC-1, AC-9")
@@ -940,6 +1060,20 @@ class RunnerTests(TempRepo):
         second = json.loads(sorted((r / "runner").glob("*.json"))[-1].read_text(encoding="utf-8"))
         self.assertTrue(second["dirty"])
 
+    def test_a_path_scope_resolves_a_bare_name_or_fails_before_building(self):
+        self.write_config([self.step("build", 0)], scope_kind="path")
+        r = self.new_run()
+        (self.root / "src" / "Orders.Api").mkdir(parents=True)
+        (self.root / "src" / "Orders.Api" / "Orders.Api.csproj").write_text("<Project/>", encoding="utf-8")
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        subprocess.run(["git", "add", "src"], cwd=self.root, check=True)
+        code, out = run("runner.py", "quick", "--run", str(r), "--scope", "Orders.Api", "--root", str(self.root))
+        self.assertEqual(code, 0, out)
+        self.assertIn("scope Orders.Api -> src/Orders.Api/Orders.Api.csproj", out)
+        code, out = run("runner.py", "quick", "--run", str(r), "--scope", "Nope", "--root", str(self.root))
+        self.assertEqual(code, 2)
+        self.assertIn("pass a path", out)
+
     def test_bare_run_id_resolves_under_active(self):
         self.write_config([self.step("build", 0)])
         r = self.new_run()
@@ -948,7 +1082,7 @@ class RunnerTests(TempRepo):
         self.assertTrue(list((r / "runner").glob("quick-*.json")))
         code, out = run("runner.py", "quick", "--run", "no-such-run", "--root", str(self.root))
         self.assertNotEqual(code, 0)
-        self.assertIn("not an active run id", out)
+        self.assertIn("not a run id under", out)
 
 
 if __name__ == "__main__":

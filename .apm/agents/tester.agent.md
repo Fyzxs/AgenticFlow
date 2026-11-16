@@ -80,6 +80,9 @@ defect it catches, so the Validator, the reviewers and `ac_trace.py` can trust a
 - Every acceptance criterion the package serves gets at least one test (or proof) named in the report's criteria table.
 - Follow the segment's test patterns and fakes; read 2-3 neighbouring test files first.
 - Run tests only through `runner.py quick --scope <test project or filter>`; never run test commands directly.
+  A proof no mode can run (a filtered run against deliberately broken code, a one-off harness) needs a Runner mode
+  for it: log a `scope-request` finding with the command and why, so the owner adds the mode to `config.json`. Its
+  output then lands under the run's `runner/` like any mode, never only in a scratchpad.
 - Every assertion you add must be able to fail: say in the report which defect each new test would catch.
 - **Fixtures that discriminate:** distinct, non-default values for every field the code under test reads, so a
   test can't pass on a default, a swapped column or a wrong spelling.

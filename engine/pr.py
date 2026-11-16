@@ -123,6 +123,25 @@ def host(root: pathlib.Path) -> str:
                      "under Pull requests in .fyzxsflow/profile.md")
 
 
+def web_url(root: pathlib.Path, info: dict, number: str) -> str:
+    """An Azure DevOps PR's web page (az returns the REST API URL): the repository's webUrl, else the remote's."""
+    repo = info.get("repository") or {}
+    if repo.get("webUrl") and number:
+        return f"{repo['webUrl'].rstrip('/')}/pullrequest/{number}"
+    url = info.get("url", "")
+    if url and "/_apis/" not in url:
+        return url
+    remote = git(root, "remote", "get-url", "origin").stdout.strip()
+    m = re.match(r"^https://(?:[^@/]+@)?dev\.azure\.com/([^/]+)/([^/]+)/_git/([^/]+?)(?:\.git)?/?$", remote) or \
+        re.match(r"^(?:ssh://)?git@ssh\.dev\.azure\.com(?::v3|/v3)/([^/]+)/([^/]+)/([^/]+?)/?$", remote)
+    if m and number:
+        return f"https://dev.azure.com/{m.group(1)}/{m.group(2)}/_git/{m.group(3)}/pullrequest/{number}"
+    m = re.match(r"^https://(?:[^@/]+@)?([^.]+)\.visualstudio\.com/([^/]+)/_git/([^/]+?)/?$", remote)
+    if m and number:
+        return f"https://{m.group(1)}.visualstudio.com/{m.group(2)}/_git/{m.group(3)}/pullrequest/{number}"
+    return url or (f"pull request {number}" if number else "")
+
+
 def call(cmd: list, cwd) -> subprocess.CompletedProcess:
     if not shutil.which(cmd[0]):
         raise SystemExit(f"'{cmd[0]}' is not installed or not on PATH; it opens and updates the PR")
@@ -217,7 +236,7 @@ def cmd_draft(args) -> int:
                     "--description", body.read_text(encoding="utf-8")[:4000], "--output", "json"], root)
         info = json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip().startswith("{") else {}
         number = str(info.get("pullRequestId", ""))
-        url = info.get("url", "") or (f"pull request {number}" if number else "")
+        url = web_url(root, info, number)
     if out.returncode or not number:
         print(f"could not open the draft PR: {(out.stderr or out.stdout).strip()[:300]}", file=sys.stderr)
         return 1
@@ -296,6 +315,10 @@ def main(argv=None) -> int:
         x = sub.add_parser(name); x.add_argument("--run", required=True)
     u = sub.add_parser("update"); u.add_argument("--run", required=True); u.add_argument("--body-file")
     args = p.parse_args(argv)
+    if getattr(args, "run", None):  # a bare run id resolves under .fyzxsflow/runs/
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+        from layout import resolve_run
+        args.run = str(resolve_run(args.run))
     return {"push": cmd_push, "draft": cmd_draft, "update": cmd_update, "ready": cmd_ready, "status": cmd_status,
             "body": cmd_body}[args.cmd](args)
 
