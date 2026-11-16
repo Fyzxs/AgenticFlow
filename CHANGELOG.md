@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 (2026-11-16)
+- **VS Code commands are agent skills**: the Copilot install writes `.github/skills/<command>/SKILL.md` (`/flow`,
+  `/fyzxsflow-init`, ...; run only when typed) instead of `.github/prompts/*.prompt.md`, and removes the prompt
+  files earlier installs wrote. Copilot sessions on VS Code's Agent Host harness don't load prompt files, and the
+  Local harness that does is removed in February 2027. Reinstall rather than accepting VS Code's migration offer.
+
 ## 0.4.0 (2026-11-16)
 From the first long run on PR groups (a 45-package plan in DocMcStorage).
 

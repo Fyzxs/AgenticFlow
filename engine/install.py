@@ -18,7 +18,8 @@ Host files generated from it (each agent = package/agents/<a>.agent.md + its lea
   claude:  .claude/agents/<name>.md, .claude/rules/fyzxsflow-working-agreement.md,
            .claude/commands/<prompt>.md, kill-by-name hook merged into .claude/settings.json
   copilot: .github/agents/<name>.agent.md, .github/instructions/fyzxsflow-working-agreement.instructions.md,
-           .github/prompts/<prompt>.prompt.md
+           .github/skills/<prompt>/SKILL.md   (the slash commands, as VS Code agent skills; the prompt files
+                                              earlier installs wrote to .github/prompts/ are removed)
 
 Migration: a repo with the earlier `.agentflow/` folder is moved to this layout on install: project files move
 to .fyzxsflow/, Learned entries move out of the agent files into learned/, the old package and host files are
@@ -38,7 +39,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from layout import HOME, LEARNED, LEGACY_HOMES, NAME, PACKAGE  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 HOOK_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/block_kill_by_name.py"'
 
 
@@ -202,9 +203,31 @@ def sync_hosts(target: pathlib.Path, hosts: list, written: list):
             write(target / ".github" / "instructions" / f"{prefix}-working-agreement.instructions.md",
                   f'---\napplyTo: "**"\ndescription: "{NAME} working agreement"\n---\n' + agreement_body, written)
             for p in prompts:
-                write(target / ".github" / "prompts" / p.name, p.read_text(encoding="utf-8"), written)
+                name = p.name.replace(".prompt.md", "")
+                write(target / ".github" / "skills" / name / "SKILL.md", copilot_skill(name, p), written)
+                old = target / ".github" / "prompts" / p.name  # written by installs before 0.4.1
+                if old.exists():
+                    old.unlink()
+                    written.append(old)
+            prompts_dir = target / ".github" / "prompts"
+            if prompts_dir.is_dir() and not any(prompts_dir.iterdir()):
+                prompts_dir.rmdir()
         else:
             raise SystemExit(f"unknown host '{host}' (claude, copilot)")
+
+
+def copilot_skill(name: str, prompt: pathlib.Path) -> str:
+    """A package prompt as a VS Code agent skill: run only when typed as /<name> (disable-model-invocation), since
+    each one starts a run or changes files. Skills can't pin a custom agent the way a prompt's `agent:` did, so the
+    body (which already says which agent to act as, and reads its file) carries it."""
+    fm, body = split_frontmatter(prompt.read_text(encoding="utf-8"))
+    hint = fm.get("argument-hint", "").strip().strip('"')
+    lines = ["---", f"name: {name}", f"description: {json.dumps(fm.get('description', ''), ensure_ascii=False)}"]
+    if hint:
+        lines.append(f"argument-hint: {json.dumps(hint, ensure_ascii=False)}")
+    lines += ["disable-model-invocation: true", "---"]
+    return "\n".join(lines) + "\n" + body.lstrip("\n").rstrip() + \
+        "\n\nThe request is the text typed after the command.\n"
 
 
 def merge_claude_hook(settings: pathlib.Path, written: list):

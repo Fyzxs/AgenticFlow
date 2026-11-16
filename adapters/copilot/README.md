@@ -5,9 +5,13 @@
 onto Copilot and what the PoC must confirm. Nothing here has been verified against current Copilot docs.
 
 ## What the docs say (2026-11, not yet tried)
-- **VS Code Copilot Chat:** `.github/prompts/*.prompt.md` run as `/name <text>` in the Chat view (Local
-  harness); the prompt's `agent:` frontmatter picks the custom agent it runs in (`flow` → `orchestrator`,
-  `fyzxsflow-init` → `repo-cartographer`, `fyzxsflow-greenfield` → `orchestrator`, `fyzxsflow-compact` → `orchestrator`, `fyzxsflow-parallelize` → `build-coordinator`). Custom agents in `.github/agents/` can be dispatched as subagents by
+- **VS Code Copilot Chat:** the commands are agent skills, `.github/skills/<name>/SKILL.md`, run as `/name <text>`
+  (`disable-model-invocation: true`, so only when typed). Since 0.4.1; before, they were prompt files in
+  `.github/prompts/`, which Copilot sessions on the Agent Host harness don't load and which only the Local harness
+  (deprecated, removed February 2027) runs. A skill can't pin a custom agent as a prompt's `agent:` did, so each
+  body says which agent to act as and reads its file (`flow` → `orchestrator`, `fyzxsflow-init` →
+  `repo-cartographer`, `fyzxsflow-greenfield` → `orchestrator`, `fyzxsflow-compact` → `orchestrator`,
+  `fyzxsflow-parallelize` → `build-coordinator`). Custom agents in `.github/agents/` can be dispatched as subagents by
   an agent with the `agent` tool set (`runSubagent`); subagents can't dispatch further subagents unless
   `chat.subagents.allowInvocationsFromSubagents` is on, so the Orchestrator runs Build itself (as on Claude Code).
   A subagent doesn't inherit the conversation, which suits the run-folder hand-offs.
@@ -38,7 +42,7 @@ session history, and write an extractor that emits the same `turns.jsonl` shape 
 ## To verify in the PoC
 - [ ] Agent-to-agent dispatch: which of the options above works, and how inputs are passed.
 - [ ] Whether `.apm/context/*` and `engine/` are reachable after install.
-- [ ] How prompt files are invoked and how the user's text reaches them.
+- [ ] How a skill typed as `/flow <text>` is run (Local and Agent Host harnesses), and how the text reaches it.
 - [ ] Whether skills (`SKILL.md`) load on the Copilot surfaces used at work.
 - [ ] Where session transcripts live.
 - [ ] Whether custom agents honour a `model:` frontmatter line, and the model names to put in

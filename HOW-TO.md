@@ -125,9 +125,12 @@ design; see [Start a new project](#start-a-new-project)) and **`fyzxsflow-compac
 | **GitHub Copilot app** (desktop) | start a local session on the repo: `Act as the FyzxsFlow repo-cartographer in bootstrap mode (.fyzxsflow/package/agents/repo-cartographer.agent.md).` | `Act as the FyzxsFlow orchestrator (.fyzxsflow/package/agents/orchestrator.agent.md) and run the flow on: <request>` |
 
 - **Claude Code** reads the commands from `.claude/commands/` and dispatches each agent as a subagent.
-- **VS Code** runs `.github/prompts/*.prompt.md` as slash commands. The prompts open in the right custom agent
-  (`.github/agents/`), and the Orchestrator dispatches the others as subagents (the `agent` tool). Use agent
-  mode with the Local harness.
+- **VS Code** runs the commands as agent skills, `.github/skills/<command>/SKILL.md`, typed as `/flow`,
+  `/fyzxsflow-init` and so on. They run only when you type them (never picked by the model on its own). Each one
+  tells the session which FyzxsFlow agent to act as and reads that agent's file (`.github/agents/`); the
+  Orchestrator dispatches the others as subagents (the `agent` tool). Installs before 0.4.1 wrote prompt files to
+  `.github/prompts/`, which VS Code offers to migrate: don't. Reinstall instead, which replaces them with the
+  skills (prompt files of your own there are left alone).
 - **Copilot CLI** has no prompt files; start the custom agent directly. Restart the CLI after installing so it
   loads the agents from `.github/agents/`.
 - **Copilot app** documents no support for a repository's custom agents yet, so ask the session to act as the
@@ -143,7 +146,7 @@ remote's default branch, or the branch you name with `run.py new --base-branch <
 (or ask the Orchestrator to resume): it picks the run up from `.fyzxsflow/runs/active/`.
 
 > **Copilot surfaces are not yet verified end to end.** The steps follow the
-> [VS Code prompt files](https://code.visualstudio.com/docs/copilot/customization/prompt-files),
+> [VS Code agent skills](https://code.visualstudio.com/docs/agent-customization/agent-skills),
 > [subagents](https://code.visualstudio.com/docs/copilot/agents/subagents),
 > [Copilot CLI custom agents](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/invoke-custom-agents)
 > and [Copilot app](https://docs.github.com/en/copilot/concepts/agents/github-copilot-app) docs. Claude Code is

@@ -37,13 +37,18 @@ class InstallTests(unittest.TestCase):
                     "skills/correction-mining/SKILL.md", "INSTALLED.json"):
             self.assertTrue((pkg / rel).exists(), rel)
         self.assertFalse((pkg / "engine" / "tests").exists())
-        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.4.0")
+        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.4.1")
         self.assertTrue((self.root / ".claude/agents/implementer.md").exists())
         flow_cmd = (self.root / ".claude/commands/flow.md").read_text(encoding="utf-8")
         self.assertIn("Request: $ARGUMENTS", flow_cmd)
         self.assertIn('argument-hint: "[--preceptee] <what to build or fix', flow_cmd)
         self.assertNotIn("agent: orchestrator", flow_cmd)  # Copilot's routing key; Claude commands don't take it
-        self.assertIn("agent: orchestrator", (self.root / ".github/prompts/flow.prompt.md").read_text(encoding="utf-8"))
+        skill = (self.root / ".github/skills/flow/SKILL.md").read_text(encoding="utf-8")
+        self.assertTrue(skill.startswith("---\nname: flow\ndescription: \"Run FyzxsFlow"), skill[:120])
+        self.assertIn('argument-hint: "[--preceptee] <what to build or fix', skill)
+        self.assertIn("disable-model-invocation: true", skill)
+        self.assertIn(".github/agents/orchestrator.agent.md", skill)  # the body names the agent to act as
+        self.assertFalse((self.root / ".github/prompts").exists())
         self.assertTrue((self.root / ".github/agents/implementer.agent.md").exists())
         ref = self.root / ".fyzxsflow/config.json.readme.md"
         self.assertIn("# config.json reference", ref.read_text(encoding="utf-8"))
@@ -55,6 +60,22 @@ class InstallTests(unittest.TestCase):
         settings = json.loads((self.root / ".claude/settings.json").read_text(encoding="utf-8"))
         self.assertEqual(settings["model"], "keep-me")
         self.assertEqual(len(settings["hooks"]["PreToolUse"]), 1)
+
+    def test_reinstall_replaces_old_prompt_files_with_skills_and_keeps_the_owners_prompts(self):
+        old = self.root / ".github" / "prompts"
+        old.mkdir(parents=True)
+        (old / "flow.prompt.md").write_text("---\nagent: orchestrator\n---\nold\n", encoding="utf-8")
+        (old / "mine.prompt.md").write_text("my own prompt\n", encoding="utf-8")
+        code, out = self.install("--host", "copilot")
+        self.assertEqual(code, 0, out)
+        self.assertFalse((old / "flow.prompt.md").exists())
+        self.assertTrue((old / "mine.prompt.md").exists())
+        for p in sorted((ENGINE.parent / ".apm" / "prompts").glob("*.prompt.md")):
+            name = p.name.replace(".prompt.md", "")
+            skill = self.root / ".github" / "skills" / name / "SKILL.md"
+            self.assertTrue(skill.exists(), name)
+            self.assertRegex(name, r"^[a-z0-9-]{1,64}$")  # VS Code silently skips a skill with any other name
+            self.assertIn(f"name: {name}\n", skill.read_text(encoding="utf-8"))
 
     def test_every_prompt_reads_its_agent_with_the_projects_learned_entries(self):
         """A slash command runs in the main session, not as the dispatched agent, so it must load the learned
