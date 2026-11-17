@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.2 (2026-11-17)
+- **The owner sees what to review before being asked**: `review.py show --review-file <file> [--open]` turns a review
+  file into the pause message: the review and every file under **What to look at** as links, the diff, the
+  validator's verdict and any pushed-back feedback, then the reply options. It refuses a review that names nothing
+  to look at. `--open` also opens the files in VS Code when run from its terminal. The Orchestrator posts it at every
+  pause and never asks through a question popup (VS Code's showed only "approve or redo", with nothing to read).
+
 ## 0.4.1 (2026-11-16)
 - **VS Code commands are agent skills**: the Copilot install writes `.github/skills/<command>/SKILL.md` (`/flow`,
   `/fyzxsflow-init`, ...; run only when typed) instead of `.github/prompts/*.prompt.md`, and removes the prompt

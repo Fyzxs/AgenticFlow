@@ -159,7 +159,10 @@ Requests can be plain text or an Azure DevOps work item:
 /flow 12345        (an Azure DevOps work item id)
 ```
 
-Answer each review with `approve`, `redo: <what to change>` or `stop`.
+Answer each review with `approve`, `redo: <what to change>` or `stop`. When the run waits for you, its message
+lists what to read first, as links: the review file, then each output and report, with the diff command and the
+validator's verdict, and only then the reply options. Run from VS Code's terminal, it also opens those files in the
+editor. Reply in the chat; the flow doesn't ask through a popup, which would hide the files and your `redo` note.
 
 ## Pull requests
 

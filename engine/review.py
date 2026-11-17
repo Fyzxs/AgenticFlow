@@ -8,6 +8,10 @@
   python -I .fyzxsflow/package/engine/review.py set-level --agent <name> --level on|notify|off --reason "<owner's words>"
   python -I .fyzxsflow/package/engine/review.py regress --agent <name> --reason "<evidence>"   (system: raise to on)
   python -I .fyzxsflow/package/engine/review.py summary [--root .]
+  python -I .fyzxsflow/package/engine/review.py show --review-file <run>/reviews/<file>.md [--open]
+      -> the message to post when the run waits (or notifies): every file to read as a link, the diff, the
+         verdict, pushed-back items, then how to reply. --open also opens them in VS Code when run from its
+         terminal. Exit 2 when the review names nothing to look at (fill "What to look at" first).
 
 Levels, per agent, in config.json -> review: on (pause for the owner), notify (post the summary, don't pause),
 off (don't pause or post). Every agent starts at review.default ("on"). The level only decides whether the run
@@ -292,6 +296,114 @@ def cmd_summary(args) -> int:
     return 0
 
 
+REVIEW_AGENT = re.compile(r"^#\s*Review:\s*(\S+)", re.M)
+PLACEHOLDER = re.compile(r"<[^>]*>")
+
+
+def review_blocks(text: str) -> dict:
+    """The review's bold-labelled paragraphs ("**What to look at**", "**Where we are:** ..."), comments removed."""
+    text = re.sub(r"[ \t]*<!--.*?-->[ \t]*\n?", "", text.split("\n## Human Feedback")[0], flags=re.S)
+    out = {}
+    for para in re.split(r"\n\s*\n", text):
+        m = re.match(r"\*\*([^*]+?)\*\*:?\s*(.*)", para.strip(), re.S)
+        if m:
+            out[m.group(1).strip().rstrip(":").lower()] = m.group(2).strip()
+    return out
+
+
+def look_at(body: str):
+    """(path, note) for each "- `path` — note" line of What to look at."""
+    items = []
+    for line in body.splitlines():
+        m = re.match(r"\s*[-*]\s*(?:`([^`]+)`|\[[^\]]*\]\(<?([^)>]+)>?\))\s*(?:[—–:-]+\s*)?(.*)", line)
+        if m:
+            items.append(((m.group(1) or m.group(2)).strip(), m.group(3).strip()))
+    return items
+
+
+def on_disk(bases, rel: str):
+    """The file a "What to look at" entry names, from the repo root or the run folder (a trailing :line or
+    :start-end is allowed), or None."""
+    for base in bases:
+        for candidate in (rel, re.sub(r":\d+(?:-\d+)?$", "", rel)):
+            path = (base / candidate).resolve()
+            if path.exists():
+                return path
+    return None
+
+
+def link(bases, rel: str) -> str:
+    path = on_disk(bases, rel)
+    return f"[{rel}](<{path.as_posix()}>)" if path else f"`{rel}` (not on disk: deleted, or not created yet)"
+
+
+def open_in_editor(paths) -> str:
+    import os
+    import shutil
+    import subprocess
+    if os.environ.get("TERM_PROGRAM") != "vscode" and "VSCODE_IPC_HOOK_CLI" not in os.environ:
+        return "opened=no (not a VS Code terminal)"
+    code = shutil.which("code") or shutil.which("code-insiders")
+    if not code:
+        return "opened=no (the code command is not on PATH)"
+    try:
+        subprocess.run([code, "-r", *[str(p) for p in paths]], capture_output=True, timeout=20)
+    except (OSError, subprocess.SubprocessError) as e:
+        return f"opened=no ({e})"
+    return f"opened={len(paths)} files in VS Code"
+
+
+def cmd_show(args) -> int:
+    review = pathlib.Path(args.review_file).resolve()
+    if not review.exists():
+        print(f"no review file at {args.review_file}", file=sys.stderr)
+        return 2
+    root = root_of(review)
+    text = review.read_text(encoding="utf-8")
+    blocks = {k: v for k, v in review_blocks(text).items() if k == "what to look at" or not PLACEHOLDER.search(v)}
+    items = look_at(blocks.get("what to look at", ""))
+    unfilled = [p for p, _ in items if PLACEHOLDER.search(p)]
+    if not items or unfilled:
+        print(f"{args.review_file}: fill **What to look at** with the files the owner should read (one "
+              f"\"- `path` — what it is\" line each) before asking; the owner can't review what isn't named.",
+              file=sys.stderr)
+        return 2
+    m = REVIEW_AGENT.search(text)
+    agent = m.group(1) if m else "the agent"
+    title = next((l[1:].strip() for l in text.splitlines() if l.startswith("# ")), review.stem)
+    waiting = blocks.get("reply needed", "yes").lower().startswith("yes")
+    rel_review = review.relative_to(root).as_posix()
+    bases = [root, review.parent.parent]  # the repo root, then the run folder
+    lines = [f"**{title}** — " + ("the run is waiting for you." if waiting else "no reply needed; the run moved on."), ""]
+    if blocks.get("where we are"):
+        lines += [" ".join(blocks["where we are"].split()), ""]
+    lines.append("**Read before you reply:**" if waiting else "**To read when you like:**")
+    lines.append(f"1. {link(bases, rel_review).replace('[' + rel_review + ']', '[' + review.parent.name + '/' + review.name + ']')} — this review: verdict, acceptance criteria, and a Human Feedback "
+                 "section for longer notes")
+    seen = {rel_review}
+    for i, (path, note) in enumerate([(p, n) for p, n in items if p not in seen], start=2):
+        lines.append(f"{i}. {link(bases, path)}" + (f" — {note}" if note else ""))
+    for label in ("changes since the last checkpoint", "validator verdict"):
+        if blocks.get(label):
+            lines.append(f"\n**{label.capitalize()}:** {' '.join(blocks[label].split())}")
+    for label, head in (("your feedback, applied", "Your feedback, applied:"),
+                        ("your feedback, pushed back", "Your feedback, pushed back (each needs your answer):")):
+        if blocks.get(label):
+            lines += ["", f"**{head}**", blocks[label]]
+    lines.append("")
+    if waiting:
+        lines.append(f"**Reply here:** `approve` · `redo: <what's wrong>` · `stop`. Add `-less-review` or "
+                     f"`-more-review` to change how closely {agent} is reviewed from now on. Longer feedback: write "
+                     "it under Human Feedback in the review first; it is recorded whatever you reply.")
+    else:
+        lines.append("Write under Human Feedback in the review any time; it is picked up at the next hand-off.")
+    print("\n".join(lines))
+    if args.open:
+        paths = [review] + [f for f in (on_disk(bases, p) for p, _ in items if p not in seen) if f]
+        print(open_in_editor(paths), file=sys.stderr)
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -312,13 +424,16 @@ def main(argv=None) -> int:
     r.add_argument("--root", default=".")
     m = sub.add_parser("summary")
     m.add_argument("--root", default=".")
+    w = sub.add_parser("show")
+    w.add_argument("--review-file", required=True)
+    w.add_argument("--open", action="store_true", help="also open the files in VS Code (from its terminal only)")
     args = p.parse_args(argv)
     if getattr(args, "run", None):  # a bare run id resolves under .fyzxsflow/runs/
         sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
         from layout import resolve_run
         args.run = str(resolve_run(args.run))
     return {"needed": cmd_needed, "decide": cmd_decide, "set-level": cmd_set_level, "regress": cmd_regress,
-            "summary": cmd_summary}[args.cmd](args)
+            "summary": cmd_summary, "show": cmd_show}[args.cmd](args)
 
 
 if __name__ == "__main__":

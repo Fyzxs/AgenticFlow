@@ -145,5 +145,63 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("clean-streak=3 -> 3 clean approvals in a row: consider replying -less-review", out)
 
 
+    def write_review(self, look_at, reply="yes — the run is waiting for you.", extra=""):
+        template = (ENGINE.parent / "templates/run/review-pending.md").read_text(encoding="utf-8")
+        text = template.replace("<agent>", "implementer", 1).replace("<WP-04>: <package title, or the stage name>",
+                                                                     "WP-01: sort by date")
+        text = text.replace("- `<path>` — <one line on what it is>", look_at)
+        text = text.replace("<yes — the run is waiting for you. | no — <agent> is at review level <notify|off>, so the run\n"
+                            "moved on to <the next step>. Read this whenever you like; anything you write under Human Feedback below is\n"
+                            "picked up at the next hand-off (or say \"process feedback\").>", reply)
+        text = text.replace("**Validator verdict:** <pass | corrected | fail>, findings: <F-n ...>",
+                            "**Validator verdict:** pass, findings: none" + extra)
+        review = self.run_dir / "reviews" / "wp-01-sort.implementer.md"
+        review.parent.mkdir(parents=True, exist_ok=True)
+        review.write_text(text, encoding="utf-8")
+        return review
+
+    def show(self, review, *extra):
+        import os
+        env = {k: v for k, v in os.environ.items() if k not in ("TERM_PROGRAM", "VSCODE_IPC_HOOK_CLI")}
+        proc = subprocess.run([PY, "-I", str(ENGINE / "review.py"), "show", "--review-file", str(review), *extra],
+                              capture_output=True, text=True, env=env)
+        return proc.returncode, proc.stdout, proc.stderr
+
+    def test_show_lists_every_file_to_read_as_a_link_before_the_reply_options(self):
+        (self.root / "src").mkdir()
+        (self.root / "src" / "sort.py").write_text("x = 1\n", encoding="utf-8")
+        (self.run_dir / "reports").mkdir(exist_ok=True)
+        (self.run_dir / "reports" / "WP-01.implementer.md").write_text("r\n", encoding="utf-8")
+        review = self.write_review("- `src/sort.py:1` — the sort\n- `reports/WP-01.implementer.md` — the report\n"
+                                   "- `src/gone.py` — removed")
+        code, out, err = self.show(review, "--open")
+        self.assertEqual(code, 0, err)
+        self.assertIn("**Review: implementer — WP-01: sort by date** — the run is waiting for you.", out)
+        self.assertIn("1. [reviews/wp-01-sort.implementer.md](<", out)  # the review itself comes first
+        self.assertNotIn("Package <n>", out)  # unfilled template lines are left out
+        self.assertIn(f"2. [src/sort.py:1](<{(self.root / 'src/sort.py').resolve().as_posix()}>) — the sort", out)
+        self.assertIn(f"3. [reports/WP-01.implementer.md](<{(self.run_dir / 'reports/WP-01.implementer.md').resolve().as_posix()}>)", out)
+        self.assertIn("4. `src/gone.py` (not on disk: deleted, or not created yet) — removed", out)
+        self.assertIn("**Validator verdict:** pass, findings: none", out)
+        self.assertNotIn("<checkpoint>", out)  # an unfilled line is left out, not shown with placeholders
+        self.assertLess(out.index("Read before you reply"), out.index("**Reply here:**"))
+        self.assertIn("opened=no (not a VS Code terminal)", err)
+
+    def test_show_refuses_a_review_that_names_nothing_to_look_at(self):
+        review = self.write_review("- `<path>` — <one line on what it is>")
+        code, out, err = self.show(review)
+        self.assertEqual(code, 2)
+        self.assertIn("fill **What to look at**", err)
+        self.assertEqual(out, "")
+
+    def test_show_for_a_no_reply_review_says_the_run_moved_on(self):
+        (self.root / "a.md").write_text("a\n", encoding="utf-8")
+        review = self.write_review("- `a.md` — a", reply="no — implementer is at review level notify, so the run moved on.")
+        code, out, _ = self.show(review)
+        self.assertEqual(code, 0)
+        self.assertIn("no reply needed; the run moved on.", out)
+        self.assertNotIn("**Reply here:**", out)
+
+
 if __name__ == "__main__":
     unittest.main()

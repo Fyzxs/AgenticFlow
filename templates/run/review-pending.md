@@ -29,6 +29,10 @@ picked up at the next hand-off (or say "process feedback").>
 <model_reported>; escalated: <escalated>). The validator ran on <its model>.
 
 **What to look at**
+<!-- Every file the owner should read to judge this output: the agent's report, the files it wrote or changed
+     (repo-relative, or run-folder-relative like reports/WP-01.implementer.md; a :line suffix is fine), one
+     "- `path` — what it is" line each. `review.py show` turns these into the pause message's links and refuses
+     an empty list. -->
 - `<path>` — <one line on what it is>
 
 **Changes since the last checkpoint:** `git diff <checkpoint>..HEAD -- <paths>` (or open the files above)

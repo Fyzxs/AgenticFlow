@@ -253,9 +253,13 @@ any output later and comments on it in place. For a package, run
 next lines, so the owner knows where the run is without opening the plan. For a stage:
 `reviews/<stage>.<agent>.md`, saying what comes after the stage.
 - `review=no`: write the review with **Reply needed: no**, and hand off.
-- `review=notify`: the same, and post the output's summary and the review file's path in your heartbeat.
-- `review=pause`: write the review with **Reply needed: yes**, checkpoint, log `gated` in the ledger, and stop
-  with that review as one self-contained message.
+- `review=notify`: the same, and post the output's summary and the output of
+  `python -I .fyzxsflow/package/engine/review.py show --review-file <the review file>` in your heartbeat.
+- `review=pause`: write the review with **Reply needed: yes**, checkpoint, log `gated` in the ledger, run
+  `python -I .fyzxsflow/package/engine/review.py show --review-file <the review file> --open`, and stop with its
+  output, verbatim, as your message: every file to read as a link (the review first), the diff, the verdict, the
+  pushed-back items, then how to reply. `--open` also opens them in VS Code when run from its terminal. Exit 2
+  means the review names nothing to look at: fill **What to look at**, then run it again.
   **In Build, the owner reviews on each group's PR**, not at hand-offs: write every review file as you go, and the
   group reaches the owner as its published PR. Pause a group at the hand-off itself (its tester waits; other
   groups go on) only when `review.py needed` gives an `always:` or `run-request:` reason (the areas the owner
@@ -385,6 +389,12 @@ record it:
 
 Ask each question in a self-contained way: 2–4 sentences on what it is and where it shows up, the
 options with their cost, and your recommendation. Never use bare ids.
+
+**The owner reads before they answer.** Every wait for the owner (a review, a decision, a plan gate) is one
+chat message that names the files to read as links, before the question; a review's message is `review.py show`'s
+output. Never ask through a question or choice tool (VS Code's question popup, a quick pick): it shows only the
+question, hides what to read, and drops the note a `redo:` or a decision needs. End the turn with the message;
+the owner replies in chat.
 
 ## Dispatch wording
 Every dispatch starts with two lines:

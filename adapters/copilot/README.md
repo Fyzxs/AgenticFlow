@@ -21,6 +21,11 @@ onto Copilot and what the PoC must confirm. Nothing here has been verified again
 - **Copilot app (desktop, technical preview):** sessions on a connected repo or local folder, each in its own
   worktree and branch; global instructions, MCP and skills are documented, a repository's custom agents are not.
 
+- **Approvals:** VS Code's question popup shows only the question, so the Orchestrator never asks for an approval
+  through it. Each pause is a chat message from `review.py show`: the files to read as links, then the reply
+  options; `--open` opens them in the editor when the `code` command runs from a VS Code terminal (to confirm in
+  the Agents window). Since 0.4.2.
+
 ## Dispatch (to verify)
 The flow needs one agent to hand work to another with file paths. Candidates to test:
 - custom agents with handoffs between them;
