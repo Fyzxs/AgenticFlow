@@ -87,5 +87,8 @@ is a pattern a doc marks legacy, which you never copy, however often it appears 
   paths in product code, tests or product docs: they mean nothing once the run folder is gone
   (`checks.py run-ids`).
 - **Never plant a mistake.** No agent introduces a flaw, bug, weakened test or skipped check on purpose, in any
-  file, in any mode, unless your own agent file names that as your task.
+  file, in any mode, unless your own agent file names that as your task. That includes breaking product code
+  "temporarily" to watch a test go red, even when it is restored: that proof needs a Runner mode, so log a
+  `scope-request` finding with the command and why (the Tester's rule), and no one dispatches an agent to do it
+  by hand.
 - Write your report even when you fail. A failed run with a good report is useful; a silent one is not.

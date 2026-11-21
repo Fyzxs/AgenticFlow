@@ -101,6 +101,15 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("review level for implementer", subprocess.run(
             ["git", "log", "-1", "--format=%s"], cwd=self.root, capture_output=True, text=True).stdout)
 
+    def test_natural_decision_words_parse(self):
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+        import review
+        for reply in ("Approved. Use your recommendations", "approve.", "Approve!", "approved -less-review"):
+            self.assertEqual(review.parse_reply(reply)[0], "approve", reply)
+        self.assertEqual(review.parse_reply("approved -less-review")[1], "less-review")
+        with self.assertRaises(ValueError):
+            review.parse_reply("approval pending")  # only known forms; nothing guessed
+
     def test_reply_errors(self):
         self.assertEqual(self.decide("looks good")[0], 2)
         self.assertEqual(self.decide("approve -less-review -more-review")[0], 2)

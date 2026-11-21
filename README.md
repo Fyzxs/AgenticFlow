@@ -7,7 +7,7 @@ feature flag, proves it with your own build and test commands, reviews it, and o
 Every mistake along the way is logged as a finding, and the flow turns findings into better agent
 instructions and better repo docs. Each run should need fewer corrections than the one before.
 
-> **Status: early (v0.4.2).** The engine scripts are complete and tested, and all the agents are written in
+> **Status: early (v0.4.3).** The engine scripts are complete and tested, and all the agents are written in
 > full, shaped by a first end-to-end trial on a real application. More trials are under way. Expect
 > breaking changes.
 
@@ -94,6 +94,10 @@ skeleton in the same run.
 Preceptor agent reviews their pull requests the way a senior engineer would. It asks about the behaviour first,
 then points at the file, the method and finally the line, only as far as needed, and eases off as they improve.
 Their scores stay on their machine. See [PRECEPTEE.md](PRECEPTEE.md).
+
+For a repo with agent history, ask the agent to mine past sessions for your corrections first (the
+`correction-mining` skill): it ranks what you keep repeating, checks which of it your docs already say, and
+proposes where each lesson should live; `/fyzxsflow-init` then starts from that report.
 
 When learned entries, docs and agents grow heavy, `/fyzxsflow-compact [targets]` shrinks them without losing a
 rule, so every agent dispatch costs fewer tokens.

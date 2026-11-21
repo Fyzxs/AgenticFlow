@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.4.3 (2026-11-20)
+From evaluating the skill and the commands with skill-creator (with vs without, on real transcripts and fixtures).
+
+- **Package skills reach the hosts**: install writes `.claude/skills/<skill>/SKILL.md` and
+  `.github/skills/<skill>/SKILL.md` (model-invocable, marked generated; copies of skills dropped upstream are removed,
+  your own skills are left alone). Before, `correction-mining` sat only in `.fyzxsflow/package/skills/`, so neither
+  host ever offered it.
+- **correction-mining**:
+  - `extract_claude.py --projects` takes several globs and folder names starting with `-` (every Linux/macOS
+    `~/.claude/projects` folder).
+  - It skips sessions written in the last 10 minutes (usually the session doing the mining; `--include-live`,
+    `--exclude-session <id>`).
+  - New `check_refs.py` audits hand-written host docs: load mode, size, `paths:`/`applyTo:` globs that match
+    nothing, dead backticked paths. `docs_check.py` covers only `.fyzxsflow/` and only after init.
+  - SKILL.md:
+    - scripts run with `python -I -B`, so nothing is written into the repo;
+    - quotes stay verbatim, marked `[sic]` / `[...]`;
+    - each theme gets one primary home plus a hook or test where the rule can be checked mechanically;
+    - a "settled or withdrawn decisions" section;
+    - staleness is judged against the owner's branch;
+    - an inline catalog when there are no subagents;
+    - the `flag` field is documented.
+- **`review.py decide` accepts natural forms**: `Approved.`, `approve!`, `approved -less-review`. Other words are
+  still refused.
+- **`lanes.py merge` refuses instead of marking a false `conflict`** when uncommitted files in the run checkout (often
+  the ledger after `run.py log`) are ones the lane changed. The Build Coordinator checkpoints before merging.
+- **Compaction measures before spending**:
+  - The Compactor estimates the saving first. Under 10%, or with targets already compacted, the Orchestrator shows
+    the sizes and the likely cost and asks.
+  - The validator checks every `never/always/only/must` sentence survives. An evaluated pass cost about $20 for
+    1.6% and merged away two rules.
+- **No "temporary" breakage to see a test go red**: role-contracts names it as planting a mistake; the proof goes
+  through a Runner mode (`scope-request`).
+- **"Keep going to the end"** skips the run's remaining review pauses only. It is logged, review files are still
+  written, the always-stop cases still stop, and no stored level changes.
+
 ## 0.4.2 (2026-11-17)
 - **The owner sees what to review before being asked**: `review.py show --review-file <file> [--open]` turns a review
   file into the pause message: the review and every file under **What to look at** as links, the diff, the

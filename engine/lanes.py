@@ -603,7 +603,23 @@ def cmd_merge(args) -> int:
             print(f"skipped {g}: nothing committed in its lane")
             bad = True
             continue
+        # Uncommitted files in the run checkout that the lane also changed (often the run's own ledger.md, which
+        # `run.py log` appends to) make git refuse the merge: that is not an overlap between groups.
+        local = {l[3:] for l in git(root, "status", "--porcelain", "--untracked-files=all").stdout.splitlines() if l.strip()}
+        theirs = set(git(root, "diff", "--name-only", f"{lane['base']}..{lane['branch']}").stdout.split())
+        blocked = sorted(local & theirs)
+        if blocked:
+            print(f"refused {g}: uncommitted here and changed in the lane: {', '.join(blocked[:5])}; commit the run "
+                  "folder first (run.py checkpoint) and merge again")
+            bad = True
+            continue
         m = git(root, "merge", "--no-ff", "--no-edit", "-m", f"build({run.name}): {g}", lane["branch"])
+        if m.returncode and "would be overwritten" in m.stderr + m.stdout:
+            git(root, "merge", "--abort")
+            print(f"refused {g}: local changes block the merge ({(m.stderr or m.stdout).strip().splitlines()[0]}); "
+                  "commit them by path and merge again")
+            bad = True
+            continue
         if m.returncode:
             git(root, "merge", "--abort")
             lane["state"] = "conflict"

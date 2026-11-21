@@ -365,6 +365,24 @@ exit 0
         self.assertEqual(self.git("status", "--porcelain").stdout.strip(), "")
         self.assertIn("lane WP-02", self.lanes("open")[1])  # starts again on the merged branch
 
+    def test_an_uncommitted_ledger_line_refuses_the_merge_instead_of_marking_a_conflict(self):
+        self.plan()
+        self.git("switch", "-q", "-c", "fyzxsflow/run")
+        (self.run / "ledger.md").write_text("# ledger\n", encoding="utf-8")
+        self.commit_all()
+        lanes = self.opened(self.lanes("open")[1])
+        ledger = self.run.relative_to(self.root) / "ledger.md"
+        self.build_in(lanes["WP-01"], str(ledger), "# ledger\nlane line\n")
+        (self.root / ledger).write_text("# ledger\nrun.py log line\n", encoding="utf-8")  # not checkpointed
+        code, out = self.lanes("merge", "--group", "WP-01")
+        self.assertEqual(code, 1, out)
+        self.assertIn("refused WP-01: uncommitted here and changed in the lane", out)
+        self.assertNotIn("conflict", out)
+        self.commit_all("checkpoint")
+        code, out = self.lanes("merge", "--group", "WP-01")
+        self.assertIn("WP-01", out)
+        self.assertNotIn("refused", out)
+
     def test_a_lane_with_uncommitted_work_is_not_merged(self):
         self.plan()
         self.git("switch", "-q", "-c", "fyzxsflow/run")

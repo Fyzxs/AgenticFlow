@@ -144,6 +144,8 @@ def cmd_needed(args) -> int:
     return 0
 
 
+# natural forms of a decision word; anything else is still refused rather than guessed at
+ALIASES = {"approved": "approve", "approving": "approve", "continuing": "continue", "stopped": "stop"}
 FLAG_WORDS = ("-less-review", "--less-review", "-more-review", "--more-review")
 
 
@@ -151,7 +153,8 @@ def parse_reply(reply: str):
     words = reply.strip().split()
     if not words:
         raise ValueError("empty reply")
-    decision = words[0].lower().rstrip(":,.")
+    decision = words[0].lower().rstrip(":,.!")
+    decision = ALIASES.get(decision, decision)
     if decision not in DECISIONS:
         raise ValueError(f"a reply starts with one of: {', '.join(DECISIONS)}")
     lowered = [w.lower() for w in words]

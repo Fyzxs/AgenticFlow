@@ -1,18 +1,46 @@
 """Extract the owner's turns (plus the preceding agent message and tool calls) from Claude Code transcripts.
 
-  python -I extract_claude.py --projects "D--src-MyRepo*" --out <dir> [--strip-prefix D--src-MyRepo]
+  python -I -B extract_claude.py --projects "-home-me-src-MyRepo*" "-home-me-src-Other" --out <dir>
+                                 [--strip-prefix -home-me-src-] [--exclude-session <id>] [--include-live]
 
---projects is a glob of folder names under ~/.claude/projects (one folder per working directory, so a
-repo with worktrees has several). Writes <out>/turns.jsonl and <out>/digest_<project>.md.
+--projects takes one or more globs of folder names under ~/.claude/projects (one folder per working directory,
+so a repo with worktrees has several). On Linux/macOS those names start with '-'; that is accepted here.
+Sessions written in the last 10 minutes are skipped (one of them is usually the session doing the mining, and
+a live session is incomplete); --include-live keeps them. --exclude-session drops a session by id (or prefix).
+Writes <out>/turns.jsonl and <out>/digest_<project>.md.
+
+turns.jsonl rows: proj, sess, ts, kind (HUMAN | REJECT | INTERRUPT), text, prev (end of the agent message
+before it), tools (its last tool calls), flag (HUMAN rows only: the keyword regex matched; crude, about half
+the real corrections).
 """
-import argparse, json, glob, os, re, sys
+import argparse, json, glob, os, re, sys, time
+
+
+def _argv(argv):
+    """Let values start with '-' (folder names do; argparse would read them as options): `--projects A B` ->
+    `--projects=A --projects=B`, `--strip-prefix -x` -> `--strip-prefix=-x`."""
+    out, i = [], 0
+    while i < len(argv):
+        a = argv[i]; i += 1
+        if a == '--projects':
+            while i < len(argv) and not argv[i].startswith('--'):
+                out.append('--projects=' + argv[i]); i += 1
+        elif a in ('--strip-prefix', '--exclude-session', '--root', '--out') and i < len(argv):
+            out.append(f'{a}={argv[i]}'); i += 1
+        else:
+            out.append(a)
+    return out
+
 
 _ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-_ap.add_argument('--projects', required=True, help='glob of project folder names under ~/.claude/projects')
+_ap.add_argument('--projects', required=True, action='append',
+                 help='one or more globs of project folder names under ~/.claude/projects')
 _ap.add_argument('--out', required=True)
 _ap.add_argument('--strip-prefix', default='', help='prefix removed from folder names to label projects')
 _ap.add_argument('--root', default=os.path.expanduser('~/.claude/projects'))
-_args = _ap.parse_args()
+_ap.add_argument('--exclude-session', action='append', default=[], help='session id (or prefix) to skip')
+_ap.add_argument('--include-live', action='store_true', help='keep sessions written in the last 10 minutes')
+_args = _ap.parse_args(_argv(sys.argv[1:]))
 ROOT = _args.root
 OUT = _args.out
 os.makedirs(OUT, exist_ok=True)
@@ -34,7 +62,16 @@ def short_tool(x):
     return f"{x.get('name')}({str(s)[:120]!r})"
 
 rows = []
-for f in sorted(glob.glob(os.path.join(ROOT, _args.projects, '*.jsonl'))):
+files = sorted({f for g in _args.projects for f in glob.glob(os.path.join(ROOT, g, '*.jsonl'))})
+if not files:
+    sys.exit(f"no transcripts match {_args.projects} under {ROOT}")
+skipped = []
+for f in files:
+    sid = os.path.basename(f)[:-6]
+    live = not _args.include_live and time.time() - os.path.getmtime(f) < 600
+    if live or any(sid.startswith(x) for x in _args.exclude_session):
+        skipped.append(f"{os.path.basename(os.path.dirname(f))}/{sid[:8]}" + (' (live)' if live else ''))
+        continue
     folder = os.path.basename(os.path.dirname(f))
     proj = (folder[len(_args.strip_prefix):] if _args.strip_prefix and folder.startswith(_args.strip_prefix) else folder).lstrip('-') or '(root)'
     sess = os.path.basename(f)[:8]
@@ -96,3 +133,4 @@ import collections
 c = collections.Counter((r['proj'], r['kind'] + ('*' if r.get('flag') else '')) for r in rows)
 for k, v in sorted(c.items()): print(v, k)
 print('total', len(rows))
+if skipped: print('skipped sessions:', ', '.join(skipped))

@@ -37,7 +37,7 @@ class InstallTests(unittest.TestCase):
                     "skills/correction-mining/SKILL.md", "INSTALLED.json"):
             self.assertTrue((pkg / rel).exists(), rel)
         self.assertFalse((pkg / "engine" / "tests").exists())
-        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.4.2")
+        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.4.3")
         self.assertTrue((self.root / ".claude/agents/implementer.md").exists())
         flow_cmd = (self.root / ".claude/commands/flow.md").read_text(encoding="utf-8")
         self.assertIn("Request: $ARGUMENTS", flow_cmd)
@@ -76,6 +76,28 @@ class InstallTests(unittest.TestCase):
             self.assertTrue(skill.exists(), name)
             self.assertRegex(name, r"^[a-z0-9-]{1,64}$")  # VS Code silently skips a skill with any other name
             self.assertIn(f"name: {name}\n", skill.read_text(encoding="utf-8"))
+
+    def test_package_skills_reach_both_hosts_and_stale_copies_go(self):
+        """Hosts discover skills only under .claude/skills and .github/skills; a copy in the package alone is never
+        offered to the model."""
+        mine = self.root / ".claude/skills/mine/SKILL.md"
+        mine.parent.mkdir(parents=True)
+        mine.write_text("---\nname: mine\ndescription: x\n---\nkeep\n", encoding="utf-8")
+        code, out = self.install("--host", "claude", "--host", "copilot")
+        self.assertEqual(code, 0, out)
+        for host in (".claude", ".github"):
+            text = (self.root / host / "skills/correction-mining/SKILL.md").read_text(encoding="utf-8")
+            self.assertTrue(text.startswith("---\nname: correction-mining\ndescription: "), text[:80])
+            self.assertIn(install.SKILL_MARKER, text)
+            self.assertNotIn("disable-model-invocation", text)  # the model may pick it by its description
+            self.assertIn(".fyzxsflow/package/skills/correction-mining/scripts/", text)  # scripts stay in the package
+        stale = self.root / ".claude/skills/dropped/SKILL.md"
+        stale.parent.mkdir()
+        stale.write_text(f"---\nname: dropped\n---\n{install.SKILL_MARKER}\nold\n", encoding="utf-8")
+        code, out = self.install("--sync", "--host", "claude")
+        self.assertEqual(code, 0, out)
+        self.assertFalse(stale.parent.exists())
+        self.assertTrue(mine.exists())
 
     def test_every_prompt_reads_its_agent_with_the_projects_learned_entries(self):
         """A slash command runs in the main session, not as the dispatched agent, so it must load the learned

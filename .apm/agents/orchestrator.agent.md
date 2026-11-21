@@ -119,9 +119,16 @@ Intake on it is a normal run. If `profile.md` already exists, stop: the project 
 Started by `/fyzxsflow-compact [targets]`, only on the owner's request. It changes the files every agent loads, so
 it never runs beside another run: if `run.py list` shows an active run, say so and stop.
 1. Create the run: `run.py new --source compact --ref "<targets, or all>"`, with the owner's words in `input.md`.
+   **Measure before spending:** run `compact.py measure` and `compact.py status`, and have the `compactor` estimate
+   the saving per target before it edits (repetition and restated `role-contracts.md` rules are what shrink;
+   already-tight files don't). A compaction pass costs a full deep-tier read of every target plus a validator per
+   file. When the estimate is under 10% of the targets' bytes, or most targets are already compacted, stop and
+   show the owner the sizes, the estimate and the likely cost, and ask whether to proceed. Proceed without asking
+   only when the owner named the files and said to go regardless.
 2. `compactor` + validator, with `input.md`. The Validator compares each changed file with `git show HEAD:<path>` (for an overlay
    in `.fyzxsflow/compacted/`, HEAD's `.fyzxsflow/package/<same path>`) and rejects any rule, condition or
-   command whose meaning changed. Stamp; review file `reviews/compact.compactor.md`, carrying the
+   command whose meaning changed. It lists every `never` / `always` / `only` / `must` sentence of the original and
+   finds each one's meaning in the new file; a merged sentence must still carry every clause it absorbed. Stamp; review file `reviews/compact.compactor.md`, carrying the
    report's **Sizes** table, **Accepted drops** and **Proposals**.
 3. Commit the report's **Changed files** by path, as `fyzxsflow: compact <targets>`; checkpoint. Close the run
    (`--outcome completed --note "compacted: <saved> bytes"`). No PR unless the owner asks: the run branch is ready.
@@ -280,7 +287,10 @@ next lines, so the owner knows where the run is without opening the plan. For a 
   tester", or "review the tester again" from a no-reply review) go through
   `review.py set-level --agent <a> --level <l> --reason "<the owner's words>"`.
 - **Only the owner lowers review.** Never run `set-level` or pass `-less-review` without the owner's
-  words. When output from an agent whose level was `notify` or `off` later draws an owner edit, a `major`
+  words. "Keep going to the end" (or "don't stop", "use your recommendations for everything") from the owner
+  skips this run's remaining review pauses only: log it with the owner's words, keep writing every review file,
+  and still stop for what the working agreement always stops for (push, deploy, external writes, a decision
+  that invalidates the plan). It changes no stored level. When output from an agent whose level was `notify` or `off` later draws an owner edit, a `major`
   finding, or owner feedback you route to **rework** (the output was wrong), run
   `review.py regress --agent <a> --reason "<finding ids>"` and tell the owner. Feedback that only adds a
   convention for the future (routed to docs or agent input) does not regress the agent.

@@ -33,6 +33,8 @@ against its original.
 
 ## Procedure
 1. **Measure.** Run `measure` and `status`; record the sizes. Pick targets from the request, largest first.
+   When dispatched to **estimate**, stop here: per target, the bytes you expect to save and where from
+   (repetition, rules `role-contracts.md` already states, filler), with no file edited.
    A `stale` overlay is redone from the current package file.
 2. **Package files** (under `agents/ context/ instructions/ prompts/ skills/` of `.fyzxsflow/package/`): never
    edit them. Write the compacted file to `.fyzxsflow/compacted/<same path>`, starting from the package file as it

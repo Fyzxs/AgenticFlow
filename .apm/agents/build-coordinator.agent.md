@@ -128,10 +128,12 @@ step (validator, Runner, contract checks, tracing) is the same either way.
      owner completes it; never complete, merge or auto-complete a PR. Owner comments on it are reworked in the same
      lane and pushed to the same PR. `lanes.py refresh` names open lanes the moving run branch now conflicts with:
      `sync` them.
-   - **Without PRs** (the `pr` step off, or no PR host): `lanes.py merge --run <run>` merges each finished group
+   - **Without PRs** (the `pr` step off, or no PR host): checkpoint the run folder first (`run.py checkpoint`, with
+     no `run.py log` between it and the merge), then `lanes.py merge --run <run>` merges each finished group
      into the run branch in dependency order; then `runner.py quick --run <run>` on the run branch, so what merged
      is green together (a failure goes back to the group whose files it names).
-   A `conflict` group starts again on top of the merged branch (`lanes.py open`), with a `replan` finding for the
+   A `refused` group is not an overlap: commit what the message names and merge again. A `conflict` group starts
+   again on top of the merged branch (`lanes.py open`), with a `replan` finding for the
    overlap the plan missed. Run `lanes.py open` again whenever a group completes, to start what it unblocked;
    `lanes.py close --run <run> [--group <g>]` removes finished lanes. When the owner holds a group, `lanes.py park
    --run <run> --group <g> --reason "<their words>"` keeps its work on a parked branch, closes only that lane and

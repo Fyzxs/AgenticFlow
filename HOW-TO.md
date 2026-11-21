@@ -131,6 +131,10 @@ design; see [Start a new project](#start-a-new-project)) and **`fyzxsflow-compac
   Orchestrator dispatches the others as subagents (the `agent` tool). Installs before 0.4.1 wrote prompt files to
   `.github/prompts/`, which VS Code offers to migrate: don't. Reinstall instead, which replaces them with the
   skills (prompt files of your own there are left alone).
+- **Package skills** (`correction-mining`) go to `.claude/skills/<skill>/SKILL.md` and `.github/skills/<skill>/SKILL.md`,
+  where each host offers them to the model by their description: ask to mine past sessions for corrections and
+  the skill is picked. Their scripts stay in `.fyzxsflow/package/skills/<skill>/scripts/`. Installs before 0.4.3
+  left them in the package only, where no host looks.
 - **Copilot CLI** has no prompt files; start the custom agent directly. Restart the CLI after installing so it
   loads the agents from `.github/agents/`.
 - **Copilot app** documents no support for a repository's custom agents yet, so ask the session to act as the
