@@ -61,7 +61,8 @@ python -I -B .fyzxsflow/package/skills/correction-mining/scripts/check_refs.py -
 
 `check_refs.py` covers the hand-written host docs: load mode, size, `paths:`/`applyTo:` globs that match no file
 (a rule whose folder was renamed silently stops loading), and backticked paths that don't exist. Its path
-matching is a heuristic, so confirm each hit. `.fyzxsflow/package/engine/docs_check.py` checks FyzxsFlow's own
+matching is a heuristic, so confirm each hit. Add the owner's user-level `~/.claude/CLAUDE.md` to the always-on
+size (it loads in every project), and note where it repeats a repo file word for word. `.fyzxsflow/package/engine/docs_check.py` checks FyzxsFlow's own
 docs, and only once `fyzxsflow-init` has run.
 
 Judge staleness against the branch the owner works on (usually the default branch), not only the checkout in

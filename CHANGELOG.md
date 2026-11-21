@@ -13,7 +13,8 @@ From evaluating the skill and the commands with skill-creator (with vs without, 
   - It skips sessions written in the last 10 minutes (usually the session doing the mining; `--include-live`,
     `--exclude-session <id>`).
   - New `check_refs.py` audits hand-written host docs: load mode, size, `paths:`/`applyTo:` globs that match
-    nothing, dead backticked paths. `docs_check.py` covers only `.fyzxsflow/` and only after init.
+    nothing, dead backticked paths. Generated rules count toward the always-on size. `docs_check.py` covers only
+    `.fyzxsflow/` and only after init. Both scripts are tested (`engine/tests/test_skill_scripts.py`).
   - SKILL.md:
     - scripts run with `python -I -B`, so nothing is written into the repo;
     - quotes stay verbatim, marked `[sic]` / `[...]`;
