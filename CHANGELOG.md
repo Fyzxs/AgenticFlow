@@ -20,7 +20,7 @@ From evaluating the skill and the commands with skill-creator (with vs without, 
     - quotes stay verbatim, marked `[sic]` / `[...]`;
     - each theme gets one primary home plus a hook or test where the rule can be checked mechanically;
     - a "settled or withdrawn decisions" section;
-    - staleness is judged against the owner's branch;
+    - staleness is audited in the checkout in front of you, then compared with the owner's working branch;
     - an inline catalog when there are no subagents;
     - the `flag` field is documented.
 - **Install leaves no bytecode in the project**: syncing imports the installed engine, which wrote

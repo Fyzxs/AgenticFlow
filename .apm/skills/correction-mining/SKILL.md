@@ -65,8 +65,10 @@ matching is a heuristic, so confirm each hit. Add the owner's user-level `~/.cla
 size (it loads in every project), and note where it repeats a repo file word for word. `.fyzxsflow/package/engine/docs_check.py` checks FyzxsFlow's own
 docs, and only once `fyzxsflow-init` has run.
 
-Judge staleness against the branch the owner works on (usually the default branch), not only the checkout in
-front of you: a worktree or old branch can make a fixed problem look current, or hide a new one.
+Audit the checkout in front of you first: it is what the owner will set up from, so its stale lines are findings
+even when a later branch fixed them. Then, if the owner works on another branch or worktree, compare: mark each
+item "stale here, fixed on <branch>" or "stale everywhere". A stale-here item still needs a fix here (or a
+merge); a branch can make a fixed problem look current, or hide a new one.
 
 A theme that was documented and still recurred is the most valuable result: prose did not work, so it needs a
 hook, test or a different home.
