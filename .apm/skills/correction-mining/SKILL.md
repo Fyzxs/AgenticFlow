@@ -62,7 +62,10 @@ python -I -B .fyzxsflow/package/skills/correction-mining/scripts/check_refs.py -
 `check_refs.py` covers the hand-written host docs: load mode, size, `paths:`/`applyTo:` globs that match no file
 (a rule whose folder was renamed silently stops loading), and backticked paths that don't exist. Its path
 matching is a heuristic, so confirm each hit. Add the owner's user-level `~/.claude/CLAUDE.md` to the always-on
-size (it loads in every project), and note where it repeats a repo file word for word. `.fyzxsflow/package/engine/docs_check.py` checks FyzxsFlow's own
+size (it loads in every project), and note where it repeats a repo file word for word. Read the auto-memory of
+every mined folder too (`~/.claude/projects/<folder>/memory/`, `ls` each one rather than assuming): a lesson kept
+there loads only in sessions started in that exact folder, so one stranded under an old worktree's folder is
+effectively undocumented. `.fyzxsflow/package/engine/docs_check.py` checks FyzxsFlow's own
 docs, and only once `fyzxsflow-init` has run.
 
 Audit the checkout in front of you first: it is what the owner will set up from, so its stale lines are findings
