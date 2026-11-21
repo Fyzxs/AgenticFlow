@@ -37,6 +37,7 @@ class InstallTests(unittest.TestCase):
                     "skills/correction-mining/SKILL.md", "INSTALLED.json"):
             self.assertTrue((pkg / rel).exists(), rel)
         self.assertFalse((pkg / "engine" / "tests").exists())
+        self.assertEqual(list(pkg.rglob("__pycache__")), [])  # the install imports the installed engine: no bytecode
         self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.4.3")
         self.assertTrue((self.root / ".claude/agents/implementer.md").exists())
         flow_cmd = (self.root / ".claude/commands/flow.md").read_text(encoding="utf-8")

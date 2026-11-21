@@ -172,6 +172,7 @@ def with_model(text: str, model: str) -> str:
 
 
 def sync_hosts(target: pathlib.Path, hosts: list, written: list):
+    sys.dont_write_bytecode = True  # importing the installed engine must not leave __pycache__ in the project
     sys.path.insert(0, str(target / HOME / PACKAGE / "engine"))
     import models  # noqa: E402  (the installed copy, so --sync uses the project's own engine)
     pkg = target / HOME / PACKAGE

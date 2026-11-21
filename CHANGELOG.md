@@ -22,6 +22,8 @@ From evaluating the skill and the commands with skill-creator (with vs without, 
     - staleness is judged against the owner's branch;
     - an inline catalog when there are no subagents;
     - the `flag` field is documented.
+- **Install leaves no bytecode in the project**: syncing imports the installed engine, which wrote
+  `.fyzxsflow/package/engine/__pycache__/` into the repo (and into commits that staged the package).
 - **`review.py decide` accepts natural forms**: `Approved.`, `approve!`, `approved -less-review`. Other words are
   still refused.
 - **`lanes.py merge` refuses instead of marking a false `conflict`** when uncommitted files in the run checkout (often
