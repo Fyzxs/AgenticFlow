@@ -71,6 +71,22 @@ class RunTests(TempRepo):
         fm = f"---\nid: {pid}\nsegment: {segment}\n" + (f"status: {status}\n" if status else "") + "---\n\n"
         (r / "work-packages" / f"{stem}.md").write_text(f"{fm}# {pid} — {segment}: {title}\n", encoding="utf-8")
 
+    def test_package_status_changes_only_the_status_line(self):
+        r = self.new_run()
+        self.write_package(r, "WP-01-db-migration-add-column", "db-migration", "adds the column", "building")
+        f = r / "work-packages" / "WP-01-db-migration-add-column.md"
+        f.write_bytes(f.read_bytes().replace(b"\n", b"\r\n") + b"Body: status: keep\r\n")
+        before = f.read_bytes()
+        code, out = run("run.py", "package-status", str(r), "--wp", "WP-01", "--status", "done")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(f.read_bytes(), before.replace(b"status: building", b"status: done"))
+        self.assertEqual(run("run.py", "package-status", str(r), "--wp", "WP-01", "--status", "finished")[0], 2)
+        self.assertEqual(run("run.py", "package-status", str(r), "--wp", "WP-09", "--status", "done")[0], 2)
+        self.write_package(r, "WP-02-api-sort-field", "api", "the sort field")  # no status line yet
+        self.assertEqual(run("run.py", "package-status", str(r), "--wp", "WP-02", "--status", "building")[0], 0)
+        self.assertIn("id: WP-02\nstatus: building\nsegment: api\n",
+                      (r / "work-packages" / "WP-02-api-sort-field.md").read_text(encoding="utf-8"))
+
     def test_packages_gives_readable_review_name_and_position(self):
         r = self.new_run()
         self.write_package(r, "WP-01-db-migration-add-column", "db-migration", "adds the column", "done")

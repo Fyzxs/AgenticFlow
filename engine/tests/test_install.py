@@ -38,7 +38,7 @@ class InstallTests(unittest.TestCase):
             self.assertTrue((pkg / rel).exists(), rel)
         self.assertFalse((pkg / "engine" / "tests").exists())
         self.assertEqual(list(pkg.rglob("__pycache__")), [])  # the install imports the installed engine: no bytecode
-        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.4.3")
+        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.4.4")
         self.assertTrue((self.root / ".claude/agents/implementer.md").exists())
         flow_cmd = (self.root / ".claude/commands/flow.md").read_text(encoding="utf-8")
         self.assertIn("Request: $ARGUMENTS", flow_cmd)
@@ -60,7 +60,7 @@ class InstallTests(unittest.TestCase):
         self.assertTrue(wa.startswith('---\napplyTo: "**"'))
         settings = json.loads((self.root / ".claude/settings.json").read_text(encoding="utf-8"))
         self.assertEqual(settings["model"], "keep-me")
-        self.assertEqual(len(settings["hooks"]["PreToolUse"]), 1)
+        self.assertEqual(len(settings["hooks"]["PreToolUse"]), 2)
 
     def test_reinstall_replaces_old_prompt_files_with_skills_and_keeps_the_owners_prompts(self):
         old = self.root / ".github" / "prompts"
@@ -132,7 +132,7 @@ class InstallTests(unittest.TestCase):
         self.assertNotIn("curator notes", host)
         self.assertNotIn("flag seam", (self.root / ".fyzxsflow/package/agents/implementer.agent.md").read_text(encoding="utf-8"))
         settings = json.loads((self.root / ".claude/settings.json").read_text(encoding="utf-8"))
-        self.assertEqual(len(settings["hooks"]["PreToolUse"]), 1)
+        self.assertEqual(len(settings["hooks"]["PreToolUse"]), 2)
 
     def test_migrates_an_agentflow_install(self):
         old = self.root / ".agentflow"
@@ -176,7 +176,8 @@ class InstallTests(unittest.TestCase):
         self.assertTrue((rules / "fyzxsflow-working-agreement.md").exists())
         hooks = json.loads((self.root / ".claude/settings.json").read_text(encoding="utf-8"))["hooks"]["PreToolUse"]
         self.assertEqual([h["hooks"][0]["command"] for h in hooks],
-                         [f'{install.python_name()} -I "$CLAUDE_PROJECT_DIR/.fyzxsflow/package/engine/hooks/block_kill_by_name.py"'])
+                         [f'{install.python_name()} -I "$CLAUDE_PROJECT_DIR/.fyzxsflow/package/engine/hooks/block_kill_by_name.py"',
+                          f'{install.python_name()} -I "$CLAUDE_PROJECT_DIR/.fyzxsflow/package/engine/hooks/orchestrator_guard.py"'])
         gi = (self.root / ".gitignore").read_text(encoding="utf-8")
         self.assertNotIn(".agentflow", gi)
         self.assertEqual(gi.count(".fyzxsflow/runs/_adhoc/"), 1)
@@ -232,7 +233,78 @@ class InstallTests(unittest.TestCase):
         code, out = self.install("--host", "claude")
         self.assertEqual(code, 0, out)
         hooks = json.loads((self.root / ".claude/settings.json").read_text(encoding="utf-8"))["hooks"]["PreToolUse"]
-        self.assertEqual([h["hooks"][0]["command"] for h in hooks], [f"{install.python_name()} -I {script}"])
+        self.assertEqual([h["hooks"][0]["command"] for h in hooks][0], f"{install.python_name()} -I {script}")
+        self.assertEqual(len(hooks), 2)
+
+    def settings(self):
+        return json.loads((self.root / ".claude/settings.json").read_text(encoding="utf-8"))
+
+    def test_the_main_session_is_the_orchestrator_by_default_with_its_guard(self):
+        code, out = self.install("--host", "claude")
+        self.assertEqual(code, 0, out)
+        s = self.settings()
+        self.assertEqual(s["agent"], "orchestrator")
+        self.assertEqual(s["model"], "keep-me")
+        guard = s["hooks"]["PreToolUse"][1]
+        self.assertEqual(guard["matcher"], "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell")
+        self.assertTrue(guard["hooks"][0]["command"].endswith('engine/hooks/orchestrator_guard.py"'))
+        self.assertTrue((self.root / ".fyzxsflow/package/engine/hooks/orchestrator_guard.py").exists())
+        installed = json.loads((self.root / ".fyzxsflow/package/INSTALLED.json").read_text(encoding="utf-8"))
+        self.assertEqual(installed["claude_settings"], {"agent": True, "probe": False})
+        # --no-main-agent removes the agent we wrote; the guard stays (it only acts for an orchestrator session)
+        self.install("--host", "claude", "--no-main-agent")
+        self.assertNotIn("agent", self.settings())
+        code, out = self.install("--host", "claude", "--probe-hooks")
+        self.assertTrue(self.settings()["hooks"]["PreToolUse"][1]["hooks"][0]["command"].endswith(" --probe"))
+        self.install("--host", "claude")
+        self.assertFalse(self.settings()["hooks"]["PreToolUse"][1]["hooks"][0]["command"].endswith(" --probe"))
+
+    def test_merge_keeps_the_repos_own_settings_byte_for_byte_and_reinstall_writes_nothing(self):
+        own = {"matcher": "Bash", "hooks": [{"type": "command",
+                                             "command": 'python "$CLAUDE_PROJECT_DIR/.claude/hooks/block-backslash-inline-scripts.py"'}]}
+        kill = {"matcher": "Bash|PowerShell", "hooks": [{"type": "command", "command":
+                f'python3 -I "$CLAUDE_PROJECT_DIR/.fyzxsflow/package/engine/hooks/block_kill_by_name.py"'}]}
+        start = {"permissions": {"allow": ["Bash(git status)"]}, "hooks": {"PreToolUse": [kill, own]}, "env": {"A": "1"}}
+        f = self.root / ".claude/settings.json"
+        f.write_bytes(json.dumps(start, indent=2).replace("\n", "\r\n").encode("utf-8") + b"\r\n")
+        code, out = self.install("--host", "claude")
+        self.assertEqual(code, 0, out)
+        raw = f.read_bytes()
+        self.assertNotIn(b"\n", raw.replace(b"\r\n", b""))  # CRLF kept
+        s = self.settings()
+        self.assertEqual(list(s), ["permissions", "hooks", "env", "agent"])
+        pre = s["hooks"]["PreToolUse"]
+        self.assertEqual(pre[1], own)  # the repo's own entry, untouched and in place
+        self.assertEqual(pre[0]["hooks"][0]["command"].split()[0], install.python_name())  # interpreter updated in place
+        self.assertEqual(len(pre), 3)
+        mtime = f.stat().st_mtime_ns
+        code, out = self.install("--sync", "--host", "claude", script=self.root / ".fyzxsflow/package/engine/install.py")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(f.read_bytes(), raw)
+        self.assertEqual(f.stat().st_mtime_ns, mtime)
+        self.assertIn(": 0 files written", out)
+
+    def test_an_agent_the_owner_set_is_kept(self):
+        f = self.root / ".claude/settings.json"
+        f.write_text(json.dumps({"agent": "reviewer"}), encoding="utf-8")
+        code, out = self.install("--host", "claude")
+        self.assertIn('sets "agent": "reviewer"; left as is', out)
+        self.assertEqual(self.settings()["agent"], "reviewer")
+        f.write_text(json.dumps({"agent": "orchestrator"}), encoding="utf-8")  # the owner chose it themselves
+        self.install("--host", "claude", "--no-main-agent")
+        self.assertEqual(self.settings()["agent"], "orchestrator")
+
+    def test_copilot_gets_the_guard_scoped_to_the_orchestrator_and_the_kill_hook(self):
+        code, out = self.install("--host", "copilot")
+        self.assertEqual(code, 0, out)
+        orch = (self.root / ".github/agents/orchestrator.agent.md").read_text(encoding="utf-8")
+        head = orch.split("\n---\n", 1)[0]
+        self.assertIn("hooks:\n  PreToolUse:\n    - type: command\n      command: ", head)
+        self.assertIn("engine/hooks/orchestrator_guard.py --scoped", head)
+        self.assertNotIn("hooks:", (self.root / ".github/agents/implementer.agent.md").read_text(encoding="utf-8").split("\n---\n", 1)[0])
+        hooks = json.loads((self.root / ".github/hooks/fyzxsflow.json").read_text(encoding="utf-8"))
+        self.assertEqual(hooks["version"], 1)
+        self.assertIn("block_kill_by_name.py", hooks["hooks"]["PreToolUse"][0]["command"])
 
     def test_sync_without_install_fails(self):
         code, _ = self.install("--sync", "--host", "claude")

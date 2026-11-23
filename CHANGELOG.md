@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.4.4 (2026-11-23)
+From dog-fooding in DocMcStorage (findings F-1984 and F-1986). In one day the main session edited a rule doc,
+work packages and pipeline YAML itself, ran `ci`, and posted PR replies with no prefix under the owner's name. The
+package already forbade some of this in prose. Now the install enforces it.
+
+- **The orchestrator does no work**:
+  - `orchestrator.agent.md` has an owners table: who edits code, docs, plans, learned entries and PR text, and who
+    runs the Runner.
+  - It also has the short list of bookkeeping the orchestrator keeps. The old rule named only code, builds, tests
+    and review.
+- **Enforced on Claude Code by default**:
+  - `install.py --host claude` writes `"agent": "orchestrator"`, so the main session is the orchestrator.
+  - It also adds `engine/hooks/orchestrator_guard.py`, which denies the orchestrator's own edits outside its
+    run-folder bookkeeping, and shell commands outside a fixed allow-list. Each denial names the agent to dispatch.
+  - Subagent calls (which carry `agent_id`) are never blocked.
+  - `--no-main-agent` opts out.
+  - Hooks merge into an existing `settings.json` without touching the repo's own entries, and a no-op reinstall
+    writes nothing.
+- **On GitHub Copilot as far as the host allows**:
+  - The guard is an agent-scoped `hooks:` entry on the orchestrator agent, so it runs only while that agent is
+    selected.
+  - `.github/hooks/fyzxsflow.json` adds kill-by-name.
+  - Copilot has no default-agent setting, so select the orchestrator yourself.
+  - `--probe-hooks` plus `orchestrator_probe.py report` check the host in log-only mode.
+- **`pr.py comment`**: the flow's PR comments and thread replies always start with `Agent AI Finding:`, which the
+  caller can't turn off.
+  - It handles GitHub, and Azure DevOps threads and replies.
+  - Each comment is logged in the ledger.
+  - It shares one poster with `preceptee.py`, which keeps its own prefix.
+  - The PR Producer posts these comments, and writes every group PR body (`<run>/pr-bodies/<group>.md`) and every
+    later update to one.
+- **`run.py package-status --wp <id> --status <s>`** sets only a work package's `status:` line. Execute mode uses
+  it, so no hand edit is left.
+- Checked on Claude Code 2.1.330, recorded in HOW-TO:
+  - on `--agent` main-thread calls, `agent_type` is set and `agent_id` is absent;
+  - an orchestrator's `tools:` doesn't strip its subagents' tools;
+  - nested dispatch works.
+
 ## 0.4.3 (2026-11-20)
 From evaluating the skill and the commands with skill-creator (with vs without, on real transcripts and fixtures).
 

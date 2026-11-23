@@ -24,7 +24,8 @@ hand-off (`.fyzxsflow/package/engine/feedback.py`). Handled items move to `feedb
   brief.md             Work Summarizer output (.fyzxsflow/package/templates/run/brief.md)
   change-map.md        Code Indicator output (.fyzxsflow/package/templates/run/change-map.md)
   work-packages/       Build Coordinator plan: one file per package (.fyzxsflow/package/templates/run/work-package.md)
-    WP-01-<segment>-<what>.md    e.g. WP-04-api-orders-export-contract.md (status: in frontmatter)
+    WP-01-<segment>-<what>.md    e.g. WP-04-api-orders-export-contract.md (status: in frontmatter, set by
+                                 run.py package-status)
   reports/             one report per agent invocation (.fyzxsflow/package/templates/run/report.md); each records
                        its tier, dispatched model and self-reported model (run.py stamp / run.py models)
     work-summarizer.md, code-indicator.md          Intake, Locate
@@ -43,6 +44,8 @@ hand-off (`.fyzxsflow/package/engine/feedback.py`). Handled items move to `feedb
     curator.md                                     Learn
     compactor.md                                   a compaction run (/fyzxsflow-compact)
   pr-description.md    the PR Producer's description of the roll-up PR (run branch into the default branch)
+  pr-bodies/<group>.md each PR group's description, written by the PR Producer (lanes.py pr --publish --body-file)
+  pr-comments/<thread>.md the PR Producer's replies to owner comments, as posted by pr.py comment
   pr.json              the roll-up PR (pr.py); each PR group's lane is a worktree beside the run's checkout
                        (<checkout>-<group>), recorded with its PR in the git common directory,
                        fyzxsflow-lanes/<run-id>/lanes.json (lanes.py status)

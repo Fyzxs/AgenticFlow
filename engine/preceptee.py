@@ -485,75 +485,27 @@ def group_pr(run: pathlib.Path, group: str):
     return root, lane
 
 
+def _prhost():
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    import pr  # noqa: E402  (the one PR-comment poster, shared with pr.py comment)
+    return pr
+
+
 def host_call(cmd: list, root: pathlib.Path) -> subprocess.CompletedProcess:
-    import shutil
-    if not shutil.which(cmd[0]):
-        raise SystemExit(f"'{cmd[0]}' is not installed or not on PATH")
-    return subprocess.run(cmd, cwd=root, capture_output=True, text=True)
+    return _prhost().call(cmd, root)
 
 
 def gh_repo(root) -> str:
-    out = host_call(["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], root)
-    if out.returncode or not out.stdout.strip():
-        raise SystemExit(f"gh can't tell the repository: {out.stderr.strip()[:200]}")
-    return out.stdout.strip()
+    return _prhost().gh_repo(root)
 
 
 def az_ids(root, number: str):
-    out = host_call(["az", "repos", "pr", "show", "--id", number, "--output", "json"], root)
-    info = json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip().startswith("{") else {}
-    repo = info.get("repository") or {}
-    if not repo.get("id"):
-        raise SystemExit(f"az can't read pull request {number}: {out.stderr.strip()[:200]}")
-    return (repo.get("project") or {}).get("name", ""), repo["id"]
+    return _prhost().az_ids(root, number)
 
 
 def post(root: pathlib.Path, lane: dict, at: str, text: str, path=None, line=None, reply_to=None) -> str:
-    """Post one comment on the group's PR; returns its id."""
-    pr = lane["pr"]
-    body = text if text.startswith(PREFIX) else PREFIX + text
-    if pr["host"] == "github":
-        repo = gh_repo(root)
-        if reply_to:
-            cmd = ["gh", "api", f"repos/{repo}/pulls/{pr['number']}/comments/{reply_to}/replies", "-f", f"body={body}"]
-        elif at == "pr":
-            cmd = ["gh", "api", f"repos/{repo}/issues/{pr['number']}/comments", "-f", f"body={body}"]
-        else:
-            sha = subprocess.run(["git", "rev-parse", lane["branch"]], cwd=root, capture_output=True,
-                                 text=True).stdout.strip()
-            cmd = ["gh", "api", f"repos/{repo}/pulls/{pr['number']}/comments", "-f", f"body={body}",
-                   "-f", f"commit_id={sha}", "-f", f"path={path}"]
-            cmd += ["-f", "subject_type=file"] if at == "file" else ["-F", f"line={line}", "-f", "side=RIGHT"]
-        out = host_call(cmd, root)
-        info = json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip().startswith("{") else {}
-        cid = str(info.get("id", ""))
-    else:
-        project, repo_id = az_ids(root, pr["number"])
-        import tempfile
-        if reply_to:
-            resource, route, payload = "pullRequestThreadComments", [f"threadId={reply_to}"], \
-                {"content": body, "parentCommentId": 1, "commentType": 1}
-        else:
-            payload = {"comments": [{"content": body, "commentType": 1}], "status": 1}
-            if at != "pr":
-                ctx = {"filePath": "/" + path.lstrip("/")}
-                if at != "file":
-                    ctx.update({"rightFileStart": {"line": int(line), "offset": 1},
-                                "rightFileEnd": {"line": int(line), "offset": 1}})
-                payload["threadContext"] = ctx
-            resource, route = "pullRequestThreads", []
-        f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
-        json.dump(payload, f)
-        f.close()
-        out = host_call(["az", "devops", "invoke", "--area", "git", "--resource", resource, "--route-parameters",
-                         f"project={project}", f"repositoryId={repo_id}", f"pullRequestId={pr['number']}", *route,
-                         "--http-method", "POST", "--api-version", "7.1", "--in-file", f.name, "--output", "json"],
-                        root)
-        info = json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip().startswith("{") else {}
-        cid = str(info.get("id", ""))
-    if out.returncode or not cid:
-        raise SystemExit(f"could not post the comment: {(out.stderr or out.stdout).strip()[:300]}")
-    return cid
+    """Post one comment on the group's PR, prefixed as the Preceptor's; returns its id."""
+    return _prhost().post_comment(root, lane["pr"], lane["branch"], at, text, PREFIX, path, line, reply_to)
 
 
 def cmd_comment(args) -> int:

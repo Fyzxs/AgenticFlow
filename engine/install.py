@@ -17,8 +17,12 @@ Installed layout (engine/layout.py):
 Host files generated from it (each agent = package/agents/<a>.agent.md + its learned/<a>.md entries):
   claude:  .claude/agents/<name>.md, .claude/rules/fyzxsflow-working-agreement.md,
            .claude/commands/<prompt>.md, .claude/skills/<skill>/SKILL.md,
-           kill-by-name hook merged into .claude/settings.json
-  copilot: .github/agents/<name>.agent.md, .github/instructions/fyzxsflow-working-agreement.instructions.md,
+           merged into .claude/settings.json: the kill-by-name hook, the orchestrator guard (edits and shell), and
+           "agent": "orchestrator", so the main session is the orchestrator and does no work itself (--no-main-agent
+           leaves `agent` out; a plain session is then `claude` as usual). Entries that aren't ours are never touched.
+  copilot: .github/agents/<name>.agent.md (the orchestrator's carries the guard as an agent-scoped `hooks:` entry,
+           which runs only while that agent is selected), .github/hooks/fyzxsflow.json (kill-by-name),
+           .github/instructions/fyzxsflow-working-agreement.instructions.md,
            .github/skills/<prompt>/SKILL.md   (the slash commands, as VS Code agent skills; the prompt files
                                               earlier installs wrote to .github/prompts/ are removed)
            .github/skills/<skill>/SKILL.md    (the package skills, which the model may pick by description)
@@ -43,8 +47,11 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from layout import HOME, LEARNED, LEGACY_HOMES, NAME, PACKAGE  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
-VERSION = "0.4.3"
+VERSION = "0.4.4"
 HOOK_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/block_kill_by_name.py"'
+GUARD_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/orchestrator_guard.py"'
+MAIN_AGENT = "orchestrator"
+GUARD_TOOLS = "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell"
 
 
 def python_name() -> str:
@@ -56,6 +63,13 @@ def python_name() -> str:
 
 def hook_cmd() -> str:
     return f"{python_name()} -I {HOOK_SCRIPT}"
+
+
+def claude_hooks(probe: bool) -> list:
+    """(script marker, matcher, command) for each PreToolUse entry FyzxsFlow owns in .claude/settings.json."""
+    py = python_name()
+    return [(HOOK_SCRIPT, "Bash|PowerShell", hook_cmd()),
+            (GUARD_SCRIPT, GUARD_TOOLS, f"{py} -I {GUARD_SCRIPT}" + (" --probe" if probe else ""))]
 LEARNED_HEADING = re.compile(r"^## Learned\s*$", re.M)
 PACKAGE_PARTS = ("engine", "agents", "context", "templates", "skills", "instructions", "prompts", "INSTALLED.json")
 ADHOC_COMMENT = f"# {HOME[1:]}: ad-hoc runner/gate output outside a run"
@@ -171,7 +185,9 @@ def with_model(text: str, model: str) -> str:
     return "---\n" + "\n".join(lines) + "\n---\n" + text[m.end():]
 
 
-def sync_hosts(target: pathlib.Path, hosts: list, written: list):
+def sync_hosts(target: pathlib.Path, hosts: list, written: list, main_agent: bool = True, probe: bool = False,
+               state: dict = None):
+    """state: INSTALLED.json's claude_settings from before this install (what we wrote into settings.json)."""
     sys.dont_write_bytecode = True  # importing the installed engine must not leave __pycache__ in the project
     sys.path.insert(0, str(target / HOME / PACKAGE / "engine"))
     import models  # noqa: E402  (the installed copy, so --sync uses the project's own engine)
@@ -203,10 +219,16 @@ def sync_hosts(target: pathlib.Path, hosts: list, written: list):
                 text = f"---\ndescription: {fm.get('description', '')}\n{hint}---\n{body.rstrip()}\n\nRequest: $ARGUMENTS\n"
                 write(target / ".claude" / "commands" / p.name.replace(".prompt.md", ".md"), text, written)
             sync_skills(target / ".claude" / "skills", skills, written)
-            merge_claude_hook(target / ".claude" / "settings.json", written)
+            state = merge_claude_settings(target / ".claude" / "settings.json", written, main_agent, probe,
+                                          state or {})
+            record_settings(target, state, written)
         elif host == "copilot":
             for a in agents:
-                write(target / ".github" / "agents" / a.name, hosted(a), written)
+                text = hosted(a)
+                if a.name == f"{MAIN_AGENT}.agent.md":
+                    text = with_scoped_guard(text, probe)
+                write(target / ".github" / "agents" / a.name, text, written)
+            write(target / ".github" / "hooks" / f"{prefix}.json", copilot_hooks(), written)
             write(target / ".github" / "instructions" / f"{prefix}-working-agreement.instructions.md",
                   f'---\napplyTo: "**"\ndescription: "{NAME} working agreement"\n---\n' + agreement_body, written)
             for p in prompts:
@@ -264,19 +286,79 @@ def copilot_skill(name: str, prompt: pathlib.Path) -> str:
         "\n\nThe request is the text typed after the command.\n"
 
 
-def merge_claude_hook(settings: pathlib.Path, written: list):
-    data = json.loads(settings.read_text(encoding="utf-8")) if settings.exists() else {}
+def with_scoped_guard(text: str, probe: bool) -> str:
+    """The Copilot orchestrator agent with the guard as an agent-scoped hook: it runs only while the orchestrator is
+    the selected agent, which is what tells the guard the call is the orchestrator's own (Copilot's hook input
+    names no main agent; a subagent's call carries agent_id and is allowed)."""
+    m = re.match(r"\A---\n(.*?)\n---\n", text, re.S)
+    if not m:
+        return text
+    cmd = (f"{python_name()} -I {HOME}/{PACKAGE}/engine/hooks/orchestrator_guard.py --scoped"
+           + (" --probe" if probe else ""))
+    hooks = f"hooks:\n  PreToolUse:\n    - type: command\n      command: {cmd}\n      timeoutSec: 15"
+    return "---\n" + m.group(1) + "\n" + hooks + "\n---\n" + text[m.end():]
+
+
+def copilot_hooks() -> str:
+    """Repository hooks for GitHub Copilot (CLI and VS Code): kill-by-name, in the Claude-compatible PascalCase form
+    (snake_case input, Claude tool names), so the same script serves both hosts."""
+    cmd = f"{python_name()} -I {HOME}/{PACKAGE}/engine/hooks/block_kill_by_name.py"
+    return json.dumps({"version": 1, "hooks": {"PreToolUse": [
+        {"type": "command", "matcher": "Bash", "command": cmd, "timeoutSec": 15}]}}, indent=2) + "\n"
+
+
+def merge_claude_settings(settings: pathlib.Path, written: list, main_agent: bool, probe: bool, state: dict) -> dict:
+    """Merge FyzxsFlow's hooks (and `agent`) into .claude/settings.json without touching anything else: our entries
+    are found by script path and updated in place, missing ones appended; other entries, keys and their order are
+    kept. `agent` is set only when absent, and removed only if we wrote it. Writes only when something changed,
+    keeping the file's line endings. Returns what we own now, for INSTALLED.json."""
+    raw = settings.read_bytes().decode("utf-8") if settings.exists() else ""
+    crlf = "\r\n" in raw
+    data = json.loads(raw) if raw.strip() else {}
+    before = json.dumps(data, sort_keys=False)
     pre = data.setdefault("hooks", {}).setdefault("PreToolUse", [])
-    cmd = hook_cmd()
-    for entry in pre:
-        for h in entry.get("hooks", []):
-            if HOOK_SCRIPT in h.get("command", ""):  # ours, whatever interpreter name it was installed with
-                if h["command"] != cmd:
-                    h["command"] = cmd
-                    write(settings, json.dumps(data, indent=2) + "\n", written)
-                return
-    pre.append({"matcher": "Bash|PowerShell", "hooks": [{"type": "command", "command": cmd}]})
-    write(settings, json.dumps(data, indent=2) + "\n", written)
+    for marker, matcher, cmd in claude_hooks(probe):
+        mine = [h for e in pre for h in e.get("hooks", []) if marker in h.get("command", "")]
+        if mine:
+            for h in mine:
+                h["command"] = cmd  # ours, whatever interpreter or mode it was installed with
+        else:
+            pre.append({"matcher": matcher, "hooks": [{"type": "command", "command": cmd}]})
+    wrote_agent = bool(state.get("agent"))
+    if main_agent:
+        if "agent" not in data:
+            data["agent"] = MAIN_AGENT
+            wrote_agent = True
+        elif data["agent"] != MAIN_AGENT:
+            print(f"warning: .claude/settings.json sets \"agent\": \"{data['agent']}\"; left as is, so the main "
+                  f"session is not the {MAIN_AGENT} and its guard is off (set it to \"{MAIN_AGENT}\" to turn it on)")
+            wrote_agent = False
+    elif data.get("agent") == MAIN_AGENT and wrote_agent:
+        del data["agent"]
+        wrote_agent = False
+    if json.dumps(data, sort_keys=False) != before or not settings.exists():
+        text = json.dumps(data, indent=2) + "\n"
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        settings.write_bytes(text.replace("\n", "\r\n" if crlf else "\n").encode("utf-8"))
+        written.append(settings)
+    return {"agent": wrote_agent, "probe": probe}
+
+
+def record_settings(target: pathlib.Path, state: dict, written: list):
+    """Remember in INSTALLED.json what we own in .claude/settings.json (so a later install removes only our `agent`)."""
+    f = target / HOME / PACKAGE / "INSTALLED.json"
+    data = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+    if data.get("claude_settings") != state:
+        data["claude_settings"] = state
+        write(f, json.dumps(data, indent=2) + "\n", written)
+
+
+def previous_settings_state(target: pathlib.Path) -> dict:
+    f = target / HOME / PACKAGE / "INSTALLED.json"
+    try:
+        return json.loads(f.read_text(encoding="utf-8")).get("claude_settings") or {}
+    except (OSError, ValueError):
+        return {}
 
 
 # ---------------------------------------------------------------- migration from an earlier folder name
@@ -398,9 +480,14 @@ def main(argv=None) -> int:
     p.add_argument("--target", required=True)
     p.add_argument("--host", action="append", required=True, choices=["claude", "copilot"])
     p.add_argument("--sync", action="store_true", help=f"only regenerate host files from {HOME}/")
+    p.add_argument("--no-main-agent", action="store_true",
+                   help=f"claude: don't make the main session the {MAIN_AGENT} (its guard then never applies)")
+    p.add_argument("--probe-hooks", action="store_true",
+                   help="install the orchestrator guard in log-only mode (engine/hooks/orchestrator_probe.py report)")
     args = p.parse_args(argv)
     target = pathlib.Path(args.target).resolve()
     written, migrated = [], []
+    state = previous_settings_state(target)  # read before the package (and its INSTALLED.json) is rewritten
     if not args.sync:
         source = HERE.parent
         if not (source / ".apm" / "agents").is_dir():
@@ -416,7 +503,7 @@ def main(argv=None) -> int:
     import compact  # noqa: E402  (same engine folder)
     for warning in compact.apply(target, written):
         print("warning:", warning)
-    sync_hosts(target, args.host, written)
+    sync_hosts(target, args.host, written, main_agent=not args.no_main_agent, probe=args.probe_hooks, state=state)
     if not args.sync:
         write_pointers(target)  # segment pointers follow the installed names (fyzxsflow-<segment>)
     for old_name in migrated:

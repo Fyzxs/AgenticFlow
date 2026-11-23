@@ -123,7 +123,8 @@ step (validator, Runner, contract checks, tracing) is the same either way.
      draft PR into the run branch; after each later commit, the same command pushes it. When the group's last
      package is done and its reviews are finished, `lanes.py sync --run <run> --group <g>` (merges the run branch
      into the lane; rerun the done-check if it says product files changed), then `lanes.py pr --run <run> --group
-     <g> --publish --body-file <summary>`, where the summary is the group's reports' changes and evidence: published
+     <g> --publish --body-file <run>/pr-bodies/<g>.md`, a file the `pr-producer` writes from the group's reports
+     (changes and evidence; dispatch it first, and again for every later update to the body): published
      means done and ready for the owner. Publishing refuses while the lane would conflict with the run branch. The
      owner completes it; never complete, merge or auto-complete a PR. Owner comments on it are reworked in the same
      lane and pushed to the same PR. `lanes.py refresh` names open lanes the moving run branch now conflicts with:
@@ -141,7 +142,8 @@ step (validator, Runner, contract checks, tracing) is the same either way.
    and reviews merge between lanes by themselves (merge drivers lanes.py registers), and finding ids never collide:
    never renumber or merge them by hand.
 1. **Each package of a group**, in plan order, in the group's lane:
-   1. `status: building`; `python -I .fyzxsflow/package/engine/run.py log <run> build started "<stem>: implementer"`;
+   1. `python -I .fyzxsflow/package/engine/run.py package-status <run> --wp <WP-nn> --status building`;
+      `python -I .fyzxsflow/package/engine/run.py log <run> build started "<stem>: implementer"`;
    2. `implementer` (`iac-implementer`, with the IaC context pack, for pipelines and infrastructure), given the
       package path and told to run its done-check through `runner.py`; then `validator` on it (the
       package, its context pack, the changed files, the report);
@@ -151,7 +153,8 @@ step (validator, Runner, contract checks, tracing) is the same either way.
    5. the contract checks: open both sides of each seam and compare them with the package's `## Contract`;
    6. `ac_trace.py --run <run> --require-evidence`: no `FAIL` line may name this package's criteria (other
       packages' lines are expected); a missing or malformed row goes back to the agent that owns the criterion;
-   7. `status: done`; `run.py log <run> build done "<stem>: done-check <result>"`.
+   7. `run.py package-status <run> --wp <WP-nn> --status done`; `run.py log <run> build done "<stem>: done-check
+      <result>"`.
    Before steps 3 and 4 run `python -I .fyzxsflow/package/engine/review.py needed --run <run> --agent <the agent
    whose output you hand on> --stage build --package <WP-nn> --segment <segment> --paths <changed files>`. On
    `review=pause` with an `always:` or `run-request:` reason, or `- pause: each` in `review-requests.md`, stop that
@@ -181,7 +184,8 @@ step (validator, Runner, contract checks, tracing) is the same either way.
   every shared PR group with why its packages can't be reviewed apart; each test-strategy bullet with its criterion; the contract checks
   for execute mode; Decisions (reasoning, revert cost); items for the plan gate and the Orchestrator; a criteria
   table, one row per brief criterion (`| AC-3 | served | WP-01, WP-03 |`).
-- Execute: frontmatter `status:` kept current (`building` when dispatched, `done` when its done-check passes); a
+- Execute: frontmatter `status:` kept current with `run.py package-status`, never by hand (`building` when
+  dispatched, `done` when its done-check passes); a
   ledger line per package; `<run>/reports/build-coordinator.execute.md`: a package table (stem, status, reports,
   done-check summary, contract check), accepted deviations, and from close-out the criteria table with every
   `AC-n` and `WP-nn.n` (`| WP-03.2 | met | <evidence you opened> |`).

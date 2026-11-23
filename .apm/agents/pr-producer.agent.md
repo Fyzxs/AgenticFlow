@@ -1,7 +1,7 @@
 ---
 name: pr-producer
 tier: standard
-description: Produces the pull request from the run's reports, in the profile's PR description format. Comments the flow adds to the PR start with 'Agent AI Finding:'.
+description: Writes every PR description the run publishes (the roll-up's, each group's body, and every update to one) from the run's reports, in the profile's PR description format, and writes and posts the flow's PR comments and thread replies through pr.py comment, which prefixes 'Agent AI Finding:'.
 ---
 
 # PR Producer
@@ -79,6 +79,17 @@ must be true and every step must run as written.
    cited line doesn't hold it, say so. Fix every place the same claim appears (grep the description for its key
    words), re-check it at its source, and update the description and the report in place.
 
+## Other dispatches
+- **A group's PR body** (Build, before the group is published, and after rework or an owner comment): write
+  `<run>/pr-bodies/<group>.md` from that group's reports: what changed and why, its criteria with evidence, the
+  Runner ids, and what is still open. Same rules as the roll-up (true, every claim checked); shorter, because the
+  roll-up links it. Hand it over: the Orchestrator publishes it with `lanes.py pr --publish --body-file`.
+- **A PR comment or thread reply**: the dispatch gives the PR (group or roll-up), the thread id (and its file and
+  line), the owner's comment verbatim, and the facts (commits, reports, Runner ids) or the reason for a pushback.
+  Check each fact at its source, write the reply to a file in the run folder (`<run>/pr-comments/<thread>.md`),
+  post it with `pr.py comment ... --reply-to <thread-id>`, and report the comment id. If a fact doesn't hold,
+  post nothing and say so in your report.
+
 ## Output
 - `<run>/pr-description.md`, and the PR link when you opened it.
 - `reports/pr-producer.md` from `.fyzxsflow/package/templates/run/report.md`, `target: deliver`, without a criteria
@@ -95,8 +106,15 @@ must be true and every step must run as written.
 - Include the acceptance criteria as a checklist, each with its evidence (from the reports; `.fyzxsflow/package/engine/ac_trace.py --require-evidence` must pass first).
 - List every flag added (name, default off, how to flip it, how to retire it). When the run's flags were `not-required`, say so and give the revert path instead.
 - Link the work item when the brief's source is ADO.
-- Opening, updating or publishing the PR is an external write, and it is the Orchestrator's, through `pr.py`; you
-  write the description.
+- Opening, pushing, updating and publishing a PR is an external write, and it is the Orchestrator's, through
+  `pr.py` and `lanes.py pr`; you write every description it puts there: the roll-up's `pr-description.md`, each
+  group's `<run>/pr-bodies/<group>.md` (from that group's reports: changes, criteria and evidence), and every later
+  update to either after rework or an owner comment.
+- **You write and post the flow's PR comments and thread replies**, through
+  `python -I .fyzxsflow/package/engine/pr.py comment --run <run> (--group <g> | --roll-up) --body-file <file>
+  [--reply-to <thread-id>] [--path <file> [--line <n>]]`, never a hand-written `az devops invoke` or `gh api`.
+  Each says what was done and where (commit, file:line) and the evidence (report, Runner id); a pushback gives the
+  reason and a recommendation. You never speak as the owner. Report the comment id it prints.
 - **The PR is the run's branch, every commit of it.** Never cut, cherry-pick or filter a separate branch.
 - **Revert and deploy steps** are checked against the real pipeline and the real tool: what the pipeline actually
   runs, and what the tool's command actually does (read its help or source). A step you could not check is
@@ -108,7 +126,8 @@ must be true and every step must run as written.
 - Quote the owner and the reports verbatim; attribute every correction to whoever made it; list every doc the
   run changed.
 - Anything you add beyond the template and the reports is marked as your call, with how to undo it.
-- Comments the flow posts on the PR start with `Agent AI Finding:`; the description itself does not.
+- Comments the flow posts on the PR start with `Agent AI Finding:` (`pr.py comment` adds it); the description
+  itself does not.
 
 ## Learned
 <!-- This project's entries live in `.fyzxsflow/learned/pr-producer.md` (maintained by the Curator; each entry: the

@@ -15,6 +15,13 @@
       -> marks the draft ready for review, only when `run.py ship-check <run>` says ready=yes (exit 1 otherwise,
          with its table): a published PR always means "pending final approval", never "still in progress".
   python -I .fyzxsflow/package/engine/pr.py status --run <run> | body --run <run>
+  python -I .fyzxsflow/package/engine/pr.py comment --run <run> (--group <g> | --roll-up) --body-file <file>
+                                             [--reply-to <thread-id>] [--path <repo path> [--line <n>]]
+      -> posts one comment on a group's PR or the roll-up PR, always prefixed "Agent AI Finding: " (added when the
+         text doesn't start with it; it can't be turned off, so a flow comment never reads as the owner's words),
+         prints the comment id, and logs a ledger line. --reply-to answers a thread (Azure DevOps: the thread id;
+         GitHub: the review comment id); --path [--line] opens a new thread on a file or line. The PR Producer
+         writes and posts the flow's comments; the Orchestrator does not.
 
 Every command that pushes or calls the host is an external write: the Orchestrator runs it only when the profile
 says `Opening a PR: pre-authorised` or the owner said yes for this run. The host comes from the remote's URL:
@@ -144,8 +151,75 @@ def web_url(root: pathlib.Path, info: dict, number: str) -> str:
 
 def call(cmd: list, cwd) -> subprocess.CompletedProcess:
     if not shutil.which(cmd[0]):
-        raise SystemExit(f"'{cmd[0]}' is not installed or not on PATH; it opens and updates the PR")
+        raise SystemExit(f"'{cmd[0]}' is not installed or not on PATH; it reaches the PR host")
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+
+
+# ---------------------------------------------------------------- comments (the one poster: pr.py and preceptee.py)
+
+FINDING_PREFIX = "Agent AI Finding: "
+
+
+def gh_repo(root) -> str:
+    out = call(["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], root)
+    if out.returncode or not out.stdout.strip():
+        raise SystemExit(f"gh can't tell the repository: {out.stderr.strip()[:200]}")
+    return out.stdout.strip()
+
+
+def az_ids(root, number: str):
+    out = call(["az", "repos", "pr", "show", "--id", number, "--output", "json"], root)
+    info = json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip().startswith("{") else {}
+    repo = info.get("repository") or {}
+    if not repo.get("id"):
+        raise SystemExit(f"az can't read pull request {number}: {out.stderr.strip()[:200]}")
+    return (repo.get("project") or {}).get("name", ""), repo["id"]
+
+
+def post_comment(root: pathlib.Path, pr: dict, branch: str, at: str, text: str, prefix: str,
+                 path=None, line=None, reply_to=None) -> str:
+    """Post one comment on a PR ({host, number}); returns its id. `at`: pr | file | method | line (method and line
+    anchor on `line`). The prefix is added when the text doesn't already start with it."""
+    body = text if text.startswith(prefix) else prefix + text
+    if pr["host"] == "github":
+        repo = gh_repo(root)
+        if reply_to:
+            cmd = ["gh", "api", f"repos/{repo}/pulls/{pr['number']}/comments/{reply_to}/replies", "-f", f"body={body}"]
+        elif at == "pr":
+            cmd = ["gh", "api", f"repos/{repo}/issues/{pr['number']}/comments", "-f", f"body={body}"]
+        else:
+            sha = git(root, "rev-parse", branch).stdout.strip()
+            cmd = ["gh", "api", f"repos/{repo}/pulls/{pr['number']}/comments", "-f", f"body={body}",
+                   "-f", f"commit_id={sha}", "-f", f"path={path}"]
+            cmd += ["-f", "subject_type=file"] if at == "file" else ["-F", f"line={line}", "-f", "side=RIGHT"]
+        out = call(cmd, root)
+    else:
+        project, repo_id = az_ids(root, pr["number"])
+        import tempfile
+        if reply_to:
+            resource, route, payload = "pullRequestThreadComments", [f"threadId={reply_to}"], \
+                {"content": body, "parentCommentId": 1, "commentType": 1}
+        else:
+            payload = {"comments": [{"content": body, "commentType": 1}], "status": 1}
+            if at != "pr":
+                ctx = {"filePath": "/" + path.lstrip("/")}
+                if at != "file":
+                    ctx.update({"rightFileStart": {"line": int(line), "offset": 1},
+                                "rightFileEnd": {"line": int(line), "offset": 1}})
+                payload["threadContext"] = ctx
+            resource, route = "pullRequestThreads", []
+        f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+        json.dump(payload, f)
+        f.close()
+        out = call(["az", "devops", "invoke", "--area", "git", "--resource", resource, "--route-parameters",
+                    f"project={project}", f"repositoryId={repo_id}", f"pullRequestId={pr['number']}", *route,
+                    "--http-method", "POST", "--api-version", "7.1", "--in-file", f.name, "--output", "json"], root)
+        pathlib.Path(f.name).unlink(missing_ok=True)
+    info = json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip().startswith("{") else {}
+    cid = str(info.get("id", ""))
+    if out.returncode or not cid:
+        raise SystemExit(f"could not post the comment: {(out.stderr or out.stdout).strip()[:300]}")
+    return cid
 
 
 def wip_body(run: pathlib.Path) -> str:
@@ -308,19 +382,58 @@ def cmd_body(args) -> int:
     return 0
 
 
+def cmd_comment(args) -> int:
+    run = pathlib.Path(args.run)
+    root = repo_root(run)
+    if args.line and not args.path:
+        raise SystemExit("--line needs --path")
+    text = pathlib.Path(args.body_file).read_text(encoding="utf-8").strip()
+    if not text:
+        raise SystemExit(f"{args.body_file} is empty: a comment says what was done, where, and the evidence")
+    if args.roll_up:
+        data = load(run)
+        if not data.get("number"):
+            raise SystemExit("the roll-up PR isn't open yet (pr.py draft opens it)")
+        target, branch, where = data, data.get("branch", ""), "roll-up"
+    else:
+        import lanes  # noqa: E402  (same folder; imported here because lanes imports this module)
+        lane = lanes.load(root, run).get(args.group)
+        if not lane or not lane.get("pr"):
+            raise SystemExit(f"group {args.group} has no PR yet (lanes.py pr opens it)")
+        target, branch, where = lane["pr"], lane.get("branch", ""), f"group {args.group}"
+    at = "line" if args.line else "file" if args.path else "pr"
+    cid = post_comment(root, target, branch, at, text, FINDING_PREFIX, args.path, args.line, args.reply_to)
+    if args.reply_to:
+        thread = f" thread {args.reply_to}"
+    elif args.path:
+        thread = f" on {args.path}" + (f":{args.line}" if args.line else "")
+    else:
+        thread = ""
+    import run as runlog  # noqa: E402  (same folder)
+    runlog.append(run, "deliver" if args.roll_up else "build", "done",
+                  f"posted comment {cid} on PR {target['number']} ({where}){thread}")
+    print(f"posted comment {cid} on {target.get('url') or 'PR ' + str(target['number'])}")
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
     for name in ("push", "draft", "ready", "status", "body"):
         x = sub.add_parser(name); x.add_argument("--run", required=True)
     u = sub.add_parser("update"); u.add_argument("--run", required=True); u.add_argument("--body-file")
+    c = sub.add_parser("comment"); c.add_argument("--run", required=True)
+    which = c.add_mutually_exclusive_group(required=True)
+    which.add_argument("--group"); which.add_argument("--roll-up", action="store_true")
+    c.add_argument("--body-file", required=True); c.add_argument("--reply-to")
+    c.add_argument("--path"); c.add_argument("--line", type=int)
     args = p.parse_args(argv)
     if getattr(args, "run", None):  # a bare run id resolves under .fyzxsflow/runs/
         sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
         from layout import resolve_run
         args.run = str(resolve_run(args.run))
     return {"push": cmd_push, "draft": cmd_draft, "update": cmd_update, "ready": cmd_ready, "status": cmd_status,
-            "body": cmd_body}[args.cmd](args)
+            "body": cmd_body, "comment": cmd_comment}[args.cmd](args)
 
 
 if __name__ == "__main__":

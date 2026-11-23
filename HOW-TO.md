@@ -47,7 +47,7 @@ python -I apm_modules/Fyzxs/AgenticFlow/engine/install.py --target . --host clau
 
 The first command downloads FyzxsFlow into `apm_modules/` (keep that gitignored) and deploys its agents,
 prompts, instructions and skills into `.claude/` and `.github/`. The second sets up `.fyzxsflow/`: the engine
-the agents call, the templates, the kill-by-name hook, and host files that include what the Curator has learned
+the agents call, the templates, the hooks (kill-by-name, and the orchestrator guard below), and host files that include what the Curator has learned
 for your project. APM can't run a package's installer itself, so the second command is needed, after every
 `apm install` or `apm update` of FyzxsFlow. Pin a version with `apm install Fyzxs/AgenticFlow#<tag or commit>`.
 
@@ -71,6 +71,51 @@ lifecycle:
 
 The installer rewrites some files APM deployed (each agent file gets your project's Learned entries), so
 `apm audit` reports those files as changed. That is expected.
+
+### The orchestrator does no work (enforced)
+
+The orchestrator coordinates; every edit, build, test and PR comment belongs to the agent that owns it. Written
+rules weren't enough (the main session edited docs and pipeline files, ran `ci`, and posted PR replies under the
+owner's name), so the install also enforces it:
+
+- **Claude Code:** `.claude/settings.json` gets `"agent": "orchestrator"`, so every session in the repo starts as
+  the orchestrator, plus the guard hook `engine/hooks/orchestrator_guard.py` (matcher
+  `Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell`). The guard denies the main session's own edits, except its
+  run-folder bookkeeping (review files, `input.md`, `review-requests.md`). It also denies any shell command outside
+  a fixed allow-list: the engine's bookkeeping scripts, `git add/commit/push` and read-only git, `docker compose -p
+  <name> down`, PR reads, and plain reads such as `ls` and `cat`. Every denial names the agent to dispatch. Calls
+  from subagents are never blocked.
+  - Your own entries in `settings.json` are kept as they are, and a reinstall that changes nothing writes nothing.
+    If `agent` already names another agent, the install leaves it and warns.
+  - **For a plain session**, start `claude --agent general-purpose`. To leave `agent` out entirely, install with
+    `--no-main-agent`, which removes only an `agent` value the install wrote. The guard stays installed but only acts
+    for an orchestrator session.
+- **GitHub Copilot (CLI and VS Code):** the orchestrator's `.github/agents/orchestrator.agent.md` carries the same
+  guard as an agent-scoped `hooks:` entry. Copilot runs that entry only while the orchestrator is the selected
+  agent, which is how the guard knows a call is the orchestrator's own: Copilot's hook input names no main agent.
+  `.github/hooks/fyzxsflow.json` adds the kill-by-name hook. Copilot has no documented setting for a default agent,
+  so **select the orchestrator yourself**: pick it in VS Code's agent picker, or start `copilot --agent orchestrator`.
+  Repository hooks need the workspace trusted (Copilot calls this workspace admission), and an organisation can
+  restrict hooks.
+
+What the hosts were checked to do (Claude Code 2.1.330, 2026-11-23):
+- A main session started with `--agent` carries `agent_type` and no `agent_id` on its own calls.
+- A subagent's calls carry both.
+- An orchestrator whose `tools:` leaves out Write doesn't take Write away from the agents it dispatches.
+- A subagent with the Agent tool can dispatch another subagent.
+
+On Copilot, GitHub's hook reference documents `agent_id` on subagent calls, but this hasn't been run on a live
+Copilot session yet. Check it once in your setup before relying on it:
+
+```
+python -I .fyzxsflow/package/engine/install.py --sync --target . --host copilot --probe-hooks   # log only, blocks nothing
+#   start a session as the orchestrator; ask it to edit a scratch file itself, then to dispatch the validator to
+#   edit a scratch file and run `git status`
+python -I .fyzxsflow/package/engine/hooks/orchestrator_probe.py report      # "yes, blocking is safe" or NO
+python -I .fyzxsflow/package/engine/install.py --sync --target . --host copilot  # blocking again
+```
+
+`--probe-hooks` works the same way for `--host claude`.
 
 ## Set up your repo
 

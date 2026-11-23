@@ -25,6 +25,8 @@
          missing model_reported or a criteria row that isn't a bare id, and commits the run folder: the agent's
          output is handed off the moment it returns
   python -I engine/run.py models <run-dir>      -> every report with its dispatched and self-reported model
+  python -I engine/run.py package-status <run-dir> --wp WP-04 --status planned|building|done|deferred
+      -> sets the package's `status:` frontmatter line and nothing else (the Orchestrator's close-out; no hand edit)
   python -I engine/run.py ship-check <run-dir>
       -> ready=yes|no: the last ci run, the last http proof run (when proofs were written), the last extreme run,
          the end-to-end modes (when the opt-in e2e step is on and .fyzxsflow/e2e.md says ready; before that a
@@ -211,6 +213,34 @@ def read_packages(run: pathlib.Path) -> list:
         out.append({"id": pid, "stem": f.stem, "segment": meta.get("segment", ""), "title": title,
                     "status": status if status in PACKAGE_STATUSES else "planned"})
     return out
+
+
+def cmd_package_status(args) -> int:
+    run = pathlib.Path(args.run)
+    if args.status not in PACKAGE_STATUSES:
+        print(f"status must be one of {', '.join(PACKAGE_STATUSES)}", file=sys.stderr)
+        return 2
+    match = [p for p in read_packages(run) if p["id"] == args.wp]
+    if not match:
+        print(f"unknown package {args.wp}", file=sys.stderr)
+        return 2
+    f = run / "work-packages" / f"{match[0]['stem']}.md"
+    text = f.read_bytes().decode("utf-8")
+    fm = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", text, re.S)
+    if not fm:
+        print(f"{f.name} has no frontmatter", file=sys.stderr)
+        return 2
+    body = fm.group(1)
+    new, n = re.subn(r"^(status:[ \t]*)[^\r\n]*", lambda m: m.group(1) + args.status, body, count=1, flags=re.M)
+    if not n:
+        eol = "\r\n" if "\r\n" in text else "\n"
+        new = re.sub(r"^(id:[^\r\n]*)", lambda m: m.group(1) + eol + f"status: {args.status}", body, count=1, flags=re.M)
+        if new == body:
+            new = body + eol + f"status: {args.status}"
+    if new != body:
+        f.write_bytes((text[:fm.start(1)] + new + text[fm.end(1):]).encode("utf-8"))
+    print(f"{args.wp}: {args.status}")
+    return 0
 
 
 def cmd_packages(args) -> int:
@@ -766,6 +796,8 @@ def main(argv=None) -> int:
     pk = sub.add_parser("packages")
     pk.add_argument("run"); pk.add_argument("--current", help="package id, e.g. WP-04")
     pk.add_argument("--agent", help="with --current: also print the review file name for this agent")
+    ps = sub.add_parser("package-status")
+    ps.add_argument("run"); ps.add_argument("--wp", required=True); ps.add_argument("--status", required=True)
     st = sub.add_parser("stamp")
     st.add_argument("report"); st.add_argument("--agent", required=True)
     st.add_argument("--host", default="claude", choices=["claude", "copilot"])
@@ -784,7 +816,7 @@ def main(argv=None) -> int:
         from layout import resolve_run
         args.run = str(resolve_run(args.run))
     return {"new": cmd_new, "log": cmd_log, "status": cmd_status, "packages": cmd_packages,
-            "stamp": cmd_stamp, "models": cmd_models, "ship-check": cmd_ship_check,
+            "stamp": cmd_stamp, "package-status": cmd_package_status, "models": cmd_models, "ship-check": cmd_ship_check,
             "checkpoint": cmd_checkpoint, "edits": cmd_edits, "close": cmd_close, "list": cmd_list}[args.cmd](args)
 
 

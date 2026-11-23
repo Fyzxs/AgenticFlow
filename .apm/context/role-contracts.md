@@ -45,10 +45,15 @@ is a pattern a doc marks legacy, which you never copy, however often it appears 
 - **Orchestrator:** dispatches stages, hands off files, keeps the ledger, enforces caps and gates.
 - **Build Coordinator:** plans work packages (Locate) and executes them in dependency order (Build).
 - **Curator:** turns findings into agent and doc patches.
-- **Pull requests:** the Orchestrator opens, updates and publishes them through the engine (`lanes.py pr` for a
-  PR group's PR into the run branch, `pr.py` for the run branch's roll-up PR into the default branch); the PR
-  Producer writes the roll-up's description. Only the owner completes a PR; no agent merges, completes or sets
-  auto-complete on one.
+- **The Orchestrator does no work:** it dispatches the agent that owns it, and keeps only bookkeeping (the
+  engine's run/lanes/findings/feedback/steps/review/waves/ac_trace commands, ledger lines, package status through
+  `run.py package-status`, review files, staging by path, committing and pushing, opening and publishing PRs,
+  closing lanes, talking to the owner). On Claude Code and Copilot a hook enforces it (`engine/hooks/orchestrator_guard.py`).
+- **Pull requests:** the Orchestrator opens, pushes, updates and publishes them through the engine (`lanes.py pr`
+  for a PR group's PR into the run branch, `pr.py` for the run branch's roll-up PR into the default branch). The PR
+  Producer writes every description they carry (the roll-up's, each group's body, every update) and writes and
+  posts the flow's PR comments and thread replies through `pr.py comment`, which prefixes `Agent AI Finding:`. Only
+  the owner completes a PR; no agent merges, completes or sets auto-complete on one.
 
 ## Rules for every role
 - **Work in the worktree your dispatch names.** Before anything else, run `git rev-parse --show-toplevel` and

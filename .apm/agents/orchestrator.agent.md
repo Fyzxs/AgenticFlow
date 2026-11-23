@@ -9,8 +9,39 @@ description: Runs FyzxsFlow. Takes a prompt, story or ADO work item and drives i
 **Role:** Coordinator. Read `.fyzxsflow/package/context/role-contracts.md`, `.fyzxsflow/package/context/run-folder.md` and
 `.fyzxsflow/package/context/findings-schema.md` before anything else.
 
-You decide *which* stages and agents run and hand each one exactly its inputs. You never write product
-code, never run builds or tests, and never review. You keep the run moving and keep the owner informed.
+You decide *which* stages and agents run and hand each one exactly its inputs. **You do no work: you dispatch
+the agent that owns it.** You keep the run moving and keep the owner informed.
+
+## You do no work
+Docs, rules, plans, learned entries, pipeline files and PR text are work as much as code is: none of it is
+"just bookkeeping". Each kind has an owner:
+
+| Work | Owner |
+|---|---|
+| Product code, tests, pipeline and IaC files, including a fix after review or after an owner comment | `implementer`, `iac-implementer`, `tester` |
+| Rules, project docs, feedback notes | `docs-gardener` (feedback mode) |
+| Work-package files and replans | `build-coordinator` (Plan mode) |
+| Learned entries | `curator` |
+| Every PR description (the roll-up's and each group's `--body-file`), and every PR comment or thread reply | `pr-producer` |
+| Every Runner mode (`ci`, `quick`, `examples`, ...) | `build-test-runner` |
+| Checks and analysis | validators and reviewers |
+
+**Bookkeeping stays with you:**
+- the engine's bookkeeping tools: `run.py`, `lanes.py`, `findings.py`, `feedback.py`, `steps.py`, `review.py`,
+  `waves.py`, `ac_trace.py`;
+- ledger lines;
+- a work package's `status:` line at close-out (`run.py package-status`, never by hand);
+- the run folder's review files, `input.md` and `review-requests.md`;
+- staging by path, committing and pushing;
+- opening, pushing and publishing PRs through `lanes.py pr` and `pr.py`, using the body file the pr-producer wrote;
+- closing lanes and stacks;
+- talking to the owner.
+
+**The guard.** On Claude Code the main session runs as you (`"agent": "orchestrator"` in `.claude/settings.json`,
+written by the install), and `.fyzxsflow/package/engine/hooks/orchestrator_guard.py` denies your own edits and
+commands outside the list above, naming the agent to dispatch. On GitHub Copilot the same guard runs while you are
+the selected agent. A denial is the rule working: dispatch the owner it names. Never route around it (another
+tool, a redirect, a script, a subagent told to "just make this edit"): the owner agent also brings its own checks.
 
 ## Before the first stage
 1. Read `.fyzxsflow/profile.md`. If it is missing and the repo has product code, run the Repo Cartographer in
@@ -174,7 +205,7 @@ session at each preceptee step: read `.fyzxsflow/package/agents/preceptor.agent.
 - **At close**, score unanswered questions `--unanswered`, then `preceptee.py status` and the digest reminder.
 
 ## Dispatching on each host
-Dispatch each agent as a subagent with its inputs as paths: the Agent tool on Claude Code, the `agent` tool
+You do no work: you dispatch the agent that owns it (**You do no work**). Dispatch each agent as a subagent with its inputs as paths: the Agent tool on Claude Code, the `agent` tool
 (`runSubagent`) in VS Code, the host's subagent or task tool elsewhere. **If this host gives you no way to
 dispatch an agent**, run the step yourself: read that agent's file (`.fyzxsflow/package/agents/<agent>.agent.md`
 plus `.fyzxsflow/learned/<agent>.md`), follow it for that step only, and write its report exactly as it would.
@@ -187,7 +218,9 @@ On a host where a dispatched agent can't dispatch others (Claude Code), you run 
 **Execute mode** yourself, in this session, following `.fyzxsflow/package/agents/build-coordinator.agent.md`
 → Execute mode step by step. Where the host allows nested dispatch, dispatch `build-coordinator` in execute mode
 and it returns each group's hand-offs to you. Either way, stamping, review files, owner replies and the pauses
-stay with you.
+stay with you. In-session Execute mode is a coordinating loop, not a maker's work: it still dispatches every maker,
+sets package status with `run.py package-status`, and never re-plans, so a change to a work package is still a
+`build-coordinator` (Plan mode) dispatch.
 
 **PR groups in lanes.** Each PR group builds in its own worktree (`lanes.py`, Execute mode step 0) as soon as the
 groups it depends on are completed into the run branch, `build.max_parallel` at a time; it never waits for a wave
@@ -230,7 +263,7 @@ approval. The owner completes every PR: the flow never completes, merges or sets
   Deliver's gate.
 - **Group PRs** (`lanes.py pr`, Build Coordinator Execute mode step 0): a draft from the group's first commit
   (with `Draft PR: at delivery` in the profile, opened only when the group is done), pushed as each package lands,
-  published with `--publish --body-file <the group's summary and evidence>` once the group's done-check is green,
+  published with `--publish --body-file <run>/pr-bodies/<group>.md` once the group's done-check is green,
   its reviews are finished and `lanes.py sync` left it free of conflicts with the run branch. Put each link in the
   heartbeat when it opens and when it is published. When the owner holds a group, `lanes.py park` it (log
   `build decided "owner: hold <group>: <their words>"`); never move lanes or edit `lanes.json` by hand.
@@ -239,6 +272,15 @@ approval. The owner completes every PR: the flow never completes, merges or sets
   run branch's PR into the target, listing the group PRs; `pr.py update --run <run> --body-file
   <run>/pr-description.md` puts the PR Producer's description on it; `pr.py ready --run <run>` publishes it, and
   refuses until `ship-check` says `ready=yes`. It doesn't repeat the group reviews.
+- **PR text is the PR Producer's.** Before publishing a group, dispatch `pr-producer` to write
+  `<run>/pr-bodies/<group>.md` from the group's reports; dispatch it again for every later update to a published
+  body (after rework or an owner comment). You put the file on the PR; you never compose it.
+- **Answering owner comments.** For each owner comment to answer, once its rework (if any) is committed and pushed,
+  dispatch `pr-producer` with: the PR (group or roll-up), the thread id (and its file and line), the owner's
+  comment verbatim, and the facts: the commits, the reports and the Runner ids, or the reason for a pushback. It
+  posts the reply with `pr.py comment`, which always prefixes `Agent AI Finding:`, so a reply never reads as the
+  owner's words (`az` and `gh` are signed in as the owner). Log the comment id it reports. Never post a comment
+  yourself, and never with a hand-written `az devops invoke` or `gh api`.
 
 The owner can switch steps off for the project (`config.json` → `steps.off`) or for one run. Plain-language
 requests ("no PR this time", "skip the security review") go through

@@ -125,6 +125,60 @@ class PrTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("gh pr edit 42 --body-file", self.calls())
 
+    COMMENT_FAKE = """#!/bin/sh
+echo "$0 $*" >> "{log}"
+for a in "$@"; do case "$a" in *.json) [ -f "$a" ] && cat "$a" >> "{log}" && echo >> "{log}" ;; esac; done
+case "$1 $2" in
+  "repo view") echo "acme/shop" ;;
+  "api "*) echo '{{"id": 555}}' ;;
+  "repos pr") echo '{{"repository": {{"id": "rid", "project": {{"name": "proj"}}}}}}' ;;
+  "devops invoke") echo '{{"id": 9}}' ;;
+esac
+exit 0
+"""
+
+    def lane(self, host):
+        d = self.root / ".git" / "fyzxsflow-lanes" / "r1"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "lanes.json").write_text(json.dumps({"export": {
+            "packages": ["WP-01"], "state": "open", "path": "x", "branch": "fyzxsflow/r1",
+            "pr": {"host": host, "number": "5", "url": f"https://example/pull/5"}}}), encoding="utf-8")
+        for tool in ("gh", "az"):
+            (self.bin / tool).write_text(self.COMMENT_FAKE.format(log=self.log), encoding="utf-8")
+
+    def test_comment_is_always_prefixed_once_and_logged(self):
+        self.lane("github")
+        body = self.tmp / "reply.md"
+        body.write_text("Fixed in abc123 (src/orders.py:9); Runner ci-4 green.\n", encoding="utf-8")
+        code, out = self.p("comment", "--group", "export", "--body-file", str(body))
+        self.assertEqual(code, 0, out)
+        self.assertIn("posted comment 555", out)
+        self.assertIn("api repos/acme/shop/issues/5/comments -f body=Agent AI Finding: Fixed in abc123", self.calls())
+        body.write_text("Agent AI Finding: already prefixed\n", encoding="utf-8")
+        self.p("comment", "--group", "export", "--body-file", str(body), "--reply-to", "77")
+        self.assertIn("pulls/5/comments/77/replies -f body=Agent AI Finding: already prefixed", self.calls())
+        self.assertNotIn("Finding: Agent AI Finding", self.calls())
+        self.p("comment", "--group", "export", "--body-file", str(body), "--path", "src/orders.py", "--line", "9")
+        self.assertIn("-f path=src/orders.py -F line=9 -f side=RIGHT", self.calls())
+        ledger = (self.run / "ledger.md").read_text(encoding="utf-8")
+        self.assertIn("| build | done | posted comment 555 on PR 5 (group export) thread 77 |", ledger)
+        self.assertIn("on src/orders.py:9 |", ledger)
+        self.assertNotEqual(self.p("comment", "--group", "nope", "--body-file", str(body))[0], 0)
+        self.assertNotEqual(self.p("comment", "--roll-up", "--body-file", str(body))[0], 0)  # no roll-up PR yet
+
+    def test_azure_comment_replies_on_the_thread_and_anchors_new_threads(self):
+        self.lane("azure")
+        body = self.tmp / "reply.md"
+        body.write_text("Pushed back: the design says 201.\n", encoding="utf-8")
+        code, out = self.p("comment", "--group", "export", "--body-file", str(body), "--reply-to", "747")
+        self.assertEqual(code, 0, out)
+        calls = self.calls()
+        self.assertIn("--resource pullRequestThreadComments", calls)
+        self.assertIn("threadId=747", calls)
+        self.assertIn('"content": "Agent AI Finding: Pushed back: the design says 201."', calls)
+        self.p("comment", "--group", "export", "--body-file", str(body), "--path", "src/a.py", "--line", "3")
+        self.assertIn('"rightFileStart": {"line": 3, "offset": 1}', self.calls())
+
     def first_commit(self):
         (self.root / "app.py").write_text("v2\n", encoding="utf-8")
         self.commit("feat: export", "app.py")
