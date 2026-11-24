@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.6 (2026-11-24)
+- **The orchestrator hook reminds instead of blocking.** Denying the orchestrator's own edits and commands got in
+  the way when it had a real reason to do the work (seen on Copilot). `orchestrator_guard.py` now always lets the
+  call run and adds a reminder to the model's context: delegate, naming the owner agent, and log why when doing it
+  yourself. It makes no permission decision, so the host's normal permission flow is unchanged. Claude Code: on
+  PreToolUse (checked live on 2.1.330). Copilot: the orchestrator's agent-scoped hook moves to PostToolUse, the only
+  tool event where Copilot CLI documents added context.
+
 ## 0.4.5 (2026-11-24)
 - **Build runs in a dispatched Build Coordinator.** Claude Code subagents can dispatch other agents (checked on
   2.1.330), so the Orchestrator now dispatches `build-coordinator` in Execute mode instead of running it in its own

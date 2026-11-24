@@ -84,9 +84,9 @@ python -I engine/install.py --target <path to your repo> --host claude   # or in
 ```
 
 On Claude Code the install makes every session in the repo the orchestrator, which dispatches agents and
-does no work itself (a hook enforces it). Start `claude --agent general-purpose` for a plain session, or install
-with `--no-main-agent`. On Copilot, select the orchestrator agent; the same guard runs while it is selected. See
-[HOW-TO.md](HOW-TO.md#the-orchestrator-does-no-work-enforced).
+does no work itself (a hook reminds it to delegate; it never blocks). Start `claude --agent general-purpose` for a
+plain session, or install with `--no-main-agent`. On Copilot, select the orchestrator agent; the same reminder runs
+while it is selected. See [HOW-TO.md](HOW-TO.md#the-orchestrator-does-no-work-reminded).
 
 A new project with no code yet starts from its system design instead:
 `/fyzxsflow-greenfield <design files> [seed: <rules folder>]`. The flow reads the design, decides what it leaves

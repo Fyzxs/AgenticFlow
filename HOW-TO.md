@@ -72,27 +72,29 @@ lifecycle:
 The installer rewrites some files APM deployed (each agent file gets your project's Learned entries), so
 `apm audit` reports those files as changed. That is expected.
 
-### The orchestrator does no work (enforced)
+### The orchestrator does no work (reminded)
 
 The orchestrator coordinates; every edit, build, test and PR comment belongs to the agent that owns it. Written
 rules weren't enough (the main session edited docs and pipeline files, ran `ci`, and posted PR replies under the
-owner's name), so the install also enforces it:
+owner's name), so the install adds a reminder. It never blocks: 0.4.4 denied those calls, and that got in the way
+when the orchestrator had a real reason to do it.
 
 - **Claude Code:** `.claude/settings.json` gets `"agent": "orchestrator"`, so every session in the repo starts as
   the orchestrator, plus the guard hook `engine/hooks/orchestrator_guard.py` (matcher
-  `Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell`). The guard denies the main session's own edits, except its
-  run-folder bookkeeping (review files, `input.md`, `review-requests.md`). It also denies any shell command outside
-  a fixed allow-list: the engine's bookkeeping scripts, `git add/commit/push` and read-only git, `docker compose -p
-  <name> down`, PR reads, and plain reads such as `ls` and `cat`. Every denial names the agent to dispatch. Calls
-  from subagents are never blocked.
+  `Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell`). The call always runs. When it is the main session's own edit
+  (other than its run-folder bookkeeping: review files, `input.md`, `review-requests.md`) or a shell command outside
+  a fixed list (the engine's bookkeeping scripts, `git add/commit/push` and read-only git, `docker compose -p <name>
+  down`, PR reads, plain reads such as `ls` and `cat`), the hook adds a reminder to the model's context naming the
+  agent to dispatch, and asks it to log why if it did the work itself. Subagents never get the reminder.
   - Your own entries in `settings.json` are kept as they are, and a reinstall that changes nothing writes nothing.
     If `agent` already names another agent, the install leaves it and warns.
   - **For a plain session**, start `claude --agent general-purpose`. To leave `agent` out entirely, install with
-    `--no-main-agent`, which removes only an `agent` value the install wrote. The guard stays installed but only acts
+    `--no-main-agent`, which removes only an `agent` value the install wrote. The hook stays installed but only acts
     for an orchestrator session.
 - **GitHub Copilot (CLI and VS Code):** the orchestrator's `.github/agents/orchestrator.agent.md` carries the same
-  guard as an agent-scoped `hooks:` entry. Copilot runs that entry only while the orchestrator is the selected
-  agent, which is how the guard knows a call is the orchestrator's own: Copilot's hook input names no main agent.
+  hook as an agent-scoped `hooks:` entry, on PostToolUse (Copilot CLI documents added context only after a call).
+  Copilot runs that entry only while the orchestrator is the selected agent, which is how the hook knows a call is
+  the orchestrator's own: Copilot's hook input names no main agent.
   `.github/hooks/fyzxsflow.json` adds the kill-by-name hook. Copilot has no documented setting for a default agent,
   so **select the orchestrator yourself**: pick it in VS Code's agent picker, or start `copilot --agent orchestrator`.
   Repository hooks need the workspace trusted (Copilot calls this workspace admission), and an organisation can
@@ -103,16 +105,18 @@ What the hosts were checked to do (Claude Code 2.1.330, 2026-11-23):
 - A subagent's calls carry both.
 - An orchestrator whose `tools:` leaves out Write doesn't take Write away from the agents it dispatches.
 - A subagent with the Agent tool can dispatch another subagent.
+- A PreToolUse `additionalContext` with no permission decision lets the call run and reaches the model
+  (2026-11-24).
 
 On Copilot, GitHub's hook reference documents `agent_id` on subagent calls, but this hasn't been run on a live
 Copilot session yet. Check it once in your setup before relying on it:
 
 ```
-python -I .fyzxsflow/package/engine/install.py --sync --target . --host copilot --probe-hooks   # log only, blocks nothing
+python -I .fyzxsflow/package/engine/install.py --sync --target . --host copilot --probe-hooks   # log only, no reminders
 #   start a session as the orchestrator; ask it to edit a scratch file itself, then to dispatch the validator to
 #   edit a scratch file and run `git status`
-python -I .fyzxsflow/package/engine/hooks/orchestrator_probe.py report      # "yes, blocking is safe" or NO
-python -I .fyzxsflow/package/engine/install.py --sync --target . --host copilot  # blocking again
+python -I .fyzxsflow/package/engine/hooks/orchestrator_probe.py report      # "yes, the reminder reaches only the main session" or NO
+python -I .fyzxsflow/package/engine/install.py --sync --target . --host copilot  # reminders again
 ```
 
 `--probe-hooks` works the same way for `--host claude`.

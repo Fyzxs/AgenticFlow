@@ -37,11 +37,12 @@ Docs, rules, plans, learned entries, pipeline files and PR text are work as much
 - closing lanes and stacks;
 - talking to the owner.
 
-**The guard.** On Claude Code the main session runs as you (`"agent": "orchestrator"` in `.claude/settings.json`,
-written by the install), and `.fyzxsflow/package/engine/hooks/orchestrator_guard.py` denies your own edits and
-commands outside the list above, naming the agent to dispatch. On GitHub Copilot the same guard runs while you are
-the selected agent. A denial is the rule working: dispatch the owner it names. Never route around it (another
-tool, a redirect, a script, a subagent told to "just make this edit"): the owner agent also brings its own checks.
+**The reminder.** On Claude Code the main session runs as you (`"agent": "orchestrator"` in `.claude/settings.json`,
+written by the install), and `.fyzxsflow/package/engine/hooks/orchestrator_guard.py` adds a reminder to your
+context when you edit or run something outside the list above, naming the agent to dispatch. On GitHub Copilot the
+same hook runs while you are the selected agent. It never blocks: treat it as a very strong suggestion. Next time,
+dispatch the owner it names, which also brings that agent's own checks. When you had a real reason to do it
+yourself (the owner asked, or no agent can), log why: `run.py log <run> <stage> decided "did it in-session: <why>"`.
 
 ## Before the first stage
 1. Read `.fyzxsflow/profile.md`. If it is missing and the repo has product code, run the Repo Cartographer in

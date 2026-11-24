@@ -39,7 +39,7 @@ def main(argv=None) -> int:
               "subagents, which is fine: then only the orchestrator's own calls reach it)")
         ok = bool(main_rows) and all(r["agent_type"] == "orchestrator" for r in claude_main)
     print("the guard can tell the orchestrator's own calls from its subagents': "
-          + ("yes, blocking is safe" if ok else "NO, keep the guard in probe mode and report this upstream"))
+          + ("yes, the reminder reaches only the main session" if ok else "NO, keep the guard in probe mode and report this upstream"))
     return 0 if ok else 1
 
 

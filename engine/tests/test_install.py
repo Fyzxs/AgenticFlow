@@ -38,7 +38,7 @@ class InstallTests(unittest.TestCase):
             self.assertTrue((pkg / rel).exists(), rel)
         self.assertFalse((pkg / "engine" / "tests").exists())
         self.assertEqual(list(pkg.rglob("__pycache__")), [])  # the install imports the installed engine: no bytecode
-        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.4.5")
+        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.4.6")
         self.assertTrue((self.root / ".claude/agents/implementer.md").exists())
         flow_cmd = (self.root / ".claude/commands/flow.md").read_text(encoding="utf-8")
         self.assertIn("Request: $ARGUMENTS", flow_cmd)
@@ -299,7 +299,7 @@ class InstallTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         orch = (self.root / ".github/agents/orchestrator.agent.md").read_text(encoding="utf-8")
         head = orch.split("\n---\n", 1)[0]
-        self.assertIn("hooks:\n  PreToolUse:\n    - type: command\n      command: ", head)
+        self.assertIn("hooks:\n  PostToolUse:\n    - type: command\n      command: ", head)
         self.assertIn("engine/hooks/orchestrator_guard.py --scoped", head)
         self.assertNotIn("hooks:", (self.root / ".github/agents/implementer.agent.md").read_text(encoding="utf-8").split("\n---\n", 1)[0])
         hooks = json.loads((self.root / ".github/hooks/fyzxsflow.json").read_text(encoding="utf-8"))

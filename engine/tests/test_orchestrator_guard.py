@@ -1,4 +1,5 @@
-"""Tests for engine/hooks/orchestrator_guard.py: the orchestrator's own session does no work; subagents are untouched."""
+"""Tests for engine/hooks/orchestrator_guard.py: the orchestrator's own work draws a reminder to delegate (never a
+block); subagents and bookkeeping draw nothing."""
 
 import json
 import pathlib
@@ -13,9 +14,15 @@ ENG = ".fyzxsflow/package/engine"
 
 
 def run(payload, *args, raw=None, cwd=None):
+    """(1 if reminded else 0, the reminder, stdout). The hook itself always exits 0 and never decides permission."""
     p = subprocess.run([sys.executable, "-I", "-B", str(GUARD), *args], input=raw if raw is not None else json.dumps(payload),
                        capture_output=True, text=True, cwd=cwd)
-    return p.returncode, p.stderr, p.stdout
+    assert p.returncode == 0, p.stderr
+    if not p.stdout.strip():
+        return 0, "", p.stdout
+    out = json.loads(p.stdout)
+    assert "permissionDecision" not in json.dumps(out), out
+    return 1, out["hookSpecificOutput"]["additionalContext"], p.stdout
 
 
 def orch(tool, **tool_input):
@@ -23,16 +30,17 @@ def orch(tool, **tool_input):
 
 
 class EditTests(unittest.TestCase):
-    def test_the_orchestrators_own_edit_is_denied_and_names_the_owner(self):
+    def test_the_orchestrators_own_edit_draws_a_reminder_naming_the_owner(self):
         code, err, out = run(orch("Edit", file_path=".claude/rules/x.md"))
-        self.assertEqual(code, 2)
+        self.assertEqual(code, 1)
         self.assertIn("docs-gardener", err)
-        self.assertEqual(json.loads(out)["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertIn("reminder: delegate", err)
+        self.assertEqual(json.loads(out)["hookSpecificOutput"]["hookEventName"], "PreToolUse")
         for path, owner in ((".fyzxsflow/learned/orchestrator.md", "curator"),
                             (".fyzxsflow/runs/active/r1/work-packages/WP-01.md", "build-coordinator"),
                             ("pipelines/deploy.yml", "iac-implementer")):
             code, err, _ = run(orch("Write", file_path=path))
-            self.assertEqual(code, 2, path)
+            self.assertEqual(code, 1, path)
             self.assertIn(owner, err, path)
 
     def test_subagents_and_plain_sessions_are_allowed(self):
@@ -44,14 +52,14 @@ class EditTests(unittest.TestCase):
 
     def test_every_edit_tool_is_covered(self):
         for tool, key in (("Write", "file_path"), ("MultiEdit", "file_path"), ("NotebookEdit", "notebook_path")):
-            self.assertEqual(run(orch(tool, **{key: "src/app.py"}))[0], 2, tool)
+            self.assertEqual(run(orch(tool, **{key: "src/app.py"}))[0], 1, tool)
 
     def test_its_own_run_folder_bookkeeping_is_allowed(self):
         for path in (".fyzxsflow/runs/active/r1/reviews/WP-01-api.implementer.md",
                      "/home/me/repo/.fyzxsflow/runs/active/r1/input.md",
                      ".fyzxsflow/runs/active/r1/review-requests.md"):
             self.assertEqual(run(orch("Write", file_path=path))[0], 0, path)
-        self.assertEqual(run(orch("Write", file_path=".fyzxsflow/runs/active/r1/reviews/../brief.md"))[0], 2)
+        self.assertEqual(run(orch("Write", file_path=".fyzxsflow/runs/active/r1/reviews/../brief.md"))[0], 1)
 
     def test_malformed_input_is_allowed(self):
         self.assertEqual(run(None, raw="not json")[0], 0)
@@ -95,10 +103,10 @@ class ShellTests(unittest.TestCase):
             code, err, _ = run(orch("Bash", command=cmd))
             self.assertEqual(code, 0, f"{cmd}: {err}")
 
-    def test_work_is_denied_with_the_owner_named(self):
+    def test_work_draws_a_reminder_naming_the_owner(self):
         for cmd, owner in self.DENIED:
             code, err, _ = run(orch("Bash", command=cmd))
-            self.assertEqual(code, 2, cmd)
+            self.assertEqual(code, 1, cmd)
             self.assertIn(owner or "Dispatch the agent that owns it", err, cmd)
 
     def test_the_same_commands_from_a_subagent_are_allowed(self):
@@ -107,18 +115,21 @@ class ShellTests(unittest.TestCase):
                              0, cmd)
 
     def test_powershell_is_covered(self):
-        self.assertEqual(run(orch("PowerShell", command="dotnet test"))[0], 2)
+        self.assertEqual(run(orch("PowerShell", command="dotnet test"))[0], 1)
 
 
 class CopilotTests(unittest.TestCase):
     """Copilot payloads: camelCase (toolName, toolArgs as a JSON string) or snake_case; the hook is agent-scoped."""
 
-    def test_scoped_hook_denies_the_main_agents_edits_and_work(self):
-        self.assertEqual(run({"toolName": "edit", "toolArgs": json.dumps({"path": ".claude/rules/x.md"})}, "--scoped")[0], 2)
-        self.assertEqual(run({"toolName": "bash", "toolArgs": json.dumps({"command": "dotnet test"})}, "--scoped")[0], 2)
-        self.assertEqual(run({"tool_name": "Write", "tool_input": {"file_path": "src/a.py"}}, "--scoped")[0], 2)
+    def test_scoped_hook_reminds_the_main_agent_after_its_edits_and_work(self):
+        _, text, out = run({"toolName": "edit", "toolArgs": {"path": "src/a.py"}}, "--scoped")
+        self.assertEqual(json.loads(out)["additionalContext"], text)  # Copilot CLI: top level
+        self.assertEqual(json.loads(out)["hookSpecificOutput"]["hookEventName"], "PostToolUse")
+        self.assertEqual(run({"toolName": "edit", "toolArgs": json.dumps({"path": ".claude/rules/x.md"})}, "--scoped")[0], 1)
+        self.assertEqual(run({"toolName": "bash", "toolArgs": json.dumps({"command": "dotnet test"})}, "--scoped")[0], 1)
+        self.assertEqual(run({"tool_name": "Write", "tool_input": {"file_path": "src/a.py"}}, "--scoped")[0], 1)
         patch = "*** Begin Patch\n*** Update File: src/a.py\n@@\n-x\n+y\n*** End Patch"
-        self.assertEqual(run({"toolName": "apply_patch", "toolArgs": {"input": patch}}, "--scoped")[0], 2)
+        self.assertEqual(run({"toolName": "apply_patch", "toolArgs": {"input": patch}}, "--scoped")[0], 1)
 
     def test_scoped_hook_allows_bookkeeping_and_subagents(self):
         self.assertEqual(run({"toolName": "bash", "toolArgs": json.dumps({"command": "git status"})}, "--scoped")[0], 0)
@@ -138,7 +149,7 @@ class ProbeTests(unittest.TestCase):
             report = subprocess.run([sys.executable, "-I", "-B", str(PROBE), "report", "--root", d],
                                     capture_output=True, text=True)
             self.assertEqual(report.returncode, 0, report.stdout)
-            self.assertIn("yes, blocking is safe", report.stdout)
+            self.assertIn("yes, the reminder reaches only the main session", report.stdout)
             self.assertEqual(list(pathlib.Path(d).rglob("__pycache__")), [])
 
 

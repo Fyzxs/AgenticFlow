@@ -47,7 +47,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from layout import HOME, LEARNED, LEGACY_HOMES, NAME, PACKAGE  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
-VERSION = "0.4.5"
+VERSION = "0.4.6"
 HOOK_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/block_kill_by_name.py"'
 GUARD_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/orchestrator_guard.py"'
 MAIN_AGENT = "orchestrator"
@@ -289,13 +289,14 @@ def copilot_skill(name: str, prompt: pathlib.Path) -> str:
 def with_scoped_guard(text: str, probe: bool) -> str:
     """The Copilot orchestrator agent with the guard as an agent-scoped hook: it runs only while the orchestrator is
     the selected agent, which is what tells the guard the call is the orchestrator's own (Copilot's hook input
-    names no main agent; a subagent's call carries agent_id and is allowed)."""
+    names no main agent; a subagent's call carries agent_id and draws no reminder). PostToolUse, because Copilot CLI
+    documents additionalContext only after the call."""
     m = re.match(r"\A---\n(.*?)\n---\n", text, re.S)
     if not m:
         return text
     cmd = (f"{python_name()} -I {HOME}/{PACKAGE}/engine/hooks/orchestrator_guard.py --scoped"
            + (" --probe" if probe else ""))
-    hooks = f"hooks:\n  PreToolUse:\n    - type: command\n      command: {cmd}\n      timeoutSec: 15"
+    hooks = f"hooks:\n  PostToolUse:\n    - type: command\n      command: {cmd}\n      timeoutSec: 15"
     return "---\n" + m.group(1) + "\n" + hooks + "\n---\n" + text[m.end():]
 
 

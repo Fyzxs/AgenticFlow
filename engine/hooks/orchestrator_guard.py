@@ -1,27 +1,29 @@
-"""PreToolUse hook: the orchestrator does no work; it dispatches the agent that owns it.
+"""Tool hook: the orchestrator does no work; it dispatches the agent that owns it.
 
 Prose said so and failed twice in one day (DocMcStorage F-1984, F-1986): the main session edited rule docs, work
-packages and pipeline YAML, ran `ci`, and posted PR replies with no prefix under the owner's name. This guard
-denies those calls for the orchestrator's own session, and names the agent to dispatch instead.
+packages and pipeline YAML, ran `ci`, and posted PR replies with no prefix under the owner's name. Denying those
+calls (0.4.4) got in the way when the orchestrator had a real reason to do it (Quinn, 2026-11-24), so this hook
+never blocks: it lets the call run and adds a reminder to the model's context naming the agent to dispatch.
 
-When it applies (otherwise it allows everything):
+When it applies (otherwise it stays silent):
   Claude Code: the payload's `agent_type` is "orchestrator" and it has no `agent_id`. install.py makes the main
     session the orchestrator (`"agent": "orchestrator"` in .claude/settings.json); a call from a subagent carries
-    `agent_id` (also a dispatched orchestrator), so subagents are never blocked.
+    `agent_id` (also a dispatched orchestrator), so subagents never see the reminder. PreToolUse.
   GitHub Copilot (--scoped): the hook is declared in the orchestrator agent's own `hooks:` frontmatter, so it runs
     only while that agent is selected; a call with no `agent_id` is the orchestrator's own, not a subagent's.
+    PostToolUse: Copilot CLI documents context injection only after the call.
 
-What the orchestrator may still do:
+What draws no reminder:
   Edits: only its own run-folder bookkeeping, EDITABLE below (review files, input.md, review-requests.md).
   Shell: only the commands in the allow-list below, every segment of a compound command. No command substitution,
     no heredocs, no output redirection to a file (a redirect is an edit by another name).
-The allow-list is a constant here on purpose: a run must not be able to widen its own guard from project config.
-A project that needs another bookkeeping command proposes it upstream.
+The list is a constant here on purpose; a project that needs another bookkeeping command proposes it upstream.
 
   python -I orchestrator_guard.py [--scoped] [--probe]
 --probe logs each payload's agent fields to .fyzxsflow/runs/_adhoc/hook-probe.jsonl and allows everything
-(orchestrator_probe.py report reads it). Malformed input is allowed (exit 0), as block_kill_by_name.py does.
-A denial exits 2 with the reason on stderr, and also prints the JSON decision both hosts read.
+(orchestrator_probe.py report reads it). Always exits 0. A reminder is printed as JSON `additionalContext`
+(under hookSpecificOutput for Claude Code and VS Code, also top level for Copilot CLI), with no permission
+decision, so the host's normal permission flow is unchanged.
 """
 
 import json
@@ -80,11 +82,11 @@ def owner_of(text: str) -> str:
 
 
 def denial(what: str, owner: str) -> str:
-    who = f"Dispatch {owner}." if owner else DISPATCH
-    return (f"Blocked by fyzxsflow engine/hooks/orchestrator_guard.py: the orchestrator does no work ({what}). {who} "
-            "The orchestrator keeps only bookkeeping: the engine's run/lanes/findings/feedback/steps/review/waves/"
-            "ac_trace/pr commands, review files, git add/commit/push by path, and talking to the owner. If you are a "
-            "dispatched subagent and see this, it is a FyzxsFlow bug: say so in your report.")
+    who = f"Dispatch {owner} for work like this." if owner else DISPATCH
+    return (f"FyzxsFlow reminder: delegate. The orchestrator does no work itself ({what}). {who} If there was a real "
+            "reason to do it yourself, say why in the ledger (`run.py log <run> <stage> decided \"did it in-session: "
+            "<why>\"`). The orchestrator's own work is bookkeeping: the engine's run/lanes/findings/feedback/steps/"
+            "review/waves/ac_trace/pr commands, review files, git add/commit/push by path, and talking to the owner.")
 
 
 # ---------------------------------------------------------------- payloads (Claude Code, VS Code and Copilot CLI shapes)
@@ -232,7 +234,7 @@ def probe_log(payload: dict, scoped: bool):
 
 
 def decide(payload: dict, scoped: bool):
-    """None to allow, else the reason to deny."""
+    """None when the call is the orchestrator's own bookkeeping (or not its call at all), else the reminder."""
     tool, args, agent_id, agent_type = fields(payload)
     if agent_id:
         return None  # a subagent (a dispatched orchestrator too)
@@ -263,14 +265,15 @@ def main(argv=None) -> int:
     if probe:
         probe_log(payload, scoped)
         return 0
-    reason = decide(payload, scoped)
-    if reason is None:
+    reminder = decide(payload, scoped)
+    if reminder is None:
         return 0
-    print(json.dumps({"permissionDecision": "deny", "permissionDecisionReason": reason,
-                      "hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
-                                             "permissionDecisionReason": reason}}))
-    sys.stderr.write(reason + "\n")
-    return 2
+    event = payload.get("hook_event_name") or payload.get("hookEventName") or ("PostToolUse" if scoped else "PreToolUse")
+    out = {"hookSpecificOutput": {"hookEventName": event, "additionalContext": reminder}}
+    if scoped:
+        out["additionalContext"] = reminder  # Copilot CLI reads it at the top level
+    print(json.dumps(out))
+    return 0
 
 
 if __name__ == "__main__":
