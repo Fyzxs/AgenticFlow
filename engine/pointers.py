@@ -4,7 +4,9 @@ host follow the same conventions. One source: the pointers only say "read the se
   python -I engine/pointers.py [--root <repo>]            # write / refresh pointers
   python -I engine/pointers.py --check [--root <repo>]    # exit 1 if any pointer is missing, stale or edited
 
-Hosts come from .fyzxsflow/config.json -> docs.host_pointers (default ["claude", "copilot"]):
+Hosts come from .fyzxsflow/config.json -> docs.host_pointers (default ["claude", "copilot"]), narrowed to the hosts
+installed in the repo (.claude/agents/ -> claude, .github/agents/ -> copilot), so a Copilot-only repo gets no .claude/
+files; with neither installed, the configured list is used as is:
   claude  -> .claude/rules/fyzxsflow-<segment>.md                       (frontmatter `paths:`)
   copilot -> .github/instructions/fyzxsflow-<segment>.instructions.md   (frontmatter `applyTo:`)
 Only files named fyzxsflow-* are managed; hand-written rules and instructions are never touched.
@@ -57,6 +59,13 @@ def render(host: str, seg: str, globs: list, title: str, doc_rel: str, has_pack:
     return fm + "\n" + body(doc_rel, has_pack, planned)
 
 
+INSTALLED_MARKERS = {"claude": pathlib.Path(".claude/agents"), "copilot": pathlib.Path(".github/agents")}
+
+
+def installed_hosts(root: pathlib.Path) -> list:
+    return [h for h, marker in INSTALLED_MARKERS.items() if (root / marker).is_dir()]
+
+
 def expected(root: pathlib.Path, hosts: list) -> dict:
     out = {}
     seg_dir = root / HOME / "docs" / "segments"
@@ -101,6 +110,9 @@ def main(argv=None) -> int:
     if unknown:
         print(f"unknown host(s) in docs.host_pointers: {', '.join(unknown)}", file=sys.stderr)
         return 2
+    installed = installed_hosts(root)
+    if installed:
+        hosts = [h for h in hosts if h in installed]
 
     want = expected(root, hosts)
     have = managed(root, list(TARGETS))

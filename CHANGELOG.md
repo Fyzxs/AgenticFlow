@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.7 (2026-11-24)
+- **A Copilot-only repo gets no `.claude/` files.** `pointers.py` wrote segment pointers for every host in
+  `docs.host_pointers`, which the config template sets to both hosts, so the Cartographer created `.claude/rules/`
+  in repos installed with `--host copilot` alone. It now writes pointers only for installed hosts
+  (`.claude/agents/`, `.github/agents/`), and treats an uninstalled host's old pointers as stale.
+
 ## 0.4.6 (2026-11-24)
 - **The orchestrator hook reminds instead of blocking.** Denying the orchestrator's own edits and commands got in
   the way when it had a real reason to do the work (seen on Copilot). `orchestrator_guard.py` now always lets the

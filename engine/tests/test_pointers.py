@@ -96,6 +96,13 @@ class PointerTests(unittest.TestCase):
         self.assertIn("fyzxsflow-mapper.md: out of date or edited by hand", out)
         self.assertIn("fyzxsflow-gone.instructions.md: no matching segment doc (stale)", out)
 
+    def test_only_installed_hosts_get_pointers(self):
+        (self.root / ".github" / "agents").mkdir(parents=True)  # a Copilot-only install
+        code, out = self.pointers()
+        self.assertEqual(code, 0, out)
+        self.assertEqual(list((self.root / ".claude" / "rules").glob("fyzxsflow-*")), [])
+        self.assertTrue(list((self.root / ".github" / "instructions").glob("fyzxsflow-*.instructions.md")))
+
     def test_refresh_removes_stale_and_respects_host_config(self):
         (self.root / ".fyzxsflow" / "config.json").write_text(json.dumps({"docs": {"host_pointers": ["copilot"]}}), encoding="utf-8")
         (self.root / ".claude/rules/fyzxsflow-mapper.md").write_text("old", encoding="utf-8")

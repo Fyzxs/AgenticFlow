@@ -253,7 +253,7 @@ Nothing changes a tier automatically; the Curator proposes it where the summary 
 | Key | Default | Meaning |
 |---|---|---|
 | `pack_budget_kb` | `24` | largest context pack (a segment doc plus the docs it pulls in) an agent is handed; `docs_check.py` fails above it, naming the pack's largest files and the bytes over, and warns within 1 KB of it. Split a doc or raise the budget; never cut content to fit |
-| `host_pointers` | `["claude", "copilot"]` | hosts that get per-segment pointer files (`.claude/rules/`, `.github/instructions/`) so their own agents find the docs too |
+| `host_pointers` | `["claude", "copilot"]` | hosts that get per-segment pointer files (`.claude/rules/`, `.github/instructions/`) so their own agents find the docs too; only hosts installed in the repo (`.claude/agents/`, `.github/agents/`) get them, so a Copilot-only repo gets no `.claude/` files |
 
 ## build
 
