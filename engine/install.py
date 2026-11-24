@@ -17,11 +17,13 @@ Installed layout (engine/layout.py):
 Host files generated from it (each agent = package/agents/<a>.agent.md + its learned/<a>.md entries):
   claude:  .claude/agents/<name>.md, .claude/rules/fyzxsflow-working-agreement.md,
            .claude/commands/<prompt>.md, .claude/skills/<skill>/SKILL.md,
-           merged into .claude/settings.json: the kill-by-name hook, the orchestrator guard (edits and shell), and
+           merged into .claude/settings.json: the kill-by-name hook, the orchestrator hook
+           (hooks/orchestrator_guard_claude.py: review gate + delegation reminder), and
            "agent": "orchestrator", so the main session is the orchestrator and does no work itself (--no-main-agent
            leaves `agent` out; a plain session is then `claude` as usual). Entries that aren't ours are never touched.
-  copilot: .github/agents/<name>.agent.md (the orchestrator's carries the guard as an agent-scoped `hooks:` entry,
-           which runs only while that agent is selected), .github/hooks/fyzxsflow.json (kill-by-name),
+  copilot: .github/agents/<name>.agent.md (the orchestrator's carries hooks/orchestrator_guard_copilot.py as
+           agent-scoped `hooks:` entries, pre = review gate and post = delegation reminder, which run only while that
+           agent is selected), .github/hooks/fyzxsflow.json (kill-by-name),
            .github/instructions/fyzxsflow-working-agreement.instructions.md,
            .github/skills/<prompt>/SKILL.md   (the slash commands, as VS Code agent skills; the prompt files
                                               earlier installs wrote to .github/prompts/ are removed)
@@ -47,11 +49,12 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from layout import HOME, LEARNED, LEGACY_HOMES, NAME, PACKAGE  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
-VERSION = "0.4.9"
+VERSION = "0.5.0"
 HOOK_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/block_kill_by_name.py"'
-GUARD_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/orchestrator_guard.py"'
+GUARD_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/orchestrator_guard_claude.py"'
+OLD_GUARD_MARKERS = ("/engine/hooks/orchestrator_guard.py",)  # 0.4.4-0.4.9: one script for both hosts
 MAIN_AGENT = "orchestrator"
-GUARD_TOOLS = "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell"
+GUARD_TOOLS = "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Agent|Task"
 
 
 def python_name() -> str:
@@ -288,15 +291,17 @@ def copilot_skill(name: str, prompt: pathlib.Path) -> str:
 
 def with_scoped_guard(text: str, probe: bool) -> str:
     """The Copilot orchestrator agent with the guard as an agent-scoped hook: it runs only while the orchestrator is
-    the selected agent, which is what tells the guard the call is the orchestrator's own (Copilot's hook input
-    names no main agent; a subagent's call carries agent_id and draws no reminder). PostToolUse, because Copilot CLI
-    documents additionalContext only after the call."""
+    the selected agent, which is what tells the hook the call is the orchestrator's own (Copilot's hook input
+    names no main agent; a subagent's call carries agent_id and is never touched). PreToolUse runs the review gate
+    (a deny is only possible before the call), PostToolUse the delegation reminder (Copilot CLI documents
+    additionalContext only after the call)."""
     m = re.match(r"\A---\n(.*?)\n---\n", text, re.S)
     if not m:
         return text
-    cmd = (f"{python_name()} -I {HOME}/{PACKAGE}/engine/hooks/orchestrator_guard.py --scoped"
-           + (" --probe" if probe else ""))
-    hooks = f"hooks:\n  PostToolUse:\n    - type: command\n      command: {cmd}\n      timeoutSec: 15"
+    script = f"{python_name()} -I {HOME}/{PACKAGE}/engine/hooks/orchestrator_guard_copilot.py"
+    probe_flag = " --probe" if probe else ""
+    hooks = (f"hooks:\n  PreToolUse:\n    - type: command\n      command: {script} pre{probe_flag}\n      timeoutSec: 15\n"
+             f"  PostToolUse:\n    - type: command\n      command: {script} post{probe_flag}\n      timeoutSec: 15")
     return "---\n" + m.group(1) + "\n" + hooks + "\n---\n" + text[m.end():]
 
 
@@ -319,10 +324,12 @@ def merge_claude_settings(settings: pathlib.Path, written: list, main_agent: boo
     before = json.dumps(data, sort_keys=False)
     pre = data.setdefault("hooks", {}).setdefault("PreToolUse", [])
     for marker, matcher, cmd in claude_hooks(probe):
-        mine = [h for e in pre for h in e.get("hooks", []) if marker in h.get("command", "")]
+        markers = (marker, *(OLD_GUARD_MARKERS if marker == GUARD_SCRIPT else ()))
+        mine = [(e, h) for e in pre for h in e.get("hooks", []) if any(m in h.get("command", "") for m in markers)]
         if mine:
-            for h in mine:
-                h["command"] = cmd  # ours, whatever interpreter or mode it was installed with
+            for e, h in mine:
+                h["command"] = cmd  # ours, whatever interpreter, mode or script name it was installed with
+                e["matcher"] = matcher
         else:
             pre.append({"matcher": matcher, "hooks": [{"type": "command", "command": cmd}]})
     wrote_agent = bool(state.get("agent"))

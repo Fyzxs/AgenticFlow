@@ -64,7 +64,7 @@ class InstallTests(unittest.TestCase):
             self.assertTrue((pkg / rel).exists(), rel)
         self.assertFalse((pkg / "engine" / "tests").exists())
         self.assertEqual(list(pkg.rglob("__pycache__")), [])  # the install imports the installed engine: no bytecode
-        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.4.9")
+        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.5.0")
         self.assertTrue((self.root / ".claude/agents/implementer.md").exists())
         flow_cmd = (self.root / ".claude/commands/flow.md").read_text(encoding="utf-8")
         self.assertIn("Request: $ARGUMENTS", flow_cmd)
@@ -203,7 +203,7 @@ class InstallTests(unittest.TestCase):
         hooks = json.loads((self.root / ".claude/settings.json").read_text(encoding="utf-8"))["hooks"]["PreToolUse"]
         self.assertEqual([h["hooks"][0]["command"] for h in hooks],
                          [f'{install.python_name()} -I "$CLAUDE_PROJECT_DIR/.fyzxsflow/package/engine/hooks/block_kill_by_name.py"',
-                          f'{install.python_name()} -I "$CLAUDE_PROJECT_DIR/.fyzxsflow/package/engine/hooks/orchestrator_guard.py"'])
+                          f'{install.python_name()} -I "$CLAUDE_PROJECT_DIR/.fyzxsflow/package/engine/hooks/orchestrator_guard_claude.py"'])
         gi = (self.root / ".gitignore").read_text(encoding="utf-8")
         self.assertNotIn(".agentflow", gi)
         self.assertEqual(gi.count(".fyzxsflow/runs/_adhoc/"), 1)
@@ -272,9 +272,10 @@ class InstallTests(unittest.TestCase):
         self.assertEqual(s["agent"], "orchestrator")
         self.assertEqual(s["model"], "keep-me")
         guard = s["hooks"]["PreToolUse"][1]
-        self.assertEqual(guard["matcher"], "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell")
-        self.assertTrue(guard["hooks"][0]["command"].endswith('engine/hooks/orchestrator_guard.py"'))
-        self.assertTrue((self.root / ".fyzxsflow/package/engine/hooks/orchestrator_guard.py").exists())
+        self.assertEqual(guard["matcher"], "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Agent|Task")
+        self.assertTrue(guard["hooks"][0]["command"].endswith('engine/hooks/orchestrator_guard_claude.py"'))
+        for script in ("orchestrator_guard_claude.py", "orchestrator_guard_copilot.py", "orchestrator_rules.py"):
+            self.assertTrue((self.root / ".fyzxsflow/package/engine/hooks" / script).exists(), script)
         installed = json.loads((self.root / ".fyzxsflow/package/INSTALLED.json").read_text(encoding="utf-8"))
         self.assertEqual(installed["claude_settings"], {"agent": True, "probe": False})
         # --no-main-agent removes the agent we wrote; the guard stays (it only acts for an orchestrator session)
@@ -320,13 +321,28 @@ class InstallTests(unittest.TestCase):
         self.install("--host", "claude", "--no-main-agent")
         self.assertEqual(self.settings()["agent"], "orchestrator")
 
+    def test_an_entry_for_the_old_single_guard_script_is_updated_in_place(self):
+        old = {"matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell", "hooks": [{"type": "command",
+               "command": 'python -I "$CLAUDE_PROJECT_DIR/.fyzxsflow/package/engine/hooks/orchestrator_guard.py"'}]}
+        (self.root / ".claude" / "settings.json").write_text(json.dumps({"hooks": {"PreToolUse": [old]}}), encoding="utf-8")
+        code, out = self.install("--host", "claude")
+        self.assertEqual(code, 0, out)
+        pre = self.settings()["hooks"]["PreToolUse"]
+        guards = [e for e in pre if "orchestrator_guard" in e["hooks"][0]["command"]]
+        self.assertEqual(len(guards), 1)
+        self.assertTrue(guards[0]["hooks"][0]["command"].endswith('orchestrator_guard_claude.py"'))
+        self.assertTrue(guards[0]["matcher"].endswith("|Agent|Task"))
+        self.assertEqual(pre.index(guards[0]), 0)  # kept its place
+
     def test_copilot_gets_the_guard_scoped_to_the_orchestrator_and_the_kill_hook(self):
         code, out = self.install("--host", "copilot")
         self.assertEqual(code, 0, out)
         orch = (self.root / ".github/agents/orchestrator.agent.md").read_text(encoding="utf-8")
         head = orch.split("\n---\n", 1)[0]
-        self.assertIn("hooks:\n  PostToolUse:\n    - type: command\n      command: ", head)
-        self.assertIn("engine/hooks/orchestrator_guard.py --scoped", head)
+        self.assertIn("hooks:\n  PreToolUse:\n    - type: command\n      command: ", head)
+        self.assertIn("engine/hooks/orchestrator_guard_copilot.py pre\n", head)
+        self.assertIn("  PostToolUse:\n    - type: command\n      command: ", head)
+        self.assertIn("engine/hooks/orchestrator_guard_copilot.py post\n", head)
         self.assertNotIn("hooks:", (self.root / ".github/agents/implementer.agent.md").read_text(encoding="utf-8").split("\n---\n", 1)[0])
         hooks = json.loads((self.root / ".github/hooks/fyzxsflow.json").read_text(encoding="utf-8"))
         self.assertEqual(hooks["version"], 1)

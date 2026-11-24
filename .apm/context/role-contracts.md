@@ -48,7 +48,7 @@ is a pattern a doc marks legacy, which you never copy, however often it appears 
 - **The Orchestrator does no work:** it dispatches the agent that owns it, and keeps only bookkeeping (the
   engine's run/lanes/findings/feedback/steps/review/waves/ac_trace commands, ledger lines, package status through
   `run.py package-status`, review files, staging by path, committing and pushing, opening and publishing PRs,
-  closing lanes, talking to the owner). On Claude Code and Copilot a hook reminds it (`engine/hooks/orchestrator_guard.py`; it never blocks).
+  closing lanes, talking to the owner). On Claude Code and Copilot a hook reminds it (`engine/hooks/orchestrator_rules.py`; the reminder never blocks, but an open review pause blocks its dispatches).
 - **Pull requests:** the Orchestrator opens, pushes, updates and publishes them through the engine (`lanes.py pr`
   for a PR group's PR into the run branch, `pr.py` for the run branch's roll-up PR into the default branch). The PR
   Producer writes every description they carry (the roll-up's, each group's body, every update) and writes and

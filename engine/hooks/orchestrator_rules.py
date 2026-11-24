@@ -1,29 +1,26 @@
-"""Tool hook: the orchestrator does no work; it dispatches the agent that owns it.
+"""The orchestrator's hook rules, shared by the host entry scripts (orchestrator_guard_claude.py,
+orchestrator_guard_copilot.py). Nothing here reads stdin or prints: each entry script turns these answers into its
+host's hook output.
 
-Prose said so and failed twice in one day (DocMcStorage F-1984, F-1986): the main session edited rule docs, work
-packages and pipeline YAML, ran `ci`, and posted PR replies with no prefix under the owner's name. Denying those
-calls (0.4.4) got in the way when the orchestrator had a real reason to do it (Quinn, 2026-11-24), so this hook
-never blocks: it lets the call run and adds a reminder to the model's context naming the agent to dispatch.
+Two rules, for the orchestrator's own calls only (a subagent's call carries agent_id and is never touched):
+1. Delegation reminder (reminder()): the orchestrator does no work; it dispatches the agent that owns it. Prose said
+   so and failed twice in one day (DocMcStorage F-1984, F-1986). Denying those calls (0.4.4) got in the way when the
+   orchestrator had a real reason (Quinn, 2026-11-24), so this never blocks: the host adds a reminder naming the
+   agent to dispatch.
+2. Review gate (review_gate()): while the run waits on the owner's review (review.py open), the orchestrator may not
+   dispatch agents or move lanes and PRs. This one blocks. A Build pause holds only its own PR group, so it doesn't.
 
-When it applies (otherwise it stays silent):
-  Claude Code: the payload's `agent_type` is "orchestrator" and it has no `agent_id`. install.py makes the main
-    session the orchestrator (`"agent": "orchestrator"` in .claude/settings.json); a call from a subagent carries
-    `agent_id` (also a dispatched orchestrator), so subagents never see the reminder. PreToolUse.
-  GitHub Copilot (--scoped): the hook is declared in the orchestrator agent's own `hooks:` frontmatter, so it runs
-    only while that agent is selected; a call with no `agent_id` is the orchestrator's own, not a subagent's.
-    PostToolUse: Copilot CLI documents context injection only after the call.
+Whose call it is:
+  Claude Code: the payload's `agent_type` is "orchestrator" and it has no `agent_id` (install.py makes the main
+    session the orchestrator with `"agent": "orchestrator"` in .claude/settings.json).
+  GitHub Copilot (scoped=True): the hooks are declared in the orchestrator agent's own `hooks:` frontmatter, so they
+    run only while that agent is selected; a call with no `agent_id` is the orchestrator's own.
 
 What draws no reminder:
   Edits: only its own run-folder bookkeeping, EDITABLE below (review files, input.md, review-requests.md).
   Shell: only the commands in the allow-list below, every segment of a compound command. No command substitution,
     no heredocs, no output redirection to a file (a redirect is an edit by another name).
-The list is a constant here on purpose; a project that needs another bookkeeping command proposes it upstream.
-
-  python -I orchestrator_guard.py [--scoped] [--probe]
---probe logs each payload's agent fields to .fyzxsflow/runs/_adhoc/hook-probe.jsonl and allows everything
-(orchestrator_probe.py report reads it). Always exits 0. A reminder is printed as JSON `additionalContext`
-(under hookSpecificOutput for Claude Code and VS Code, also top level for Copilot CLI), with no permission
-decision, so the host's normal permission flow is unchanged.
+The lists are constants here on purpose; a project that needs another bookkeeping command proposes it upstream.
 """
 
 import json
@@ -32,6 +29,10 @@ import pathlib
 import re
 import shlex
 import sys
+
+sys.dont_write_bytecode = True  # never leave __pycache__ in the project
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from layout import HOME, PACKAGE  # noqa: E402
 
 ROLE = "orchestrator"
 
@@ -221,7 +222,7 @@ def segment_problem(words: list):
 # ---------------------------------------------------------------- main
 
 def probe_log(payload: dict, scoped: bool):
-    root = pathlib.Path(os.environ.get("CLAUDE_PROJECT_DIR") or payload.get("cwd") or ".")
+    root = project_root(payload)
     out = root / ".fyzxsflow" / "runs" / "_adhoc" / "hook-probe.jsonl"
     out.parent.mkdir(parents=True, exist_ok=True)
     tool, _, agent_id, agent_type = fields(payload)
@@ -233,7 +234,7 @@ def probe_log(payload: dict, scoped: bool):
         f.write(json.dumps(row) + "\n")
 
 
-def decide(payload: dict, scoped: bool):
+def reminder(payload: dict, scoped: bool):
     """None when the call is the orchestrator's own bookkeeping (or not its call at all), else the reminder."""
     tool, args, agent_id, agent_type = fields(payload)
     if agent_id:
@@ -253,28 +254,64 @@ def decide(payload: dict, scoped: bool):
     return None
 
 
-def main(argv=None) -> int:
-    argv = sys.argv[1:] if argv is None else argv
-    scoped, probe = "--scoped" in argv, "--probe" in argv
+# ---------------------------------------------------------------- the review gate
+
+DISPATCH_TOOLS = {"agent", "task", "runsubagent", "run_subagent"}
+MOVES = re.compile(r"(?:^|[\s/'\"])\.fyzxsflow/package/engine/(lanes|pr)\.py\s+(\w[\w-]*)")
+READ_ONLY_MOVES = {("lanes", "refresh"), ("lanes", "status"), ("pr", "status"), ("pr", "show")}
+
+
+def project_root(payload: dict) -> pathlib.Path:
+    start = pathlib.Path(os.environ.get("CLAUDE_PROJECT_DIR") or payload.get("cwd") or ".").resolve()
+    for d in (start, *start.parents):
+        if (d / HOME).is_dir():
+            return d
+    return start
+
+
+def blocking_pauses(root: pathlib.Path) -> list:
+    """(run folder, pause) for every open review pause outside Build in the active runs."""
+    engine = pathlib.Path(__file__).resolve().parent.parent
+    if str(engine) not in sys.path:
+        sys.path.insert(0, str(engine))
+    import review  # noqa: E402  (the installed engine's own)
+    out = []
+    active = root / HOME / "runs" / "active"
+    for run in sorted(active.iterdir()) if active.is_dir() else []:
+        if run.is_dir():
+            out += [(run, p) for p in review.open_pauses(run) if (p.get("stage") or "") != "build"]
+    return out
+
+
+def is_orchestrators_call(payload: dict, scoped: bool) -> bool:
+    _, _, agent_id, agent_type = fields(payload)
+    return not agent_id and (scoped or agent_type == ROLE)
+
+
+def review_gate(payload: dict, scoped: bool):
+    """None, or why this call must wait for the owner's review."""
+    if not is_orchestrators_call(payload, scoped):
+        return None
+    tool, args, _, _ = fields(payload)
+    if tool in DISPATCH_TOOLS:
+        what = "dispatching an agent"
+    elif tool in SHELL_TOOLS:
+        m = MOVES.search(str(args.get("command") or args.get("script") or "").replace("\\", "/"))
+        if not m or (m.group(1), m.group(2)) in READ_ONLY_MOVES:
+            return None
+        what = f"`{m.group(1)}.py {m.group(2)}`"
+    else:
+        return None
     try:
-        payload = json.load(sys.stdin)
-    except (ValueError, OSError):
-        return 0
-    if not isinstance(payload, dict):
-        return 0
-    if probe:
-        probe_log(payload, scoped)
-        return 0
-    reminder = decide(payload, scoped)
-    if reminder is None:
-        return 0
-    event = payload.get("hook_event_name") or payload.get("hookEventName") or ("PostToolUse" if scoped else "PreToolUse")
-    out = {"hookSpecificOutput": {"hookEventName": event, "additionalContext": reminder}}
-    if scoped:
-        out["additionalContext"] = reminder  # Copilot CLI reads it at the top level
-    print(json.dumps(out))
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+        pauses = blocking_pauses(project_root(payload))
+    except Exception:  # noqa: BLE001  (a broken run folder must not wedge the session)
+        return None
+    if not pauses:
+        return None
+    run, p = pauses[0]
+    return (f"Blocked by FyzxsFlow: the run is waiting for the owner's review of {p.get('agent')} on "
+            f"{p.get('target')} ({p.get('reason')}), so {what} has to wait. Stop and show the owner the review "
+            f"(`review.py show --review-file <its review file>`). When the owner replies, record the reply verbatim: "
+            f"`python -I {HOME}/{PACKAGE}/engine/review.py decide --run {run.name} --agent {p.get('agent')} "
+            f"--target {p.get('target')} --reply \"<the owner's words>\" --review-file <its review file>`; that "
+            f"closes the pause. Never write a reply the owner didn't give. Open pauses: `review.py open --run {run.name}`.")

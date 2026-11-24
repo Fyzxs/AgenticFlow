@@ -79,9 +79,20 @@ rules weren't enough (the main session edited docs and pipeline files, ran `ci`,
 owner's name), so the install adds a reminder. It never blocks: 0.4.4 denied those calls, and that got in the way
 when the orchestrator had a real reason to do it.
 
+**Review pauses are enforced.** When `review.py needed` answers `review=pause`, the pause is recorded in the run's
+`reviews.jsonl` and stays open until `review.py decide` records your reply (`review.py open --run <run>` lists
+them). While one is open, the same hook **blocks** the orchestrator from dispatching agents and from moving lanes
+and PRs (`lanes.py` / `pr.py`, except read-only commands), and tells it to show you the review. A Build pause
+(`always:` or `run-request:` areas) holds only its own PR group, so other groups go on; Build's ordinary agent-level
+review happens on the group PR and isn't recorded as a pause. `- autopilot` in the run's `review-requests.md`
+still skips pauses outside your always-review areas.
+
+The hook is one rules file, `engine/hooks/orchestrator_rules.py`, with an entry script per host:
+
 - **Claude Code:** `.claude/settings.json` gets `"agent": "orchestrator"`, so every session in the repo starts as
-  the orchestrator, plus the guard hook `engine/hooks/orchestrator_guard.py` (matcher
-  `Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell`). The call always runs. When it is the main session's own edit
+  the orchestrator, plus the hook `engine/hooks/orchestrator_guard_claude.py` (PreToolUse, matcher
+  `Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Agent|Task`): the review gate first, then the reminder. Apart
+  from the review gate, the call always runs. When it is the main session's own edit
   (other than its run-folder bookkeeping: review files, `input.md`, `review-requests.md`) or a shell command outside
   a fixed list (the engine's bookkeeping scripts, `git add/commit/push` and read-only git, `docker compose -p <name>
   down`, PR reads, plain reads such as `ls` and `cat`), the hook adds a reminder to the model's context naming the
@@ -91,9 +102,11 @@ when the orchestrator had a real reason to do it.
   - **For a plain session**, start `claude --agent general-purpose`. To leave `agent` out entirely, install with
     `--no-main-agent`, which removes only an `agent` value the install wrote. The hook stays installed but only acts
     for an orchestrator session.
-- **GitHub Copilot (CLI and VS Code):** the orchestrator's `.github/agents/orchestrator.agent.md` carries the same
-  hook as an agent-scoped `hooks:` entry, on PostToolUse (Copilot CLI documents added context only after a call).
-  Copilot runs that entry only while the orchestrator is the selected agent, which is how the hook knows a call is
+- **GitHub Copilot (CLI and VS Code):** the orchestrator's `.github/agents/orchestrator.agent.md` carries
+  `engine/hooks/orchestrator_guard_copilot.py` as two agent-scoped `hooks:` entries: `pre` (PreToolUse) runs the
+  review gate, since a call can only be denied before it runs, and `post` (PostToolUse) adds the reminder, since
+  Copilot CLI documents added context only after a call. Copilot runs them only while the orchestrator is the
+  selected agent, which is how the hook knows a call is
   the orchestrator's own: Copilot's hook input names no main agent.
   `.github/hooks/fyzxsflow.json` adds the kill-by-name hook. Copilot has no documented setting for a default agent,
   so **select the orchestrator yourself**: pick it in VS Code's agent picker, or start `copilot --agent orchestrator`.

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0 (2026-11-24)
+- **Review pauses are enforced.** `review.py needed` records each `review=pause` in the run's `reviews.jsonl`
+  (decision `pending`), and `review.py decide` closes it. While a pause is open, the orchestrator hook blocks the
+  orchestrator's agent dispatches and its `lanes.py` / `pr.py` moves (read-only ones excepted), and tells it to
+  show the owner the review. Build's agent-level reviews happen on the group PR and aren't recorded; a Build
+  `always:` / `run-request:` pause holds only its group. New `review.py open --run <run>`. `decide` reads "keep
+  going", "go on" and "go ahead" as continue, with the owner's words kept.
+- **One rules file, a hook script per host.** `orchestrator_guard.py` is split into `orchestrator_rules.py` (the
+  rules) plus `orchestrator_guard_claude.py` (PreToolUse: review gate, then the delegation reminder; matcher now
+  includes `Agent|Task`) and `orchestrator_guard_copilot.py` (`pre`: the review gate, since Copilot can only deny
+  before a call; `post`: the reminder, since Copilot CLI adds context only after one). A reinstall updates the old
+  `.claude/settings.json` entry in place.
+
 ## 0.4.9 (2026-11-24)
 - **`--host copilot` never touches `.claude/`** (and `--host claude` never touches `.github/`): nothing written,
   nothing deleted. `pointers.py` reads, writes and cleans only the folders of installed hosts (`INSTALLED.json`

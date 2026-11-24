@@ -5,6 +5,9 @@
   python -I .fyzxsflow/package/engine/review.py decide --run <dir> --agent <name> --target <WP-02|stage> --reply "<owner reply>"
       [--edited N] [--review-file reviews/<file>.md]
       -> "decision=<d> adjust=<less-review|more-review|none> level=<a>-><b> feedback=<F-n|none> note=<...>"
+  python -I .fyzxsflow/package/engine/review.py open --run <dir>
+      -> one line per pause the run is waiting on ("open agent=<a> target=<t> stage=<s> reason=<why>"); exit 1 when
+         any is open, 0 when none
   python -I .fyzxsflow/package/engine/review.py set-level --agent <name> --level on|notify|off --reason "<owner's words>"
   python -I .fyzxsflow/package/engine/review.py regress --agent <name> --reason "<evidence>"   (system: raise to on)
   python -I .fyzxsflow/package/engine/review.py summary [--root .]
@@ -27,6 +30,12 @@ Feedback: the reply's note and the review file's `## Human Feedback` section (wh
 together as one owner-feedback finding, the owner's words verbatim, and printed as feedback=F-n. The Orchestrator
 routes it (Docs Gardener before the next agent; with redo, also the re-dispatched agent's input). approve +
 feedback accepts this output as it is and applies the feedback from the next agent on; redo also fixes this output.
+
+Pauses are enforced: every review=pause that `needed` answers is recorded in the run's reviews.jsonl as
+decision "pending" (target: the package, else the stage), and stays open until `decide` answers that agent and
+target. While one is open, the Orchestrator's hook (hooks/orchestrator_rules.py) refuses its agent dispatches and
+its lanes.py / pr.py moves. Build's agent-level pauses aren't recorded: there the owner reviews on each group's PR.
+A Build pause (always:/run-request:) holds only its group, so it is recorded but doesn't block other dispatches.
 
 Whatever the level, a review is forced when the run's review-requests.md or config review.always matches:
   review-requests.md lines:  "- review: agent=<a>" | "stage=<s>" | "package=<WP-n>" | "segment=<seg>" |
@@ -104,6 +113,38 @@ def log(root: pathlib.Path, run, entry: dict):
         f.write(json.dumps(entry) + "\n")
 
 
+def pause_target(package, stage, agent) -> str:
+    return package or stage or agent
+
+
+def same_target(a: str, b: str) -> bool:
+    """WP-02 and its file stem WP-02-api-orders are the same target."""
+    a, b = (a or "").lower(), (b or "").lower()
+    return a == b or a.startswith(b + "-") or b.startswith(a + "-")
+
+
+def open_pauses(run: pathlib.Path) -> list:
+    """The pauses recorded in the run's reviews.jsonl that no later decision has answered, oldest first."""
+    f = run / "reviews.jsonl"
+    if not f.exists():
+        return []
+    pending = []
+    for line in f.read_text(encoding="utf-8").splitlines():
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(e, dict):
+            continue
+        if e.get("decision") == "pending":
+            if not any(p["agent"] == e.get("agent") and same_target(p["target"], e.get("target")) for p in pending):
+                pending.append(e)
+        elif e.get("decision") in DECISIONS:
+            pending = [p for p in pending
+                       if not (p.get("agent") == e.get("agent") and same_target(p.get("target"), e.get("target")))]
+    return pending
+
+
 def cmd_needed(args) -> int:
     run = pathlib.Path(args.run)
     root = root_of(run)
@@ -111,36 +152,48 @@ def cmd_needed(args) -> int:
     level = level_of(review, args.agent)
     paths = args.paths or []
 
+    def say(line):
+        """Every answer goes through here, so a pause is always recorded."""
+        print(line)
+        m = re.match(r"review=pause reason=(\S+)", line)
+        if not m or (args.stage == "build" and m.group(1) == "agent-level"):
+            return
+        target = pause_target(args.package, args.stage, args.agent)
+        if any(p["agent"] == args.agent and same_target(p["target"], target) for p in open_pauses(run)):
+            return
+        log(root, run, {"agent": args.agent, "target": target, "stage": args.stage or "", "decision": "pending",
+                        "reason": m.group(1), "by": "system"})
+
     def any_path(globs):
         rxs = [glob_to_regex(g) for g in globs]
         return next((p for p in paths for rx in rxs if rx.match(p)), None)
 
     if args.segment and args.segment in review["always"]["segments"]:
-        print(f"review=pause reason=always:segment={args.segment} level={level}")
+        say(f"review=pause reason=always:segment={args.segment} level={level}")
         return 0
     hit = any_path(review["always"]["paths"])
     if hit:
-        print(f"review=pause reason=always:path={hit} level={level}")
+        say(f"review=pause reason=always:path={hit} level={level}")
         return 0
     req_file = run / "review-requests.md"
     requests = req_file.read_text(encoding="utf-8") if req_file.exists() else ""
     wanted = {"agent": args.agent, "stage": args.stage, "package": args.package, "segment": args.segment}
     for m in REQUEST.finditer(requests):
         if m.group(1):
-            print(f"review=pause reason=run-request:all level={level}")
+            say(f"review=pause reason=run-request:all level={level}")
             return 0
         key, value = m.group(2).lower(), m.group(3)
         if key == "path" and any_path([value]):
-            print(f"review=pause reason=run-request:path={value} level={level}")
+            say(f"review=pause reason=run-request:path={value} level={level}")
             return 0
         if key != "path" and wanted.get(key) and wanted[key].lower() == value.lower():
-            print(f"review=pause reason=run-request:{key}={value} level={level}")
+            say(f"review=pause reason=run-request:{key}={value} level={level}")
             return 0
     if AUTOPILOT.search(requests):
-        print(f"review=no reason=autopilot level={level}")
+        say(f"review=no reason=autopilot level={level}")
         return 0
     action = {"on": "pause", "notify": "notify", "off": "no"}[level]
-    print(f"review={action} reason=agent-level level={level}")
+    say(f"review={action} reason=agent-level level={level}")
     return 0
 
 
@@ -149,8 +202,16 @@ ALIASES = {"approved": "approve", "approving": "approve", "continuing": "continu
 FLAG_WORDS = ("-less-review", "--less-review", "-more-review", "--more-review")
 
 
+PHRASES = (("keep going", "continue"), ("go on", "continue"), ("go ahead", "continue"))
+
+
 def parse_reply(reply: str):
-    words = reply.strip().split()
+    text = reply.strip()
+    for phrase, word in PHRASES:
+        if text.lower().startswith(phrase):
+            text = f"{word} {text}"  # the owner's words stay in the note
+            break
+    words = text.split()
     if not words:
         raise ValueError("empty reply")
     decision = words[0].lower().rstrip(":,.!")
@@ -241,6 +302,16 @@ def cmd_decide(args) -> int:
         inbox.mark_seen(args.review_file, feedback, section)  # feedback.py scan won't record it again
     print(f"decision={decision} adjust={adjust} level={before}->{after}{unchanged} feedback={feedback} note={note}")
     return 0
+
+
+def cmd_open(args) -> int:
+    pauses = open_pauses(pathlib.Path(args.run))
+    for p in pauses:
+        print(f"open agent={p.get('agent')} target={p.get('target')} stage={p.get('stage') or '-'} "
+              f"reason={p.get('reason')} since={p.get('time')}")
+    if not pauses:
+        print("open none")
+    return 1 if pauses else 0
 
 
 def cmd_set_level(args) -> int:
@@ -419,6 +490,8 @@ def main(argv=None) -> int:
     d.add_argument("--target", required=True); d.add_argument("--reply", required=True)
     d.add_argument("--review-file", help="the review file, to read its ## Human Feedback section")
     d.add_argument("--edited", type=int, default=0, help="files the owner edited during this review")
+    o = sub.add_parser("open")
+    o.add_argument("--run", required=True)
     s = sub.add_parser("set-level")
     s.add_argument("--agent", required=True); s.add_argument("--level", required=True, choices=LADDER)
     s.add_argument("--reason", required=True); s.add_argument("--root", default=".")
@@ -436,7 +509,7 @@ def main(argv=None) -> int:
         from layout import resolve_run
         args.run = str(resolve_run(args.run))
     return {"needed": cmd_needed, "decide": cmd_decide, "set-level": cmd_set_level, "regress": cmd_regress,
-            "summary": cmd_summary, "show": cmd_show}[args.cmd](args)
+            "summary": cmd_summary, "show": cmd_show, "open": cmd_open}[args.cmd](args)
 
 
 if __name__ == "__main__":

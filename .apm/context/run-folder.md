@@ -62,7 +62,8 @@ hand-off (`.fyzxsflow/package/engine/feedback.py`). Handled items move to `feedb
                        <stage>.<agent>.md (run.py packages); the owner writes in its ## Human Feedback section,
                        before replying or any time later, recorded as an owner-feedback finding.
                        .feedback-seen.json remembers what was recorded (feedback.py), so edits are picked up again
-  reviews.jsonl        every review decision, with -less-review/-more-review level changes (.fyzxsflow/package/engine/review.py)
+  reviews.jsonl        every review decision, with -less-review/-more-review level changes, and each pause as decision
+                       "pending" until the owner's reply answers it (.fyzxsflow/package/engine/review.py)
   reports/shadow/      shadow outputs from model compares; never used by the run
   ledger.md            heartbeat: one line per stage transition (.fyzxsflow/package/engine/run.py log)
   .gitignore           keeps raw logs out of git

@@ -38,7 +38,7 @@ Docs, rules, plans, learned entries, pipeline files and PR text are work as much
 - talking to the owner.
 
 **The reminder.** On Claude Code the main session runs as you (`"agent": "orchestrator"` in `.claude/settings.json`,
-written by the install), and `.fyzxsflow/package/engine/hooks/orchestrator_guard.py` adds a reminder to your
+written by the install), and the orchestrator hook (`.fyzxsflow/package/engine/hooks/orchestrator_rules.py`) adds a reminder to your
 context when you edit or run something outside the list above, naming the agent to dispatch. On GitHub Copilot the
 same hook runs while you are the selected agent. It never blocks: treat it as a very strong suggestion. Next time,
 dispatch the owner it names, which also brings that agent's own checks. When you had a real reason to do it
@@ -316,6 +316,10 @@ next lines, so the owner knows where the run is without opening the plan. For a 
   output, verbatim, as your message: every file to read as a link (the review first), the diff, the verdict, the
   pushed-back items, then how to reply. `--open` also opens them in VS Code when run from its terminal. Exit 2
   means the review names nothing to look at: fill **What to look at**, then run it again.
+  **The pause is enforced.** `review.py needed` recorded it, and until `review.py decide` records the owner's
+  reply for that agent and target (the `--package`, else the `--stage`, you gave `needed`), the hook refuses your
+  dispatches and your `lanes.py` / `pr.py` moves (`review.py open --run <run>` lists what is open). Never record a
+  reply the owner didn't give to get past it.
   **In Build, the owner reviews on each group's PR**, not at hand-offs: write every review file as you go, and the
   group reaches the owner as its published PR. Pause a group at the hand-off itself (its tester waits; other
   groups go on) only when `review.py needed` gives an `always:` or `run-request:` reason (the areas the owner
@@ -337,7 +341,9 @@ next lines, so the owner knows where the run is without opening the plan. For a 
   `review.py set-level --agent <a> --level <l> --reason "<the owner's words>"`.
 - **Only the owner lowers review.** Never run `set-level` or pass `-less-review` without the owner's
   words. "Keep going to the end" (or "don't stop", "use your recommendations for everything") from the owner
-  skips this run's remaining review pauses only: log it with the owner's words, keep writing every review file,
+  skips this run's remaining review pauses only: record it as the reply to any open pause (`review.py decide`
+  reads "keep going" as continue), add `- autopilot` to the run's `review-requests.md` so no later pause is
+  recorded (the owner's always-review areas still pause), log it with the owner's words, keep writing every review file,
   and still stop for what the working agreement always stops for (push, deploy, external writes, a decision
   that invalidates the plan). It changes no stored level. When output from an agent whose level was `notify` or `off` later draws an owner edit, a `major`
   finding, or owner feedback you route to **rework** (the output was wrong), run
