@@ -13,7 +13,9 @@ onto Copilot and what the PoC must confirm. Nothing here has been verified again
   `repo-cartographer`, `fyzxsflow-greenfield` → `orchestrator`, `fyzxsflow-compact` → `orchestrator`,
   `fyzxsflow-parallelize` → `build-coordinator`). Custom agents in `.github/agents/` can be dispatched as subagents by
   an agent with the `agent` tool set (`runSubagent`); subagents can't dispatch further subagents unless
-  `chat.subagents.allowInvocationsFromSubagents` is on, so the Orchestrator runs Build itself (as on Claude Code).
+  `chat.subagents.allowInvocationsFromSubagents` is on. With it on, Build runs as on Claude Code (a dispatched
+  Build Coordinator); with it off, the Build Coordinator returns `no-dispatch` and the Orchestrator runs Execute
+  mode in its own session.
   A subagent doesn't inherit the conversation, which suits the run-folder hand-offs.
 - **Copilot CLI:** custom agents from `.github/agents/` (or `~/.copilot/agents/`, which wins on a name clash);
   `/agent` to pick one, `copilot --agent=<name> --prompt "<task>"` non-interactively; restart after adding

@@ -107,9 +107,10 @@ the existing plan; you don't re-plan it.
    .fyzxsflow/package/engine/run.py log <run folder> locate done "plan re-ordered for parallel lanes"`.
 
 ## Execute mode
-Whoever can dispatch agents runs this: you when dispatched, or the Orchestrator in its own session on a host that
-can't nest dispatches. Stamping, review files and owner replies stay with the Orchestrator; follow its **Models**
-section (escalation, model compare) on every dispatch.
+The Orchestrator dispatches you for this with the run folder; `continue` means pick up from the packages'
+`status:` lines and the ledger. If you have no tool to dispatch agents, start nothing and return `no-dispatch`:
+the Orchestrator then runs these steps in its own session. Stamping, review files and owner replies stay with the
+Orchestrator; follow its **Models** section (escalation, model compare) on every dispatch.
 Some steps may be done by the owner instead of the agent, when the Orchestrator says so; everything after the
 step (validator, Runner, contract checks, tracing) is the same either way.
 0. **Lanes, one per PR group.** `python -I .fyzxsflow/package/engine/lanes.py open --run <run>` pulls the completed

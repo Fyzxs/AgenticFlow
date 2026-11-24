@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.5 (2026-11-24)
+- **Build runs in a dispatched Build Coordinator.** Claude Code subagents can dispatch other agents (checked on
+  2.1.330), so the Orchestrator now dispatches `build-coordinator` in Execute mode instead of running it in its own
+  session. The coordinator returns at each group's end or pause; the Orchestrator stamps, writes the review files,
+  handles pauses and dispatches it again to continue.
+- On a host without nested dispatch (Copilot unless `chat.subagents.allowInvocationsFromSubagents` is on), the
+  coordinator returns `no-dispatch` and the Orchestrator runs Execute mode in its session, with a ledger line.
+
 ## 0.4.4 (2026-11-23)
 From dog-fooding in DocMcStorage (findings F-1984 and F-1986). In one day the main session edited a rule doc,
 work packages and pipeline YAML itself, ran `ci`, and posted PR replies with no prefix under the owner's name. The

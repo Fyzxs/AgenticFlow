@@ -214,18 +214,24 @@ on producing it, and log a ledger line saying the step ran in-session, so the ow
 independent.
 
 ## Running Build
-On a host where a dispatched agent can't dispatch others (Claude Code), you run the Build Coordinator's
-**Execute mode** yourself, in this session, following `.fyzxsflow/package/agents/build-coordinator.agent.md`
-→ Execute mode step by step. Where the host allows nested dispatch, dispatch `build-coordinator` in execute mode
-and it returns each group's hand-offs to you. Either way, stamping, review files, owner replies and the pauses
-stay with you. In-session Execute mode is a coordinating loop, not a maker's work: it still dispatches every maker,
-sets package status with `run.py package-status`, and never re-plans, so a change to a work package is still a
-`build-coordinator` (Plan mode) dispatch.
+Dispatch `build-coordinator` in **Execute mode** with the run folder (`Execute mode: <run>`). It dispatches the
+makers, validators and the Runner itself, and returns when a group ends or no group can go on, with each hand-off
+(stem, agent, report, `review_file`, verdict, `review.py needed` answer). Stamping, review files, owner replies and
+the pauses stay with you: stamp and write the review files for what it returned, handle any pause, then dispatch
+it again (`Execute mode, continue: <run>`) until every group is completed into the run branch. Rework goes to it
+the same way, naming the package and the agent to restart from. A change to a work package is a Plan mode
+dispatch, never an Execute one.
+
+If it returns `no-dispatch` (the host gives a subagent no way to dispatch others: Copilot unless
+`chat.subagents.allowInvocationsFromSubagents` is on, or the Copilot app), run Execute mode yourself, in this
+session, from `.fyzxsflow/package/agents/build-coordinator.agent.md` step by step, and log `run.py log <run> build
+decided "Execute mode in-session: host can't nest dispatch"`. In-session it is still a coordinating loop: every
+maker is dispatched, package status is set with `run.py package-status`, and nothing is re-planned.
 
 **PR groups in lanes.** Each PR group builds in its own worktree (`lanes.py`, Execute mode step 0) as soon as the
 groups it depends on are completed into the run branch, `build.max_parallel` at a time; it never waits for a wave
-or an unrelated group. Dispatch the open lanes' agent steps as parallel subagents in one message, one per lane;
-each stays in its own lane. Stamp and write review files as each returns. Each group's PR into the run branch is
+or an unrelated group. Whoever runs Execute mode dispatches the open lanes' agent steps as parallel subagents in
+one message, one per lane; each stays in its own lane. Each group's PR into the run branch is
 where the owner reviews it (see **Pull requests**). When nothing can start and the rest waits on group PRs the
 owner hasn't completed, log `run.py log <run> build gated "waiting on PR completion: <links>"` and stop. On
 `/flow resume` (or any reply), `lanes.py refresh --run <run>` reads the PR states and pulls what was completed,
