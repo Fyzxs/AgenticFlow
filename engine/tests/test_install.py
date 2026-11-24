@@ -28,15 +28,21 @@ class InstallTests(unittest.TestCase):
         proc = subprocess.run([PY, "-I", str(script), "--target", str(self.root), *args], capture_output=True, text=True)
         return proc.returncode, proc.stdout + proc.stderr
 
-    def test_a_copilot_only_install_writes_no_claude_rules_even_over_an_old_claude_install(self):
-        self.assertEqual(self.install("--host", "claude")[0], 0)  # an earlier Claude install leaves .claude/agents/
+    def test_a_copilot_only_install_never_touches_claude(self):
         seg = self.root / ".fyzxsflow" / "docs" / "segments"
         seg.mkdir(parents=True)
         (seg / "app.md").write_text('---\npaths:\n  - "src/**"\n---\n# Segment: app\n', encoding="utf-8")
+        self.assertEqual(self.install("--host", "claude")[0], 0)  # an earlier Claude install, with its pointer
+        self.assertTrue((self.root / ".claude/rules/fyzxsflow-app.md").exists())
+
+        def snapshot():
+            return {p.relative_to(self.root).as_posix(): (p.read_bytes(), p.stat().st_mtime_ns)
+                    for p in sorted((self.root / ".claude").rglob("*")) if p.is_file()}
+        before = snapshot()
         code, out = self.install("--host", "copilot")
         self.assertEqual(code, 0, out)
-        self.assertEqual(sorted(p.name for p in (self.root / ".claude" / "rules").glob("fyzxsflow-*")),
-                         ["fyzxsflow-working-agreement.md"])  # the old install's own file; no segment pointer
+        self.assertEqual(snapshot(), before)  # nothing written, deleted or rewritten under .claude/
+        self.assertNotIn(".claude/", out)
         self.assertTrue((self.root / ".github/instructions/fyzxsflow-app.instructions.md").exists())
         installed = json.loads((self.root / ".fyzxsflow/package/INSTALLED.json").read_text(encoding="utf-8"))
         self.assertEqual(installed["hosts"], ["copilot"])
@@ -58,7 +64,7 @@ class InstallTests(unittest.TestCase):
             self.assertTrue((pkg / rel).exists(), rel)
         self.assertFalse((pkg / "engine" / "tests").exists())
         self.assertEqual(list(pkg.rglob("__pycache__")), [])  # the install imports the installed engine: no bytecode
-        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.4.8")
+        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.4.9")
         self.assertTrue((self.root / ".claude/agents/implementer.md").exists())
         flow_cmd = (self.root / ".claude/commands/flow.md").read_text(encoding="utf-8")
         self.assertIn("Request: $ARGUMENTS", flow_cmd)

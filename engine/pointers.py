@@ -5,8 +5,8 @@ host follow the same conventions. One source: the pointers only say "read the se
   python -I engine/pointers.py --check [--root <repo>]    # exit 1 if any pointer is missing, stale or edited
 
 Hosts come from .fyzxsflow/config.json -> docs.host_pointers (default ["claude", "copilot"]), narrowed to the hosts
-FyzxsFlow is installed for (INSTALLED.json -> hosts: set by an install's --host, added to by --sync), so a Copilot-only repo gets no .claude/ files even
-if an old .claude/ folder is still there. Installs before 0.4.8 recorded no hosts: then the host folders decide
+FyzxsFlow is installed for (INSTALLED.json -> hosts: set by an install's --host, added to by --sync), so a Copilot-only repo gets no .claude/ files, and an
+existing .claude/ folder is left exactly as it is (nothing written or deleted there). Installs before 0.4.8 recorded no hosts: then the host folders decide
 (.claude/agents/ -> claude, .github/agents/ -> copilot); with neither, the configured list is used as is:
   claude  -> .claude/rules/fyzxsflow-<segment>.md                       (frontmatter `paths:`)
   copilot -> .github/instructions/fyzxsflow-<segment>.instructions.md   (frontmatter `applyTo:`)
@@ -118,11 +118,11 @@ def main(argv=None) -> int:
         print(f"unknown host(s) in docs.host_pointers: {', '.join(unknown)}", file=sys.stderr)
         return 2
     installed = installed_hosts(root)
-    if installed:
-        hosts = [h for h in hosts if h in installed]
+    scope = installed or list(TARGETS)  # the only folders this run may read, write or clean
+    hosts = [h for h in hosts if h in scope]
 
     want = expected(root, hosts)
-    have = managed(root, list(TARGETS))
+    have = managed(root, scope)  # an uninstalled host's folder is never read, written or cleaned
     stale = sorted(have - set(want))
     problems = []
     for rel, content in want.items():

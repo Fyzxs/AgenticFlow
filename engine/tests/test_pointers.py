@@ -113,7 +113,8 @@ class PointerTests(unittest.TestCase):
         (pkg / "INSTALLED.json").write_text(json.dumps({"hosts": ["copilot"]}), encoding="utf-8")
         code, out = self.pointers()
         self.assertEqual(code, 0, out)
-        self.assertEqual(list((self.root / ".claude" / "rules").glob("fyzxsflow-*")), [])  # its old pointer removed
+        self.assertTrue((self.root / ".claude/rules/fyzxsflow-mapper.md").exists())  # another host's folder: untouched
+        self.assertEqual(self.pointers("--check")[0], 0)  # and not reported as stale
         self.assertTrue((self.root / ".github/instructions/fyzxsflow-mapper.instructions.md").exists())
 
     def test_refresh_removes_stale_and_respects_host_config(self):

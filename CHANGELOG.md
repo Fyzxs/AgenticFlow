@@ -1,16 +1,22 @@
 # Changelog
 
+## 0.4.9 (2026-11-24)
+- **`--host copilot` never touches `.claude/`** (and `--host claude` never touches `.github/`): nothing written,
+  nothing deleted. `pointers.py` reads, writes and cleans only the folders of installed hosts (`INSTALLED.json`
+  `hosts`), so an old Claude pointer survives a Copilot-only install. A legacy-name migration cleans host files
+  only for the hosts being installed.
+
 ## 0.4.8 (2026-11-24)
 - **0.4.7 didn't fully fix it.** It decided which hosts were installed from the folders on disk, so a repo that
   still had `.claude/agents/` from an earlier install got `.claude/rules/` pointers from a `--host copilot`
   install. The installer now records the `--host` values it ran with in `INSTALLED.json` (`hosts`; `--sync` adds
-  its host, since the Curator syncs one host per call), and `pointers.py` uses them; the next install or sync removes the old pointers for a host that's no longer listed.
+  its host, since the Curator syncs one host per call), and `pointers.py` uses them.
 
 ## 0.4.7 (2026-11-24)
 - **A Copilot-only repo gets no `.claude/` files.** `pointers.py` wrote segment pointers for every host in
   `docs.host_pointers`, which the config template sets to both hosts, so the Cartographer created `.claude/rules/`
   in repos installed with `--host copilot` alone. It now writes pointers only for installed hosts
-  (`.claude/agents/`, `.github/agents/`), and treats an uninstalled host's old pointers as stale.
+  (`.claude/agents/`, `.github/agents/`).
 
 ## 0.4.6 (2026-11-24)
 - **The orchestrator hook reminds instead of blocking.** Denying the orchestrator's own edits and commands got in
