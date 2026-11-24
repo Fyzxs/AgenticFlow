@@ -222,8 +222,8 @@ it again (`Execute mode, continue: <run>`) until every group is completed into t
 the same way, naming the package and the agent to restart from. A change to a work package is a Plan mode
 dispatch, never an Execute one.
 
-If it returns `no-dispatch` (the host gives a subagent no way to dispatch others: Copilot unless
-`chat.subagents.allowInvocationsFromSubagents` is on, or the Copilot app), run Execute mode yourself, in this
+If it returns `no-dispatch` (the host gives a subagent no way to dispatch others: VS Code Copilot unless
+`chat.subagents.allowInvocationsFromSubagents` is on, the Copilot app, or Copilot CLI past `subagents.maxDepth`), run Execute mode yourself, in this
 session, from `.fyzxsflow/package/agents/build-coordinator.agent.md` step by step, and log `run.py log <run> build
 decided "Execute mode in-session: host can't nest dispatch"`. In-session it is still a coordinating loop: every
 maker is dispatched, package status is set with `run.py package-status`, and nothing is re-planned.

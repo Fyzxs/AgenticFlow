@@ -5,7 +5,7 @@
   2.1.330), so the Orchestrator now dispatches `build-coordinator` in Execute mode instead of running it in its own
   session. The coordinator returns at each group's end or pause; the Orchestrator stamps, writes the review files,
   handles pauses and dispatches it again to continue.
-- On a host without nested dispatch (Copilot unless `chat.subagents.allowInvocationsFromSubagents` is on), the
+- On a host without nested dispatch (VS Code Copilot unless `chat.subagents.allowInvocationsFromSubagents` is on), the
   coordinator returns `no-dispatch` and the Orchestrator runs Execute mode in its session, with a ledger line.
 
 ## 0.4.4 (2026-11-23)

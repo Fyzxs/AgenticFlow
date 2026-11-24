@@ -19,7 +19,9 @@ onto Copilot and what the PoC must confirm. Nothing here has been verified again
   A subagent doesn't inherit the conversation, which suits the run-folder hand-offs.
 - **Copilot CLI:** custom agents from `.github/agents/` (or `~/.copilot/agents/`, which wins on a name clash);
   `/agent` to pick one, `copilot --agent=<name> --prompt "<task>"` non-interactively; restart after adding
-  agents. No prompt files. It may delegate to custom agents as subagents on its own judgement.
+  agents. No prompt files. It may delegate to custom agents as subagents on its own judgement. Subagents may
+  nest up to `subagents.maxDepth` in `~/.copilot/settings.json` (default 6, user level only; not checked live), so
+  the dispatched Build Coordinator should work without setup.
 - **Copilot app (desktop, technical preview):** sessions on a connected repo or local folder, each in its own
   worktree and branch; global instructions, MCP and skills are documented, a repository's custom agents are not.
 
