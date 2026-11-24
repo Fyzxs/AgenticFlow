@@ -5,8 +5,9 @@ host follow the same conventions. One source: the pointers only say "read the se
   python -I engine/pointers.py --check [--root <repo>]    # exit 1 if any pointer is missing, stale or edited
 
 Hosts come from .fyzxsflow/config.json -> docs.host_pointers (default ["claude", "copilot"]), narrowed to the hosts
-installed in the repo (.claude/agents/ -> claude, .github/agents/ -> copilot), so a Copilot-only repo gets no .claude/
-files; with neither installed, the configured list is used as is:
+FyzxsFlow is installed for (INSTALLED.json -> hosts: set by an install's --host, added to by --sync), so a Copilot-only repo gets no .claude/ files even
+if an old .claude/ folder is still there. Installs before 0.4.8 recorded no hosts: then the host folders decide
+(.claude/agents/ -> claude, .github/agents/ -> copilot); with neither, the configured list is used as is:
   claude  -> .claude/rules/fyzxsflow-<segment>.md                       (frontmatter `paths:`)
   copilot -> .github/instructions/fyzxsflow-<segment>.instructions.md   (frontmatter `applyTo:`)
 Only files named fyzxsflow-* are managed; hand-written rules and instructions are never touched.
@@ -63,6 +64,12 @@ INSTALLED_MARKERS = {"claude": pathlib.Path(".claude/agents"), "copilot": pathli
 
 
 def installed_hosts(root: pathlib.Path) -> list:
+    try:
+        recorded = json.loads((root / HOME / PACKAGE / "INSTALLED.json").read_text(encoding="utf-8")).get("hosts")
+    except (OSError, ValueError):
+        recorded = None
+    if isinstance(recorded, list) and recorded:
+        return recorded
     return [h for h, marker in INSTALLED_MARKERS.items() if (root / marker).is_dir()]
 
 

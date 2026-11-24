@@ -47,7 +47,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from layout import HOME, LEARNED, LEGACY_HOMES, NAME, PACKAGE  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
-VERSION = "0.4.7"
+VERSION = "0.4.8"
 HOOK_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/block_kill_by_name.py"'
 GUARD_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/orchestrator_guard.py"'
 MAIN_AGENT = "orchestrator"
@@ -354,6 +354,18 @@ def record_settings(target: pathlib.Path, state: dict, written: list):
         write(f, json.dumps(data, indent=2) + "\n", written)
 
 
+def record_hosts(target: pathlib.Path, hosts: list, written: list, add: bool):
+    """Remember in INSTALLED.json the hosts FyzxsFlow is installed for: pointers.py writes only for them, so a
+    Copilot-only repo gets no .claude/ files even when an older .claude/ folder is still there. A full install sets
+    the list; --sync (the Curator and Compactor sync one host per call) adds to it."""
+    f = target / HOME / PACKAGE / "INSTALLED.json"
+    data = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+    want = sorted(set(hosts) | (set(data.get("hosts") or []) if add else set()))
+    if data.get("hosts") != want:
+        data["hosts"] = want
+        write(f, json.dumps(data, indent=2) + "\n", written)
+
+
 def previous_settings_state(target: pathlib.Path) -> dict:
     f = target / HOME / PACKAGE / "INSTALLED.json"
     try:
@@ -505,6 +517,7 @@ def main(argv=None) -> int:
     for warning in compact.apply(target, written):
         print("warning:", warning)
     sync_hosts(target, args.host, written, main_agent=not args.no_main_agent, probe=args.probe_hooks, state=state)
+    record_hosts(target, args.host, written, add=args.sync)
     if not args.sync:
         write_pointers(target)  # segment pointers follow the installed names (fyzxsflow-<segment>)
     for old_name in migrated:

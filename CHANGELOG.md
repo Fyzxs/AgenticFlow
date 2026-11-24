@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.8 (2026-11-24)
+- **0.4.7 didn't fully fix it.** It decided which hosts were installed from the folders on disk, so a repo that
+  still had `.claude/agents/` from an earlier install got `.claude/rules/` pointers from a `--host copilot`
+  install. The installer now records the `--host` values it ran with in `INSTALLED.json` (`hosts`; `--sync` adds
+  its host, since the Curator syncs one host per call), and `pointers.py` uses them; the next install or sync removes the old pointers for a host that's no longer listed.
+
 ## 0.4.7 (2026-11-24)
 - **A Copilot-only repo gets no `.claude/` files.** `pointers.py` wrote segment pointers for every host in
   `docs.host_pointers`, which the config template sets to both hosts, so the Cartographer created `.claude/rules/`

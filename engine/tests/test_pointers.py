@@ -103,6 +103,19 @@ class PointerTests(unittest.TestCase):
         self.assertEqual(list((self.root / ".claude" / "rules").glob("fyzxsflow-*")), [])
         self.assertTrue(list((self.root / ".github" / "instructions").glob("fyzxsflow-*.instructions.md")))
 
+    def test_the_recorded_install_hosts_win_over_leftover_host_folders(self):
+        (self.root / ".claude" / "agents").mkdir(parents=True)  # left from an earlier Claude install
+        (self.root / ".github" / "agents").mkdir(parents=True)
+        self.pointers()
+        self.assertTrue((self.root / ".claude/rules/fyzxsflow-mapper.md").exists())
+        pkg = self.root / ".fyzxsflow" / "package"
+        pkg.mkdir(parents=True)
+        (pkg / "INSTALLED.json").write_text(json.dumps({"hosts": ["copilot"]}), encoding="utf-8")
+        code, out = self.pointers()
+        self.assertEqual(code, 0, out)
+        self.assertEqual(list((self.root / ".claude" / "rules").glob("fyzxsflow-*")), [])  # its old pointer removed
+        self.assertTrue((self.root / ".github/instructions/fyzxsflow-mapper.instructions.md").exists())
+
     def test_refresh_removes_stale_and_respects_host_config(self):
         (self.root / ".fyzxsflow" / "config.json").write_text(json.dumps({"docs": {"host_pointers": ["copilot"]}}), encoding="utf-8")
         (self.root / ".claude/rules/fyzxsflow-mapper.md").write_text("old", encoding="utf-8")
