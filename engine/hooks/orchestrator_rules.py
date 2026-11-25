@@ -236,11 +236,9 @@ def probe_log(payload: dict, scoped: bool):
 
 def reminder(payload: dict, scoped: bool):
     """None when the call is the orchestrator's own bookkeeping (or not its call at all), else the reminder."""
-    tool, args, agent_id, agent_type = fields(payload)
-    if agent_id:
-        return None  # a subagent (a dispatched orchestrator too)
-    if not scoped and agent_type != ROLE:
-        return None  # not an orchestrator session (a plain session, or `claude --agent <other>`)
+    if not is_orchestrators_call(payload, scoped):
+        return None  # a subagent, a plain session, or another agent's session
+    tool, args, _, _ = fields(payload)
     if tool in EDIT_TOOLS:
         paths = edited_paths(args)
         bad = [p for p in paths if not EDITABLE.search(p)]
@@ -284,8 +282,14 @@ def blocking_pauses(root: pathlib.Path) -> list:
 
 
 def is_orchestrators_call(payload: dict, scoped: bool) -> bool:
+    """The orchestrator's own call, not a subagent's: Claude Code names it (agent_type); a Copilot agent-scoped hook
+    (scoped) runs only for it; a Copilot repo hook reads the session's selected agent."""
     _, _, agent_id, agent_type = fields(payload)
-    return not agent_id and (scoped or agent_type == ROLE)
+    if agent_id:
+        return False
+    if scoped or agent_type == ROLE:
+        return True
+    return not agent_type and copilot_selected_agent(session_id(payload)) == (True, ROLE)
 
 
 def review_gate(payload: dict, scoped: bool):
@@ -315,3 +319,198 @@ def review_gate(payload: dict, scoped: bool):
             f"`python -I {HOME}/{PACKAGE}/engine/review.py decide --run {run.name} --agent {p.get('agent')} "
             f"--target {p.get('target')} --reply \"<the owner's words>\" --review-file <its review file>`; that "
             f"closes the pause. Never write a reply the owner didn't give. Open pauses: `review.py open --run {run.name}`.")
+
+
+# ---------------------------------------------------------------- the never-list (every role, both hosts: blocks)
+
+NEVER_PR = ("lanes.py and pr.py open, push, update and publish PRs; the owner completes every PR. Ask the "
+            "orchestrator, which runs them.")
+
+
+def never_segments(command: str) -> list:
+    """Word lists of a shell command's segments (&&, ||, ;, |, newlines), tolerant of what it can't parse."""
+    try:
+        lex = shlex.shlex(command.replace("\r", "").replace("\n", " ; "), posix=True, punctuation_chars=True)
+        lex.whitespace_split = True
+        tokens = list(lex)
+    except ValueError:
+        tokens = command.split()
+    out, cur = [], []
+    for t in tokens:
+        if t in ("&&", "||", ";", "|", "&", "|&", "(", ")", ";;"):
+            out.append(cur)
+            cur = []
+        else:
+            cur.append(t)
+    out.append(cur)
+    words = []
+    for seg in out:
+        while seg and re.fullmatch(r"\w+=.*", seg[0]):
+            seg = seg[1:]
+        if seg:
+            words.append(seg)
+    return words
+
+
+def git_out(cwd: pathlib.Path, *args) -> str:
+    import subprocess
+    try:
+        p = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return p.stdout.strip() if p.returncode == 0 else ""
+
+
+def default_branches(cwd: pathlib.Path) -> set:
+    head = git_out(cwd, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
+    return ({head.split("/", 1)[1]} if "/" in head else set()) | {"main", "master"}
+
+
+def never_problem(words: list, cwd: pathlib.Path):
+    """None, or why this one command is on the never-list."""
+    cmd = words[0].replace("\\", "/").rsplit("/", 1)[-1].lower().removesuffix(".exe")
+    if cmd == "git":
+        args = list(words[1:])
+        while args and args[0] in ("-C", "-c"):
+            if args[0] == "-C" and len(args) > 1:
+                cwd = (cwd / args[1]) if not pathlib.Path(args[1]).is_absolute() else pathlib.Path(args[1])
+            args = args[2:]
+        sub = args[0] if args else ""
+        rest = args[1:]
+        if sub == "worktree" and rest[:1] and rest[0] in ("add", "remove", "move"):
+            return f"`git worktree {rest[0]}`: lanes.py opens and closes worktrees (lanes.py open/close)"
+        if sub == "merge" and not ({"--abort", "--continue", "--quit"} & set(rest)):
+            branch = git_out(cwd, "rev-parse", "--abbrev-ref", "HEAD")
+            if branch in default_branches(cwd) or branch.startswith("fyzxsflow/"):
+                return (f"`git merge` into `{branch}`: lanes.py merges the flow's branches (lanes.py merge/sync), "
+                        f"and only the owner merges into the default branch")
+        if sub == "push":
+            positional = [a for a in rest if not a.startswith("-")]
+            targets = [r.lstrip("+").split(":")[-1].removeprefix("refs/heads/") for r in positional[1:]]
+            if not targets:
+                targets = [git_out(cwd, "rev-parse", "--abbrev-ref", "HEAD")]
+            if "HEAD" in targets:
+                targets.append(git_out(cwd, "rev-parse", "--abbrev-ref", "HEAD"))
+            hit = [t for t in targets if t in default_branches(cwd)]
+            if hit:
+                return f"`git push` to `{hit[0]}`: the flow never pushes the default branch; the owner merges PRs"
+        return None
+    if cmd == "az" and words[1:3] == ["repos", "pr"] and len(words) > 3 and words[3] in ("create", "update",
+                                                                                           "complete"):
+        return f"`az repos pr {words[3]}`: {NEVER_PR}"
+    if cmd == "gh" and words[1:2] == ["pr"] and len(words) > 2 and words[2] in ("create", "edit", "merge", "ready"):
+        return f"`gh pr {words[2]}`: {NEVER_PR}"
+    return None
+
+
+def never_list(payload: dict):
+    """None, or why this call is never allowed, whoever makes it (orchestrator, subagent, plain session)."""
+    tool, args, _, _ = fields(payload)
+    if tool not in SHELL_TOOLS:
+        return None
+    command = str(args.get("command") or args.get("script") or "")
+    cwd = pathlib.Path(payload.get("cwd") or ".")
+    for words in never_segments(command):
+        why = never_problem(words, cwd)
+        if why:
+            return f"Blocked by FyzxsFlow (never allowed, for any agent): {why}. Don't work around it: stop and report it."
+    return None
+
+
+# ---------------------------------------------------------------- Copilot CLI: who the main session is
+
+def copilot_home() -> pathlib.Path:
+    return pathlib.Path(os.environ.get("COPILOT_HOME") or pathlib.Path.home() / ".copilot")
+
+
+def copilot_selected_agent(session_id: str):
+    """(known, agent) for a Copilot CLI session: the last `subagent.selected` in its session state ("" = the default
+    agent). known is False when the state isn't written yet (the first prompt of a `-p` session) or is unreadable."""
+    if not session_id or not re.fullmatch(r"[\w-]+", session_id):
+        return False, ""
+    f = copilot_home() / "session-state" / session_id / "events.jsonl"
+    try:
+        lines = f.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return False, ""
+    agent = ""
+    for line in lines:
+        if '"subagent.selected"' not in line and '"subagent.deselected"' not in line:
+            continue
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        agent = (e.get("data") or {}).get("agentName", "") if e.get("type") == "subagent.selected" else ""
+    return True, agent
+
+
+def session_id(payload: dict) -> str:
+    return str(payload.get("sessionId") or payload.get("session_id") or "")
+
+
+# ---------------------------------------------------------------- skills that need their agent (Copilot)
+
+def skill_agents() -> dict:
+    """{skill name: the agent it runs as}, from the package prompts' `agent:` lines."""
+    hooks = pathlib.Path(__file__).resolve().parent
+    for prompts in (hooks.parent.parent / "prompts", hooks.parent.parent / ".apm" / "prompts"):
+        if prompts.is_dir():
+            out = {}
+            for p in prompts.glob("*.prompt.md"):
+                m = re.search(r"^agent:\s*(\S+)\s*$", p.read_text(encoding="utf-8").split("\n---", 1)[0], re.M)
+                if m:
+                    out[p.name.removesuffix(".prompt.md")] = m.group(1)
+            return out
+    return {}
+
+
+def wrong_agent(skill: str, need: str, agent: str) -> str:
+    return (f"/{skill} runs as the FyzxsFlow {need} agent, but this session is running as "
+            f"{agent or 'the default agent'}. Select it first: `/agent {need}` in this session, or start "
+            f"`copilot --agent {need}`; then run /{skill} again.")
+
+
+def needs_file(root: pathlib.Path, sid: str) -> pathlib.Path:
+    return root / HOME / "runs" / "_adhoc" / "copilot-sessions" / f"{sid}.json"
+
+
+def skill_gate_prompt(payload: dict):
+    """userPromptSubmitted: None, or why a FyzxsFlow skill can't run in this session's agent. When the session's
+    agent isn't known yet, remember what the skill needs; the first tool call checks it (skill_gate_tool)."""
+    if fields(payload)[2]:
+        return None  # a subagent's prompt
+    m = re.match(r"\s*/([\w-]+)", str(payload.get("prompt") or ""))
+    need = skill_agents().get(m.group(1)) if m else None
+    sid = session_id(payload)
+    if not need:
+        if sid and re.fullmatch(r"[\w-]+", sid):
+            needs_file(project_root(payload), sid).unlink(missing_ok=True)  # a new request: the old skill's need ends
+        return None
+    known, agent = copilot_selected_agent(sid)
+    if known:
+        return None if agent == need else wrong_agent(m.group(1), need, agent)
+    if sid and re.fullmatch(r"[\w-]+", sid):
+        f = needs_file(project_root(payload), sid)
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps({"skill": m.group(1), "agent": need}) + "\n", encoding="utf-8")
+    return None
+
+
+def skill_gate_tool(payload: dict):
+    """preToolUse (main session): None, or why nothing may run because the skill typed needs another agent."""
+    sid = session_id(payload)
+    if fields(payload)[2] or not sid or not re.fullmatch(r"[\w-]+", sid):
+        return None
+    f = needs_file(project_root(payload), sid)
+    try:
+        need = json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    known, agent = copilot_selected_agent(sid)
+    if not known:
+        return None
+    if agent == need.get("agent"):
+        f.unlink(missing_ok=True)
+        return None
+    return "Blocked by FyzxsFlow: " + wrong_agent(need.get("skill", ""), need.get("agent", ""), agent)

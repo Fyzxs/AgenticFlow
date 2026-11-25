@@ -38,10 +38,10 @@ The flow needs one agent to hand work to another with file paths. Candidates to 
   instructions for that step. Slower and less isolated, but the run folder keeps the results identical.
 
 ## Hooks
-Copilot has no equivalent of Claude Code's tool-call hooks that we have confirmed. Guards therefore
-degrade to:
-- the instruction (the working agreement already says "never kill by process name");
-- a git hook or a gate in `gates.json` wherever the rule can be checked after the fact.
+Repository hooks in `.github/hooks/*.json` run for every session in a trusted folder (checked on Copilot CLI
+1.0.116): `.github/hooks/fyzxsflow.json` carries kill-by-name and the FyzxsFlow hooks (HOW-TO.md, "The orchestrator
+does no work"). Copilot also runs the hooks in `.claude/settings.json`. Agent-scoped frontmatter `hooks:` never
+fired on the CLI. The main session's agent is read from `~/.copilot/session-state/<session>/events.jsonl`.
 
 ## Transcripts
 For correction mining, find where Copilot (VS Code agent mode, Copilot CLI, the coding agent) stores

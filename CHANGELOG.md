@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.6.0 (2026-11-25)
+From a Copilot CLI run in VA_GqlOverSql, where `/flow` ran in the default agent, read 20 KB of the 46 KB
+orchestrator file, never saw the PR rules, and completed three PRs itself.
+- **Copilot hooks are repo-wide.** Agent-scoped frontmatter hooks never fired on Copilot CLI (1.0.116, checked
+  live). `.github/hooks/fyzxsflow.json` now runs `orchestrator_guard_copilot.py` on `userPromptSubmitted`,
+  `preToolUse` and `postToolUse` for every session; the main session's agent is read from Copilot's session
+  state (`subagent.selected`).
+- **FyzxsFlow commands run only in their agent on Copilot.** `/flow` in any agent but the orchestrator is blocked
+  (at the prompt, or at the first tool call when the session's agent isn't known yet), with how to switch
+  (`copilot --agent orchestrator`). The Copilot skill bodies no longer say "act as the agent, read its file":
+  the agent file is the system prompt, in full.
+- **The never-list blocks, for every agent on both hosts:** completing, merging or auto-completing PRs, raw `az
+  repos pr create|update|complete` and `gh pr create|edit|merge|ready`, raw `git worktree add|remove|move`, `git
+  merge` on the default or a `fyzxsflow/*` branch, `git push` to the default branch. lanes.py and pr.py do these.
+- **Copilot loads every agent.** Seven agents were dropped as "malformed frontmatter" (an unquoted `: ` in their
+  description); Copilot frontmatter now quotes the description and drops `tier` ("unknown field ignored").
+
 ## 0.5.0 (2026-11-24)
 - **Review pauses are enforced.** `review.py needed` records each `review=pause` in the run's `reviews.jsonl`
   (decision `pending`), and `review.py decide` closes it. While a pause is open, the orchestrator hook blocks the

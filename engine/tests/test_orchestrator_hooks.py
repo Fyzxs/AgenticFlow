@@ -3,6 +3,7 @@ orchestrator_guard_copilot.py): its own work draws a reminder to delegate (never
 blocks its dispatches and lane/PR moves; subagents and bookkeeping draw nothing."""
 
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -18,8 +19,7 @@ ENGINE = HOOKS.parent
 def hook(payload, *args, cwd=None):
     """Run a host script: "--scoped" means the Copilot script ("pre" or "post", default post), else Claude's."""
     if "--scoped" in args:
-        rest = [a for a in args if a != "--scoped"]
-        argv = [str(COPILOT), *(rest if {"pre", "post"} & set(rest) else ["post", *rest])]
+        argv = [str(COPILOT), *(args if {"pre", "post", "prompt"} & set(args) else ["post", *args])]
     else:
         argv = [str(CLAUDE), *args]
     return subprocess.run([sys.executable, "-I", "-B", *argv], input=json.dumps(payload) if payload is not None else "",
@@ -99,7 +99,6 @@ class ShellTests(unittest.TestCase):
         (f"python -I {ENG}/runner.py ci --run r", "build-test-runner"),
         (f"git status && python -I {ENG}/runner.py quick", "build-test-runner"),
         ("az devops invoke --area git --resource pullRequestThreadComments --http-method POST", "pr-producer"),
-        ("az repos pr update --id 95 --description x", "pr-producer"),
         ("echo x > .claude/rules/a.md", "docs-gardener"),
         ("cat a | tee b", ""),
         ('git commit -m "$(cat msg)"', ""),
@@ -109,7 +108,6 @@ class ShellTests(unittest.TestCase):
         (f"python -I {ENG}/gates.py pre-pr --run r", "gate-analyst"),
         ("python -c 'open(\"x\",\"w\")'", ""),
         ("git commit -F - <<'EOF'\nmsg\nEOF", ""),
-        ("git worktree add ../x", ""),
         ("git reset --hard", ""),
         ("(cd x; rm -rf y)", ""),
     ]
@@ -126,12 +124,120 @@ class ShellTests(unittest.TestCase):
             self.assertIn(owner or "Dispatch the agent that owns it", err, cmd)
 
     def test_the_same_commands_from_a_subagent_are_allowed(self):
-        for cmd, _ in self.DENIED:
+        for cmd, _ in self.DENIED:  # none of them is on the never-list
             self.assertEqual(run({**orch("Bash", command=cmd), "agent_id": "a1", "agent_type": "build-test-runner"})[0],
                              0, cmd)
 
     def test_powershell_is_covered(self):
         self.assertEqual(run(orch("PowerShell", command="dotnet test"))[0], 1)
+
+
+class NeverListTests(unittest.TestCase):
+    """Blocked for every caller on both hosts: the orchestrator, subagents, plain sessions."""
+    NEVER = ["az repos pr update --id 95 --status completed", "az repos pr update --id 95 --description x",
+             "az repos pr create --title t", "gh pr merge 42 --squash", "gh pr create --fill",
+             "git worktree add ../lane fyzxsflow/r1", "git status && git worktree remove ../lane",
+             "git push origin main", "git push origin HEAD:refs/heads/master", "git push -f origin +feature:main"]
+    FINE = ["git push origin fyzxsflow/r1", "git push -u origin fyzxsflow/r1-api", "git worktree list",
+            "az repos pr show --id 95", "gh pr view 42", f"python -I {ENG}/lanes.py pr --run r --group g --publish"]
+
+    def test_every_caller_is_blocked_on_both_hosts(self):
+        callers = ({"agent_type": "orchestrator"}, {"agent_id": "a1", "agent_type": "implementer"}, {})
+        for cmd in self.NEVER:
+            for who in callers:
+                p = hook({"tool_name": "Bash", "tool_input": {"command": cmd}, **who})
+                self.assertEqual(p.returncode, 2, f"claude {who} {cmd}")
+                self.assertIn("never allowed, for any agent", p.stderr)
+            p = hook({"toolName": "bash", "toolArgs": json.dumps({"command": cmd}), "agentId": "s1"}, "--scoped", "pre")
+            self.assertEqual(p.returncode, 2, f"copilot {cmd}")
+            self.assertEqual(json.loads(p.stdout)["permissionDecision"], "deny")
+            self.assertEqual(hook({"toolName": "bash", "toolArgs": {"command": cmd}}, "pre").returncode, 2, cmd)
+
+    def test_the_flows_own_pushes_and_reads_are_fine(self):
+        for cmd in self.FINE:
+            self.assertEqual(hook({"tool_name": "Bash", "tool_input": {"command": cmd},
+                                   "agent_id": "a1"}).returncode, 0, cmd)
+
+    def test_merging_into_the_default_or_run_branch_is_blocked(self):
+        with tempfile.TemporaryDirectory() as d:
+            git = lambda *a: subprocess.run(["git", "-C", d, *a], capture_output=True, text=True)  # noqa: E731
+            git("init", "-q", "-b", "main"); git("commit", "-q", "--allow-empty", "-m", "i")
+            merge = {"tool_name": "Bash", "tool_input": {"command": "git merge feature"}, "cwd": d, "agent_id": "a1"}
+            self.assertEqual(hook(merge).returncode, 2)
+            for branch in ("fyzxsflow/r1", "fyzxsflow/r1-api"):  # run and lane branches: lanes.py merges them
+                git("checkout", "-q", "-b", branch)
+                self.assertEqual(hook(merge).returncode, 2, branch)
+            self.assertEqual(hook({**merge, "tool_input": {"command": "git merge --abort"}}).returncode, 0)
+            git("checkout", "-q", "-b", "spike")
+            self.assertEqual(hook(merge).returncode, 0)  # the owner's own branch
+
+
+class CopilotSessionTests(unittest.TestCase):
+    """Copilot repo hooks: the main session's agent comes from Copilot's session state (subagent.selected)."""
+
+    def setUp(self):
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="fyzxsflow-copilot-"))
+        self.home, self.root = self.tmp / "copilot-home", self.tmp / "repo"
+        (self.root / ".fyzxsflow" / "runs" / "active").mkdir(parents=True)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def select(self, sid, agent):
+        d = self.home / "session-state" / sid
+        d.mkdir(parents=True, exist_ok=True)
+        with (d / "events.jsonl").open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"type": "session.start", "data": {}}) + "\n")
+            if agent:
+                f.write(json.dumps({"type": "subagent.selected", "data": {"agentName": agent}}) + "\n")
+
+    def call(self, mode, payload):
+        env = {**os.environ, "COPILOT_HOME": str(self.home)}
+        return subprocess.run([sys.executable, "-I", "-B", str(COPILOT), mode],
+                              input=json.dumps({"cwd": str(self.root), **payload}), capture_output=True, text=True,
+                              cwd=self.root, env=env)
+
+    def test_flow_outside_the_orchestrator_is_blocked_at_the_prompt(self):
+        self.select("s1", "")
+        p = self.call("prompt", {"sessionId": "s1", "prompt": "/flow add a date input"})
+        self.assertEqual(json.loads(p.stdout)["decision"], "block")
+        self.assertIn("`copilot --agent orchestrator`", json.loads(p.stdout)["reason"])
+        self.assertEqual(self.call("prompt", {"sessionId": "s1", "prompt": "explain this repo"}).stdout, "")
+        self.select("s2", "orchestrator")
+        self.assertEqual(self.call("prompt", {"sessionId": "s2", "prompt": "/flow add x"}).stdout, "")
+        self.select("s3", "orchestrator")
+        p = self.call("prompt", {"sessionId": "s3", "prompt": "/fyzxsflow-init"})
+        self.assertIn("repo-cartographer", json.loads(p.stdout)["reason"])
+
+    def test_before_the_agent_is_known_the_first_tool_call_decides(self):
+        bash = {"toolName": "bash", "toolArgs": {"command": "ls"}}
+        self.assertEqual(self.call("prompt", {"sessionId": "s4", "prompt": "/flow add x"}).stdout, "")  # not known
+        self.select("s4", "")
+        p = self.call("pre", {"sessionId": "s4", **bash})
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("/agent orchestrator", p.stderr)
+        self.call("prompt", {"sessionId": "s4", "prompt": "never mind, explain the repo"})  # a new request
+        self.assertEqual(self.call("pre", {"sessionId": "s4", **bash}).returncode, 0)
+        self.assertEqual(self.call("prompt", {"sessionId": "s5", "prompt": "/flow add x"}).stdout, "")
+        self.select("s5", "orchestrator")
+        self.assertEqual(self.call("pre", {"sessionId": "s5", **bash}).returncode, 0)
+        self.assertFalse(list((self.root / ".fyzxsflow/runs/_adhoc/copilot-sessions").glob("s5.json")))
+
+    def test_the_orchestrator_is_found_from_the_session_state(self):
+        self.select("s6", "orchestrator")
+        edit = {"sessionId": "s6", "toolName": "edit", "toolArgs": {"path": "src/a.py"}}
+        self.assertIn("reminder: delegate", json.loads(self.call("post", edit).stdout)["additionalContext"])
+        self.select("s7", "")
+        self.assertEqual(self.call("post", {**edit, "sessionId": "s7"}).stdout, "")  # the default agent
+        self.assertEqual(self.call("post", {**edit, "agentId": "x", "agentType": "implementer"}).stdout, "")
+        run = self.root / ".fyzxsflow/runs/active/r1"
+        run.mkdir()
+        (run / "reviews.jsonl").write_text(json.dumps({"agent": "code-indicator", "target": "locate",
+                                                       "stage": "locate", "decision": "pending"}) + "\n")
+        task = {"sessionId": "s6", "toolName": "task", "toolArgs": {"agent_type": "validator"}}
+        self.assertEqual(self.call("pre", task).returncode, 2)
+        self.assertEqual(self.call("pre", {**task, "sessionId": "s7"}).returncode, 0)
 
 
 class CopilotTests(unittest.TestCase):

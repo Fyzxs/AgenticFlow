@@ -1,13 +1,25 @@
-"""GitHub Copilot hooks for the orchestrator (rules: orchestrator_rules.py), declared in the orchestrator agent's own
-`hooks:` frontmatter (install.py), so they run only while that agent is selected.
+"""GitHub Copilot hooks for FyzxsFlow (rules: orchestrator_rules.py).
 
-  python -I orchestrator_guard_copilot.py pre  [--probe]   # PreToolUse: the review gate (blocks)
-  python -I orchestrator_guard_copilot.py post [--probe]   # PostToolUse: the delegation reminder (never blocks)
+  python -I orchestrator_guard_copilot.py prompt                # userPromptSubmitted
+  python -I orchestrator_guard_copilot.py pre  [--scoped] [--probe]   # preToolUse: blocks
+  python -I orchestrator_guard_copilot.py post [--scoped]             # postToolUse: never blocks
 
-Two events because Copilot CLI documents a deny only before a call and added context only after it.
-Output carries both shapes: top-level keys (Copilot CLI) and hookSpecificOutput (VS Code). A deny also exits 2.
---probe (on pre only, so each call is logged once) logs payloads to .fyzxsflow/runs/_adhoc/hook-probe.jsonl and
-allows everything. Malformed input is allowed.
+Installed repo-wide in .github/hooks/fyzxsflow.json (install.py), so they run in every session in the trusted
+folder. Agent-scoped `hooks:` frontmatter never fired on Copilot CLI 1.0.116, so it is not the main path; the
+orchestrator agent still carries `pre --scoped` / `post --scoped` for hosts that honour it (VS Code).
+
+Who the caller is: a subagent's call carries agentId/agentType. A main-session call carries no agent fields, so the
+repo hooks read the session's selected agent from Copilot's session state (orchestrator_rules.copilot_selected_agent);
+--scoped means the hook was declared on the orchestrator agent itself, so a main-session call is the orchestrator's.
+
+  prompt: a FyzxsFlow skill (/flow, /fyzxsflow-*) typed in a session not running as its agent is blocked
+          ({"decision": "block"}), before any model call. When the agent isn't known yet (the first prompt of a
+          `-p` session), the first tool call checks it instead.
+  pre:    the never-list, for every caller; the skill check above; the review gate for the orchestrator. Denies
+          print {"permissionDecision": "deny"} (plus hookSpecificOutput for VS Code) and exit 2.
+  post:   the delegation reminder for the orchestrator's own work, as additionalContext.
+A preToolUse hook that fails denies the call (Copilot's rule), so a broken guard fails closed. Malformed input is
+allowed. --probe (pre only) logs payloads to .fyzxsflow/runs/_adhoc/hook-probe.jsonl and allows everything.
 """
 
 import json
@@ -19,9 +31,18 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))  # -I leaves th
 import orchestrator_rules as rules  # noqa: E402
 
 
+def deny(reason: str) -> int:
+    print(json.dumps({"permissionDecision": "deny", "permissionDecisionReason": reason,
+                      "hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                                             "permissionDecisionReason": reason}}))
+    sys.stderr.write(reason + "\n")
+    return 2
+
+
 def main(argv=None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    event = "post" if "post" in argv else "pre"
+    event = next((a for a in argv if a in ("prompt", "pre", "post")), "pre")
+    scoped = "--scoped" in argv
     try:
         payload = json.load(sys.stdin)
     except (ValueError, OSError):
@@ -30,18 +51,18 @@ def main(argv=None) -> int:
         return 0
     if "--probe" in argv:
         if event == "pre":
-            rules.probe_log(payload, scoped=True)
+            rules.probe_log(payload, scoped=scoped)
+        return 0
+    if event == "prompt":
+        blocked = rules.skill_gate_prompt(payload)
+        if blocked:
+            print(json.dumps({"decision": "block", "reason": blocked}))
         return 0
     if event == "pre":
-        blocked = rules.review_gate(payload, scoped=True)
-        if not blocked:
-            return 0
-        print(json.dumps({"permissionDecision": "deny", "permissionDecisionReason": blocked,
-                          "hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
-                                                 "permissionDecisionReason": blocked}}))
-        sys.stderr.write(blocked + "\n")
-        return 2
-    note = rules.reminder(payload, scoped=True)
+        blocked = (rules.never_list(payload) or (None if scoped else rules.skill_gate_tool(payload))
+                   or rules.review_gate(payload, scoped=scoped))
+        return deny(blocked) if blocked else 0
+    note = rules.reminder(payload, scoped=scoped)
     if note:
         print(json.dumps({"additionalContext": note,
                           "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": note}}))

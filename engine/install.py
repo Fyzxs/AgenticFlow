@@ -22,8 +22,9 @@ Host files generated from it (each agent = package/agents/<a>.agent.md + its lea
            "agent": "orchestrator", so the main session is the orchestrator and does no work itself (--no-main-agent
            leaves `agent` out; a plain session is then `claude` as usual). Entries that aren't ours are never touched.
   copilot: .github/agents/<name>.agent.md (the orchestrator's carries hooks/orchestrator_guard_copilot.py as
-           agent-scoped `hooks:` entries, pre = review gate and post = delegation reminder, which run only while that
-           agent is selected), .github/hooks/fyzxsflow.json (kill-by-name),
+           agent-scoped `hooks:` entries with --scoped, for hosts that run them; Copilot CLI doesn't),
+           .github/hooks/fyzxsflow.json (kill-by-name, and orchestrator_guard_copilot.py prompt/pre/post for every
+           session: skill-agent check, never-list, review gate, delegation reminder),
            .github/instructions/fyzxsflow-working-agreement.instructions.md,
            .github/skills/<prompt>/SKILL.md   (the slash commands, as VS Code agent skills; the prompt files
                                               earlier installs wrote to .github/prompts/ are removed)
@@ -49,7 +50,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from layout import HOME, LEARNED, LEGACY_HOMES, NAME, PACKAGE  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 HOOK_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/block_kill_by_name.py"'
 GUARD_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/orchestrator_guard_claude.py"'
 OLD_GUARD_MARKERS = ("/engine/hooks/orchestrator_guard.py",)  # 0.4.4-0.4.9: one script for both hosts
@@ -227,11 +228,11 @@ def sync_hosts(target: pathlib.Path, hosts: list, written: list, main_agent: boo
             record_settings(target, state, written)
         elif host == "copilot":
             for a in agents:
-                text = hosted(a)
+                text = copilot_frontmatter(hosted(a))
                 if a.name == f"{MAIN_AGENT}.agent.md":
                     text = with_scoped_guard(text, probe)
                 write(target / ".github" / "agents" / a.name, text, written)
-            write(target / ".github" / "hooks" / f"{prefix}.json", copilot_hooks(), written)
+            write(target / ".github" / "hooks" / f"{prefix}.json", copilot_hooks(probe), written)
             write(target / ".github" / "instructions" / f"{prefix}-working-agreement.instructions.md",
                   f'---\napplyTo: "**"\ndescription: "{NAME} working agreement"\n---\n' + agreement_body, written)
             for p in prompts:
@@ -275,11 +276,24 @@ def sync_skills(dest: pathlib.Path, skills: list, written: list):
                 f.parent.rmdir()
 
 
+ACT_AS = re.compile(r"\AAct as the FyzxsFlow \*\*([\w-]+)\*\*(.*?)\.\s.*?(?:\n\n|\Z)", re.S)
+
+
 def copilot_skill(name: str, prompt: pathlib.Path) -> str:
-    """A package prompt as a VS Code agent skill: run only when typed as /<name> (disable-model-invocation), since
-    each one starts a run or changes files. Skills can't pin a custom agent the way a prompt's `agent:` did, so the
-    body (which already says which agent to act as, and reads its file) carries it."""
+    """A package prompt as a Copilot agent skill: run only when typed as /<name> (disable-model-invocation), since
+    each one starts a run or changes files. A skill can't pin its agent, and reading a 46 KB agent file through a
+    tool truncates it, so the body never says "act as <agent>, read its file": it says the skill runs in that
+    agent, selected with /agent or --agent, where the agent file is the system prompt. The repo hook
+    (orchestrator_guard_copilot.py prompt/pre) blocks the skill in any other agent."""
     fm, body = split_frontmatter(prompt.read_text(encoding="utf-8"))
+    m = ACT_AS.match(body.lstrip("\n"))
+    if m:
+        agent, mode = m.group(1), m.group(2).strip()
+        gate = (f"This command runs in the FyzxsFlow **{agent}** custom agent{(' ' + mode) if mode else ''}. Your agent "
+                f"file is already your instructions; don't read it as a file. If you are not running as the "
+                f"{agent} agent, do nothing else: tell the owner to select it (`/agent {agent}`, or start "
+                f"`copilot --agent {agent}`) and run /{name} again.\n\n")
+        body = gate + body.lstrip("\n")[m.end():]
     hint = fm.get("argument-hint", "").strip().strip('"')
     lines = ["---", f"name: {name}", f"description: {json.dumps(fm.get('description', ''), ensure_ascii=False)}"]
     if hint:
@@ -300,17 +314,48 @@ def with_scoped_guard(text: str, probe: bool) -> str:
         return text
     script = f"{python_name()} -I {HOME}/{PACKAGE}/engine/hooks/orchestrator_guard_copilot.py"
     probe_flag = " --probe" if probe else ""
-    hooks = (f"hooks:\n  PreToolUse:\n    - type: command\n      command: {script} pre{probe_flag}\n      timeoutSec: 15\n"
-             f"  PostToolUse:\n    - type: command\n      command: {script} post{probe_flag}\n      timeoutSec: 15")
+    hooks = (f"hooks:\n  PreToolUse:\n    - type: command\n      command: {script} pre --scoped{probe_flag}\n"
+             f"      timeoutSec: 15\n"
+             f"  PostToolUse:\n    - type: command\n      command: {script} post --scoped\n      timeoutSec: 15")
     return "---\n" + m.group(1) + "\n" + hooks + "\n---\n" + text[m.end():]
 
 
-def copilot_hooks() -> str:
-    """Repository hooks for GitHub Copilot (CLI and VS Code): kill-by-name, in the Claude-compatible PascalCase form
-    (snake_case input, Claude tool names), so the same script serves both hosts."""
-    cmd = f"{python_name()} -I {HOME}/{PACKAGE}/engine/hooks/block_kill_by_name.py"
-    return json.dumps({"version": 1, "hooks": {"PreToolUse": [
-        {"type": "command", "matcher": "Bash", "command": cmd, "timeoutSec": 15}]}}, indent=2) + "\n"
+def copilot_hooks(probe: bool = False) -> str:
+    """Repository hooks for GitHub Copilot (CLI and VS Code), loaded for every session in the trusted folder:
+    kill-by-name in the Claude-compatible PascalCase form (snake_case input, Claude tool names), and the FyzxsFlow
+    hooks (engine/hooks/orchestrator_guard_copilot.py): the skill-agent check on each prompt, the never-list, skill
+    check and review gate before each tool call, the delegation reminder after it. Repo-wide because agent-scoped
+    frontmatter hooks never fired on Copilot CLI (1.0.116)."""
+    py = python_name()
+    kill = f"{py} -I {HOME}/{PACKAGE}/engine/hooks/block_kill_by_name.py"
+    guard = f"{py} -I {HOME}/{PACKAGE}/engine/hooks/orchestrator_guard_copilot.py"
+    return json.dumps({"version": 1, "hooks": {
+        "PreToolUse": [{"type": "command", "matcher": "Bash", "command": kill, "timeoutSec": 15}],
+        "userPromptSubmitted": [{"type": "command", "command": f"{guard} prompt", "timeoutSec": 30}],
+        "preToolUse": [{"type": "command", "command": f"{guard} pre" + (" --probe" if probe else ""),
+                        "timeoutSec": 30}],
+        "postToolUse": [{"type": "command", "command": f"{guard} post", "timeoutSec": 30}],
+    }}, indent=2) + "\n"
+
+
+def copilot_frontmatter(text: str) -> str:
+    """Copilot rejects an agent whose frontmatter isn't valid YAML (an unquoted ': ' in a description dropped 7
+    agents) and warns on fields it doesn't know (`tier`). Quote the description and drop tier: the model ladder
+    already reached `model:`."""
+    m = re.match(r"\A---\n(.*?)\n---\n", text, re.S)
+    if not m:
+        return text
+    lines = []
+    for line in m.group(1).splitlines():
+        if line.startswith("tier:"):
+            continue
+        if line.startswith("description:"):
+            value = line.split(":", 1)[1].strip()
+            if not (value.startswith('"') and value.endswith('"') and len(value) > 1):
+                line = "description: " + json.dumps(value.strip("'") if value.startswith("'") else value,
+                                                    ensure_ascii=False)
+        lines.append(line)
+    return "---\n" + "\n".join(lines) + "\n---\n" + text[m.end():]
 
 
 def merge_claude_settings(settings: pathlib.Path, written: list, main_agent: bool, probe: bool, state: dict) -> dict:

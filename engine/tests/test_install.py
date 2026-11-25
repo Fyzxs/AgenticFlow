@@ -64,7 +64,7 @@ class InstallTests(unittest.TestCase):
             self.assertTrue((pkg / rel).exists(), rel)
         self.assertFalse((pkg / "engine" / "tests").exists())
         self.assertEqual(list(pkg.rglob("__pycache__")), [])  # the install imports the installed engine: no bytecode
-        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.5.0")
+        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.6.0")
         self.assertTrue((self.root / ".claude/agents/implementer.md").exists())
         flow_cmd = (self.root / ".claude/commands/flow.md").read_text(encoding="utf-8")
         self.assertIn("Request: $ARGUMENTS", flow_cmd)
@@ -74,7 +74,14 @@ class InstallTests(unittest.TestCase):
         self.assertTrue(skill.startswith("---\nname: flow\ndescription: \"Run FyzxsFlow"), skill[:120])
         self.assertIn('argument-hint: "[--preceptee] <what to build or fix', skill)
         self.assertIn("disable-model-invocation: true", skill)
-        self.assertIn(".github/agents/orchestrator.agent.md", skill)  # the body names the agent to act as
+        self.assertIn("runs in the FyzxsFlow **orchestrator** custom agent", skill)  # selected, never "read its file"
+        self.assertIn("`copilot --agent orchestrator`", skill)
+        self.assertNotIn(".github/agents/orchestrator.agent.md", skill)
+        for agent in (self.root / ".github/agents").glob("*.agent.md"):  # valid YAML for Copilot, no `tier`
+            head = agent.read_text(encoding="utf-8").split("\n---\n", 1)[0]
+            self.assertNotIn("\ntier:", head, agent.name)
+            self.assertRegex(head + "\n", r'\ndescription: ".*"\n', agent.name)
+        self.assertIn("tier:", (self.root / ".claude/agents/implementer.md").read_text(encoding="utf-8"))
         self.assertFalse((self.root / ".github/prompts").exists())
         self.assertTrue((self.root / ".github/agents/implementer.agent.md").exists())
         ref = self.root / ".fyzxsflow/config.json.readme.md"
@@ -340,13 +347,17 @@ class InstallTests(unittest.TestCase):
         orch = (self.root / ".github/agents/orchestrator.agent.md").read_text(encoding="utf-8")
         head = orch.split("\n---\n", 1)[0]
         self.assertIn("hooks:\n  PreToolUse:\n    - type: command\n      command: ", head)
-        self.assertIn("engine/hooks/orchestrator_guard_copilot.py pre\n", head)
+        self.assertIn("engine/hooks/orchestrator_guard_copilot.py pre --scoped\n", head)
         self.assertIn("  PostToolUse:\n    - type: command\n      command: ", head)
-        self.assertIn("engine/hooks/orchestrator_guard_copilot.py post\n", head)
+        self.assertIn("engine/hooks/orchestrator_guard_copilot.py post --scoped\n", head)
         self.assertNotIn("hooks:", (self.root / ".github/agents/implementer.agent.md").read_text(encoding="utf-8").split("\n---\n", 1)[0])
         hooks = json.loads((self.root / ".github/hooks/fyzxsflow.json").read_text(encoding="utf-8"))
         self.assertEqual(hooks["version"], 1)
         self.assertIn("block_kill_by_name.py", hooks["hooks"]["PreToolUse"][0]["command"])
+        for event, mode in (("userPromptSubmitted", " prompt"), ("preToolUse", " pre"), ("postToolUse", " post")):
+            entry = hooks["hooks"][event][0]  # repo-wide: every session in the folder, keyed by its selected agent
+            self.assertTrue(entry["command"].endswith("engine/hooks/orchestrator_guard_copilot.py" + mode), event)
+            self.assertNotIn("matcher", entry)
 
     def test_sync_without_install_fails(self):
         code, _ = self.install("--sync", "--host", "claude")

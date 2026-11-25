@@ -102,16 +102,22 @@ The hook is one rules file, `engine/hooks/orchestrator_rules.py`, with an entry 
   - **For a plain session**, start `claude --agent general-purpose`. To leave `agent` out entirely, install with
     `--no-main-agent`, which removes only an `agent` value the install wrote. The hook stays installed but only acts
     for an orchestrator session.
-- **GitHub Copilot (CLI and VS Code):** the orchestrator's `.github/agents/orchestrator.agent.md` carries
-  `engine/hooks/orchestrator_guard_copilot.py` as two agent-scoped `hooks:` entries: `pre` (PreToolUse) runs the
-  review gate, since a call can only be denied before it runs, and `post` (PostToolUse) adds the reminder, since
-  Copilot CLI documents added context only after a call. Copilot runs them only while the orchestrator is the
-  selected agent, which is how the hook knows a call is
-  the orchestrator's own: Copilot's hook input names no main agent.
-  `.github/hooks/fyzxsflow.json` adds the kill-by-name hook. Copilot has no documented setting for a default agent,
-  so **select the orchestrator yourself**: pick it in VS Code's agent picker, or start `copilot --agent orchestrator`.
-  Repository hooks need the workspace trusted (Copilot calls this workspace admission), and an organisation can
-  restrict hooks.
+- **GitHub Copilot (CLI and VS Code):** `.github/hooks/fyzxsflow.json` runs
+  `engine/hooks/orchestrator_guard_copilot.py` for every session in the folder: `prompt` on each prompt, `pre`
+  before each tool call (blocks), `post` after it (the reminder; Copilot CLI adds context only after a call).
+  Copilot's hook input doesn't name the main session's agent, so the hook reads it from Copilot's session state
+  (`~/.copilot/session-state/<session>/events.jsonl`, `subagent.selected`). Agent-scoped `hooks:` in the
+  orchestrator's frontmatter never fired on Copilot CLI 1.0.116; they stay (`--scoped`) for hosts that run them.
+  Copilot has no setting for a default agent (and ignores `"agent"` in `.claude/settings.json`), so **start the
+  orchestrator yourself**: `copilot --agent orchestrator`, `/agent orchestrator`, or VS Code's agent picker. Then
+  its file is the system prompt, in full. `/flow` (and every FyzxsFlow command) is **blocked in any other agent**:
+  at the prompt when the session's agent is known, else at its first tool call, with how to switch.
+  Repository hooks need the folder trusted, and an organisation can restrict hooks.
+
+**Never allowed, for any agent, on both hosts** (blocked, not reminded): completing, merging or auto-completing a PR
+(`az repos pr create|update|complete`, `gh pr create|edit|merge|ready`), raw `git worktree add|remove|move`, `git
+merge` while on the default branch or a `fyzxsflow/*` branch, and `git push` to the default branch. `lanes.py` and
+`pr.py` run the PR and worktree commands themselves, as subprocesses hooks never see; the owner completes PRs.
 
 What the hosts were checked to do (Claude Code 2.1.330, 2026-11-23):
 - A main session started with `--agent` carries `agent_type` and no `agent_id` on its own calls.
@@ -121,8 +127,10 @@ What the hosts were checked to do (Claude Code 2.1.330, 2026-11-23):
 - A PreToolUse `additionalContext` with no permission decision lets the call run and reaches the model
   (2026-11-24).
 
-On Copilot, GitHub's hook reference documents `agent_id` on subagent calls, but this hasn't been run on a live
-Copilot session yet. Check it once in your setup before relying on it:
+Copilot CLI 1.0.116 was checked live (2026-11-25): subagent calls carry `agentId`/`agentType`, main-session calls
+none; `userPromptSubmitted` sees the raw `/flow ...` and can block it; the selected agent is in the session state
+by the first tool call; `/flow` in the default agent was refused, and as the orchestrator `git worktree add` was
+blocked, an edit drew the reminder, and a dispatch with a review pause open was blocked. To check your own setup:
 
 ```
 python -I .fyzxsflow/package/engine/install.py --sync --target . --host copilot --probe-hooks   # log only, no reminders
