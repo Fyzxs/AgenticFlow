@@ -35,7 +35,8 @@ def main(argv=None) -> int:
     if "--probe" in argv:
         rules.probe_log(payload, scoped=False)
         return 0
-    blocked = rules.never_list(payload) or rules.maker_scope(payload) or rules.review_gate(payload, scoped=False)
+    blocked = (rules.never_list(payload) or rules.maker_scope(payload) or rules.review_gate(payload, scoped=False)
+               or rules.handoff_gate(payload, scoped=False))
     if blocked:
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                                  "permissionDecisionReason": blocked}}))

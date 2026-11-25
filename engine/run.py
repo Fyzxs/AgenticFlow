@@ -31,7 +31,8 @@
       -> sets the package's `status:` frontmatter line and nothing else (no hand edit). `done` is refused (exit 3,
          naming what's missing) until the package has: its maker's report (implementer, iac-implementer or
          e2e-implementer) and a Validator pass on it; a tester report from a separate dispatch and a Validator
-         pass on it (not for iac-/e2e-implementer packages); a passing Runner summary (runner/<id>.json) cited by
+         pass on it (not for iac-/e2e-implementer packages; a tests-only package's maker is its tester); a passing
+         Runner summary (runner/<id>.json) cited by
          one of them; every report stamped. --override records the owner's words in the ledger and sets it anyway.
   python -I engine/run.py dispatch <run-dir> --wp WP-04 --role implementer|iac-implementer|e2e-implementer|tester|validator
                                    [--target <agent the validator checks>] [--worktree <lane>] [--note "<text>"]
@@ -241,8 +242,11 @@ def package_done_problems(run: pathlib.Path, wp: str) -> list:
 
     problems = []
     maker = next((m for m in MAKERS if (reports / f"{wp}.{m}.md").exists()), None)
+    if not maker and (reports / f"{wp}.tester.md").exists():
+        maker = "tester"  # a tests-only package: the tester is its maker
     if not maker:
-        return [f"no maker report (reports/{wp}.implementer.md, .iac-implementer.md or .e2e-implementer.md)"]
+        return [f"no maker report (reports/{wp}.implementer.md, .iac-implementer.md, .e2e-implementer.md, or "
+                f".tester.md for a tests-only package)"]
     chain = [maker] + (["tester"] if maker == "implementer" else [])
     cited = []
     for agent in chain:

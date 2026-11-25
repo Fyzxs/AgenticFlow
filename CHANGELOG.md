@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.6 (2026-11-25)
+From the first live `/flow` on Copilot (FizzBuzz): the run went through Intake, Locate and Build without one
+review check, because the hand-off rule moved to `orchestrator/review.md` in 0.6.4 and the orchestrator never
+opened it.
+- **Every hand-off is checked, mechanically.** `review.py needed` records each answer in `reviews.jsonl`
+  (`checked`), and the orchestrator hook refuses its next dispatch while a returned, stamped report has no check
+  (its Validator may still run). The rule is also a Non-negotiable in the orchestrator's own file.
+- **A tests-only package can be done:** its tester is its maker (tester report + a Validator pass).
+
 ## 0.6.5 (2026-11-25)
 - **Engine bytecode no longer blocks lanes.** An engine script that imports another (lanes.py, doctor.py) left
   `__pycache__/` under `.fyzxsflow/package/engine/`, untracked, so `lanes.py open` refused a "dirty" checkout. The

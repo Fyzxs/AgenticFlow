@@ -119,6 +119,13 @@ class RunTests(TempRepo):
         rep("WP-02.iac-implementer.md", "---\nresult: done\nmodel: claude:sonnet\n---\nrunner/quick-1.json\n")
         rep("WP-02.validator.iac-implementer.md", "---\nresult: pass\nmodel: claude:opus\n---\n")
         self.assertEqual(run("run.py", "package-status", str(r), "--wp", "WP-02", "--status", "done")[0], 0)
+        # a tests-only package: its tester is its maker
+        self.write_package(r, "WP-03-tests-cases", "tests", "the cases", "building")
+        rep("WP-03.tester.md", "---\nresult: done\nmodel: claude:sonnet\n---\nrunner/quick-1.json\n")
+        self.assertIn("Validator report on the tester",
+                      run("run.py", "package-status", str(r), "--wp", "WP-03", "--status", "done")[1])
+        rep("WP-03.validator.tester.md", "---\nresult: pass\nmodel: claude:opus\n---\n")
+        self.assertEqual(run("run.py", "package-status", str(r), "--wp", "WP-03", "--status", "done")[0], 0)
 
     def test_dispatch_writes_the_prompt_from_the_package(self):
         r = self.new_run()

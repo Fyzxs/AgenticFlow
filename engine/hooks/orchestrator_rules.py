@@ -281,6 +281,66 @@ def blocking_pauses(root: pathlib.Path) -> list:
     return out
 
 
+def dispatch_target(args: dict) -> str:
+    return str(args.get("agent_type") or args.get("subagent_type") or args.get("agentName") or args.get("agent") or "")
+
+
+def unchecked_handoffs(run: pathlib.Path) -> list:
+    """Stamped agent reports whose hand-off was never checked with `review.py needed` (validators are part of
+    their target's hand-off; the build-coordinator's execute report is its close-out, not a hand-off)."""
+    import json as _json
+    checked = []
+    f = run / "reviews.jsonl"
+    for line in (f.read_text(encoding="utf-8").splitlines() if f.exists() else []):
+        try:
+            e = _json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(e, dict) and e.get("decision") in ("checked", "pending"):
+            checked.append((e.get("agent"), str(e.get("target") or "")))
+    out = []
+    for rep in sorted((run / "reports").glob("*.md")) if (run / "reports").is_dir() else []:
+        text = rep.read_text(encoding="utf-8")
+        fm = re.match(r"\A---\n(.*?)\n---\n", text, re.S)
+        meta = dict(re.findall(r"^(\w[\w-]*):\s*(.*?)\s*$", fm.group(1), re.M)) if fm else {}
+        agent, target = meta.get("agent", ""), meta.get("target", "")
+        if not agent or "model" not in meta or agent == "validator" or rep.name.endswith(".execute.md"):
+            continue
+        package = re.match(r"WP-\d+", target)
+        ok = any(a == agent and (not package or (t.lower() == package.group(0).lower()
+                                                 or t.lower().startswith(package.group(0).lower() + "-")))
+                 for a, t in checked)
+        if not ok:
+            out.append((rep.name, agent, package.group(0) if package else ""))
+    return out
+
+
+def handoff_gate(payload: dict, scoped: bool):
+    """None, or why the orchestrator may not dispatch the next agent yet: a returned agent's hand-off was never
+    checked for review (review.py needed), so a pause the owner asked for could be skipped. Its Validator may
+    still be dispatched (it runs before the check)."""
+    if not is_orchestrators_call(payload, scoped):
+        return None
+    tool, args, _, _ = fields(payload)
+    if tool not in DISPATCH_TOOLS or dispatch_target(args).lower() == "validator":
+        return None
+    try:
+        root = project_root(payload)
+        active = root / HOME / "runs" / "active"
+        missing = [(run, m) for run in (sorted(active.iterdir()) if active.is_dir() else []) if run.is_dir()
+                   for m in unchecked_handoffs(run)]
+    except Exception:  # noqa: BLE001  (a broken run folder must not wedge the session)
+        return None
+    if not missing:
+        return None
+    run, (name, agent, package) = missing[0]
+    where = f"--package {package} " if package else "--stage <its stage> "
+    return (f"Blocked by FyzxsFlow: {agent}'s output (reports/{name}) was never checked for review, so the next "
+            f"dispatch has to wait. Run `python -I {HOME}/{PACKAGE}/engine/review.py needed --run {run.name} --agent "
+            f"{agent} {where}...`, write its review file, and on review=pause stop for the owner "
+            f"(**Human review between hand-offs**, orchestrator/review.md).")
+
+
 def is_orchestrators_call(payload: dict, scoped: bool) -> bool:
     """The orchestrator's own call, not a subagent's: Claude Code names it (agent_type); a Copilot agent-scoped hook
     (scoped) runs only for it; a Copilot repo hook reads the session's selected agent."""

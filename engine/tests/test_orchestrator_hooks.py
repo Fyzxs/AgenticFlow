@@ -352,6 +352,29 @@ class ReviewGateTests(unittest.TestCase):
         self.assertEqual(self.call(dispatch, "--scoped", "post").returncode, 0)  # post never blocks
         self.assertEqual(self.call({**dispatch, "agentId": "s1"}, "--scoped", "pre").returncode, 0)
 
+    def test_a_returned_agent_must_be_checked_for_review_before_the_next_dispatch(self):
+        rep = self.run_dir / "reports" / "work-summarizer.md"
+        rep.parent.mkdir()
+        rep.write_text("---\nagent: work-summarizer\ntarget: brief\nmodel: claude:sonnet\n---\n", encoding="utf-8")
+        dispatch = {"tool_name": "Agent", "agent_type": "orchestrator", "tool_input": {"subagent_type": "code-indicator"}}
+        p = self.call(dispatch)
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("work-summarizer's output (reports/work-summarizer.md) was never checked for review", p.stderr)
+        validator = {**dispatch, "tool_input": {"subagent_type": "validator"}}
+        self.assertEqual(self.call(validator).returncode, 0)  # its Validator runs before the check
+        self.review("needed", "--run", str(self.run_dir), "--agent", "work-summarizer", "--stage", "intake")
+        p = self.call(dispatch)  # checked; but level "on" means a pause is open now
+        self.assertIn("waiting for the owner's review of work-summarizer", p.stderr)
+        self.review("decide", "--run", str(self.run_dir), "--agent", "work-summarizer", "--target", "intake",
+                    "--reply", "approve")
+        self.assertEqual(self.call(dispatch).returncode, 0)
+        pkg = self.run_dir / "reports" / "WP-01.implementer.md"  # a package hand-off is checked per package
+        pkg.write_text("---\nagent: implementer\ntarget: WP-01\nmodel: claude:sonnet\n---\n", encoding="utf-8")
+        self.assertEqual(self.call(dispatch).returncode, 2)
+        self.review("needed", "--run", str(self.run_dir), "--agent", "implementer", "--stage", "build",
+                    "--package", "WP-01")
+        self.assertEqual(self.call(dispatch).returncode, 0)  # Build's agent-level review is on the group PR
+
     def test_build_pauses_hold_only_their_group(self):
         out = self.review("needed", "--run", str(self.run_dir), "--agent", "implementer", "--stage", "build",
                           "--package", "WP-02")

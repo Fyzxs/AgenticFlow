@@ -63,7 +63,7 @@ def main(argv=None) -> int:
     if event == "pre":
         blocked = (rules.never_list(payload) or rules.maker_scope(payload)
                    or (None if scoped else rules.skill_gate_tool(payload))
-                   or rules.review_gate(payload, scoped=scoped))
+                   or rules.review_gate(payload, scoped=scoped) or rules.handoff_gate(payload, scoped=scoped))
         return deny(blocked) if blocked else 0
     notes = [n for n in (None if scoped else rules.encoding_problems(payload),
                          rules.reminder(payload, scoped=scoped)) if n]

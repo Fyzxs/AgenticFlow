@@ -31,6 +31,8 @@ together as one owner-feedback finding, the owner's words verbatim, and printed 
 routes it (Docs Gardener before the next agent; with redo, also the re-dispatched agent's input). approve +
 feedback accepts this output as it is and applies the feedback from the next agent on; redo also fixes this output.
 
+Every answer is recorded in the run's reviews.jsonl (decision "checked"): the Orchestrator's hook refuses its next
+dispatch while a returned, stamped agent report has no check (hooks/orchestrator_rules.handoff_gate).
 Pauses are enforced: every review=pause that `needed` answers is recorded in the run's reviews.jsonl as
 decision "pending" (target: the package, else the stage), and stays open until `decide` answers that agent and
 target. While one is open, the Orchestrator's hook (hooks/orchestrator_rules.py) refuses its agent dispatches and
@@ -153,12 +155,16 @@ def cmd_needed(args) -> int:
     paths = args.paths or []
 
     def say(line):
-        """Every answer goes through here, so a pause is always recorded."""
+        """Every answer goes through here: each check is recorded (the hook holds the next dispatch until a
+        returned agent's hand-off was checked), and a pause stays open until `decide`."""
         print(line)
+        target = pause_target(args.package, args.stage, args.agent)
+        answer = re.match(r"review=(\w+) reason=(\S+)", line)
+        log(root, run, {"agent": args.agent, "target": target, "stage": args.stage or "", "decision": "checked",
+                        "answer": answer.group(1) if answer else "", "by": "system"})
         m = re.match(r"review=pause reason=(\S+)", line)
         if not m or (args.stage == "build" and m.group(1) == "agent-level"):
             return
-        target = pause_target(args.package, args.stage, args.agent)
         if any(p["agent"] == args.agent and same_target(p["target"], target) for p in open_pauses(run)):
             return
         log(root, run, {"agent": args.agent, "target": target, "stage": args.stage or "", "decision": "pending",
