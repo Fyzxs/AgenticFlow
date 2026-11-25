@@ -13,7 +13,7 @@ Checks (from a Copilot run that met each of these only mid-run):
   restore    `dotnet restore` reports no NuGet audit warning (NU190x) not listed in the profile's
              "- Audit exceptions: NU1902, ..." line (--skip-restore skips it)
   agents     .github/agents/*.agent.md: frontmatter Copilot can parse (a description with ": " quoted, no `tier`),
-             each file within the size budget (install.AGENT_BUDGET_KB)
+             each file within the size budget (layout.AGENT_BUDGET_KB)
   copilot    .github/hooks/fyzxsflow.json present and its scripts installed
 """
 
@@ -28,9 +28,7 @@ import sys
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from layout import HOME, PACKAGE  # noqa: E402
-
-AGENT_BUDGET_KB = 12
+from layout import AGENT_BUDGET_KB, HOME, PACKAGE  # noqa: E402
 OURS = f"{HOME}/{PACKAGE}/engine/hooks/"
 PROBES = ["git add src/app.py", 'git commit -m "build: WP-01" -- src/app.py', "git push -u origin fyzxsflow/doctor"]
 
@@ -178,7 +176,8 @@ def check_agents(root):
                                  f"agent): reinstall"))
         size = len(text.encode("utf-8")) / 1024
         if size > AGENT_BUDGET_KB:
-            rows.append(("warn", "agents", f"{f.name}: {size:.1f} KB, over the {AGENT_BUDGET_KB} KB budget"))
+            rows.append(("FAIL", "agents", f"{f.name}: {size:.1f} KB, over the {AGENT_BUDGET_KB} KB budget (the "
+                         f"Curator's learned entries for it need compacting: /fyzxsflow-compact)"))
     if not rows and (root / ".github" / "agents").is_dir():
         rows.append(("ok", "agents", "frontmatter valid, every file within budget"))
     return rows

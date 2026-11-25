@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.4 (2026-11-25)
+- **Agent files load in full.** Copilot read 20 KB of the 46 KB orchestrator file and never reached its PR rules.
+  Every agent file is now within 12 KB (`layout.AGENT_BUDGET_KB`; install refuses more, doctor fails an installed
+  file over it). The orchestrator (now 9.6 KB), Build Coordinator (7.7 KB) and Preceptor keep a **Non-negotiables**
+  block at the top; their longer sections moved word for word (checked line by line) into
+  `agents/<agent>/<part>.md` (start, build, review, dispatch, gates, finish, greenfield, compaction, preceptee;
+  plan, parallelize, execute; exercises), each listed in **Where the rest lives** with "read it before acting on
+  it". The commands point at the part they start in.
+
 ## 0.6.3 (2026-11-25)
 - **`engine/doctor.py`, a preflight before the first stage** (and on resume): dry-runs the repo's own hooks against
   the flow's git add / commit / push, checks for a clean checkout, a signed-in PR CLI, Docker when a mode uses it,

@@ -64,7 +64,7 @@ class InstallTests(unittest.TestCase):
             self.assertTrue((pkg / rel).exists(), rel)
         self.assertFalse((pkg / "engine" / "tests").exists())
         self.assertEqual(list(pkg.rglob("__pycache__")), [])  # the install imports the installed engine: no bytecode
-        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.6.3")
+        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.6.4")
         self.assertTrue((self.root / ".claude/agents/implementer.md").exists())
         flow_cmd = (self.root / ".claude/commands/flow.md").read_text(encoding="utf-8")
         self.assertIn("Request: $ARGUMENTS", flow_cmd)
@@ -74,7 +74,7 @@ class InstallTests(unittest.TestCase):
         self.assertTrue(skill.startswith("---\nname: flow\ndescription: \"Run FyzxsFlow"), skill[:120])
         self.assertIn('argument-hint: "[--preceptee] <what to build or fix', skill)
         self.assertIn("disable-model-invocation: true", skill)
-        self.assertIn("runs in the FyzxsFlow **orchestrator** custom agent", skill)  # selected, never "read its file"
+        self.assertIn("Run this command as the FyzxsFlow **orchestrator** custom agent", skill)  # selected, never "read its file"
         self.assertIn("`copilot --agent orchestrator`", skill)
         self.assertNotIn(".github/agents/orchestrator.agent.md", skill)
         for agent in (self.root / ".github/agents").glob("*.agent.md"):  # valid YAML for Copilot, no `tier`
@@ -327,6 +327,21 @@ class InstallTests(unittest.TestCase):
         f.write_text(json.dumps({"agent": "orchestrator"}), encoding="utf-8")  # the owner chose it themselves
         self.install("--host", "claude", "--no-main-agent")
         self.assertEqual(self.settings()["agent"], "orchestrator")
+
+    def test_agent_files_stay_within_budget_and_their_parts_install_beside_them(self):
+        budget = install.AGENT_BUDGET_KB * 1024
+        for a in sorted((ENGINE.parent / ".apm" / "agents").glob("*.agent.md")):
+            self.assertLessEqual(a.stat().st_size, budget, a.name)
+        self.assertEqual(self.install("--host", "claude", "--host", "copilot")[0], 0)
+        pkg = self.root / ".fyzxsflow/package/agents"
+        for part in ("orchestrator/start.md", "orchestrator/build.md", "build-coordinator/execute.md",
+                     "preceptor/exercises.md"):
+            self.assertTrue((pkg / part).exists(), part)
+        self.assertFalse((self.root / ".github/agents/orchestrator").exists())  # parts are not agents
+        self.assertFalse((self.root / ".claude/agents/start.md").exists())
+        core = (self.root / ".github/agents/orchestrator.agent.md").read_text(encoding="utf-8")
+        self.assertLess(core.index("## Non-negotiables"), 2048)
+        self.assertIn("`.fyzxsflow/package/agents/orchestrator/start.md`", core)
 
     def test_an_entry_for_the_old_single_guard_script_is_updated_in_place(self):
         old = {"matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell", "hooks": [{"type": "command",

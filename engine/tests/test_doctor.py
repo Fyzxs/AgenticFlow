@@ -80,7 +80,7 @@ class DoctorTests(unittest.TestCase):
         code, out = self.doctor()
         self.assertEqual(code, 1, out)
         for text in ("uncommitted changes (lanes.py open refuses them): ", "stray.txt", "Docker and it isn't running",
-                     "a.agent.md: `tier`", "a.agent.md: unquoted description", "warn  agents    a.agent.md: 12.",
+                     "a.agent.md: `tier`", "a.agent.md: unquoted description", "over the 12 KB budget",
                      "fyzxsflow.json is missing"):
             self.assertIn(text, out)
 

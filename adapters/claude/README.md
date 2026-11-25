@@ -20,7 +20,7 @@ How FyzxsFlow maps onto Claude Code. Claude Code is the host the flow has been t
 The Orchestrator dispatches agents with Claude Code's Agent tool (subagents), passing file paths from the run
 folder, never pasted context. A subagent can dispatch further agents (verified on Claude Code 2.1.330), so:
 - the Orchestrator dispatches the Build Coordinator in Execute mode, which dispatches the makers, validators and
-  the Runner (`orchestrator.agent.md` → **Running Build**);
+  the Runner (`orchestrator/build.md` → **Running Build**);
 - Implementers, Testers and the IaC Implementer run their own checks through
   `.fyzxsflow/package/engine/runner.py` instead of asking the Build & Test Runner agent, which the Orchestrator
   dispatches for the stage checks (ci, http, extreme) and for classifying failures.

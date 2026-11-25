@@ -77,6 +77,8 @@ against its original.
 
 ## Rules
 - Never edit `.fyzxsflow/package/` or host files by hand; `install.py --sync` writes them.
+- An installed agent file (with its Learned entries) stays within 12 KB (`layout.AGENT_BUDGET_KB`; `doctor.py`
+  fails over it): when one is over, compact its Learned entries first.
 - Never change what a rule requires: no new rules, no merged rules whose conditions differ, no rewording of a
   quoted owner ruling beyond its owner's terms.
 - Never compact `templates/` or `engine/`: scripts parse their shapes.

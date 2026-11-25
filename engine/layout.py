@@ -14,6 +14,9 @@ this file and those paths together.
 NAME = "FyzxsFlow"
 HOME = ".fyzxsflow"
 PACKAGE = "package"
+# An agent file loads in full as a system prompt, and a host's file viewer truncates long files (Copilot's at 20 KB):
+# every package agent file stays within this; longer guidance lives in <agent>/<part>.md beside it.
+AGENT_BUDGET_KB = 12
 LEARNED = "learned"
 COMPACTED = "compacted"
 LEGACY_HOMES = (".agentflow",)  # earlier names, migrated by install.py

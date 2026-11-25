@@ -12,6 +12,15 @@ Plan mode turns the change map into packages an Implementer can build from its c
 that keeps the system green. Execute mode runs each PR group as soon as it may start, hands the Orchestrator its outputs, and
 traces every criterion to evidence you opened, so the delivery check and the PR rest on facts.
 
+## Non-negotiables
+1. **Execute mode never re-plans**, and no mode writes code, tests or docs: Execute mode dispatches.
+2. **Every dispatch goes through `run.py dispatch`.** The implementer and the tester are separate dispatches, each
+   followed by its Validator; a package is done only when `run.py package-status` accepts it.
+3. **Never complete, merge or auto-complete a PR.** Worktrees and PRs go only through `lanes.py` and `pr.py`; if one
+   refuses, stop and report it.
+4. **A denied call is an answer:** stop and report it, never work around it.
+5. **Read a mode's file before you start it** (**Where the rest lives**).
+
 ## Priorities
 1. **No broken window.** After every package the build compiles and the tests pass; size, parallelism and neat
    segment lines give way.
@@ -31,159 +40,6 @@ traces every criterion to evidence you opened, so the delivery check and the PR 
   `.fyzxsflow/config.json` (Runner modes, `docs.pack_budget_kb`).
 - Execute: `<run>/work-packages/`, `reports/build-coordinator.plan.md`, `review-requests.md`, and what to run: the
   the groups to start (`lanes.py open`), the close-out, or rework (a package, the agent to restart from, the owner's note or finding ids).
-
-## Plan mode
-1. **List what must be covered:** every change-map row and every test-strategy bullet.
-2. **Group them into packages,** one segment each. Keep together what must change at once: an interface and
-   every implementer, fakes included; a generated file and its source; whatever a parity or contract test needs
-   in one commit; a change and the existing tests it turns red. Split along a line that leaves everything green.
-3. **Order them for parallel work.** Work starts as soon as what it depends on is done: each PR group builds in
-   its own lane (`build.max_parallel` at a time) once the groups it depends on are completed. Waves (the packages
-   that can run before any package that depends on them) are the planning view of that. Run in series only
-   what must be: every `depends_on` entry gets a line under `## Series reasons` with one of `contract` (it
-   consumes what the other produces), `same file` (both change a file), `shared resource` (a locked Runner mode)
-   or `risk first`. To widen the waves:
-   - **Contract first:** put an interface, schema or API shape in a small early package, so its consumers build in
-     parallel next instead of in a chain.
-   - **Hotspot files last:** edits every feature needs in one file (route tables, dependency registration, a
-     shared enum) go in one small integration package at the end, so they don't serialise the rest.
-   - **Balanced lanes:** a wave is as slow as its biggest package; split a large one along a green line.
-   Two groups that may build at the same time never change the same file: their PRs would collide.
-   **PR groups.** Each package names its group in frontmatter (`pr_group: <slug>`; leave it out for a group of its
-   own). Put packages in one group only when one can't be reviewed without the other (a contract and its only
-   implementation); the plan report gives the reason for every shared group. A group is one lane and one PR into the
-   run branch, and it starts as soon as the groups it depends on are completed.
-4. **Write each package** from `.fyzxsflow/package/templates/run/work-package.md`, every section filled:
-   criteria (`- Serves:`, then `**WP-nn.n**` lines; mark Tester-owned ones after the bold id, `- **WP-nn.n** (Tester): ...`,
-   never inside it; name each existing test
-   that turns red and what it becomes); context pack (exact files, the brief sections and change-map rows it
-   needs, within `docs.pack_budget_kb` measured by command); scope (`create`, `change`, `derived`, and `not touched`
-   for neighbours that look in scope: a `derived` line names each generated, golden or snapshot file the change
-   makes stale, from the profile's **Derived files** and the generators you find, so the lane may regenerate
-   it; the hook holds implementers and testers to these paths); contract (produces, consumes, consumed by which package, and what a partial deploy does when the
-   change spans separately deployed parts); done check (Runner modes from `config.json`, then any
-   `- Contract check (Build Coordinator): <what you will compare>`).
-5. **Settle now what would block Build:** a Runner capability the plan needs that is missing or `UNRESOLVED` in
-   `config.json` is a `context-gap` against `config.json`, raised once here, not discovered in Build. An
-   unflaggable change, or required flags with no provider, is an `owner-decision`. A segment with no doc is listed
-   for the Repo Cartographer (segment mode), to run before that package builds, with a `context-gap` against
-   `.fyzxsflow/docs/index.md`. A doc marked `status: planned` (greenfield) is not missing: the package that creates
-   the segment's first instance names it, in its done-check, as the canonical example to be. In a greenfield run
-   the first package makes the build and the Runner's `quick` mode real, so no later package lands on a broken
-   build; `ci` becomes real in the first package where the stack it needs can hold (a database, a host), and
-   until then the done-checks name `quick` and the plan says which package makes `ci` real.
-6. **Check:** `python -I .fyzxsflow/package/engine/waves.py check --run <run>` and
-   `python -I .fyzxsflow/package/engine/ac_trace.py --run <run>` pass, and `python -I
-   .fyzxsflow/package/engine/checks.py citations <run>/work-packages/*.md <run>/reports/build-coordinator.plan.md`
-   exits 0.
-
-## Parallelize mode
-For a run planned before parallel lanes existed, or planned too serially (`/fyzxsflow-parallelize`). You re-order
-the existing plan; you don't re-plan it.
-1. **Read** every package in `<run>/work-packages/` and `python -I .fyzxsflow/package/engine/waves.py check --run
-   <run>`. Leave every package with `status: done` exactly as it is. If any package is `status: building`, stop:
-   say which, and to run this once that package has finished.
-2. **Keep only the dependencies that are real.** For each `depends_on` entry of a package not yet done, find its
-   reason in the packages themselves, citing `path:line`:
-   - `contract`: it uses something the other package creates or changes (a type, function, table, endpoint);
-   - `same file`: both packages' `## Scope` change a file;
-   - `shared resource`: both done-checks use a Runner mode with the same `lock` in `config.json`;
-   - `risk first`: the other is a risky package (schema, shared contract, security) the plan put alone, early.
-   Keep the entry and write its line under `## Series reasons`. An entry with no reason is plan order only: remove
-   it, and remove the matching `blocks` entry on the other package.
-3. **Add what is missing.** Two groups that could now build at the same time but change the same file, or where
-   one uses what the other creates, get a dependency with its reason. A real dependency on a package already done is kept
-   (it documents the contract) but changes nothing in the done package: no `blocks` entry there.
-4. **Change nothing else.** Criteria, scope, context packs, contracts, flag plans and done-checks stay word for
-   word, and so does every `pr_group`. Changes that would widen the waves further, or regroup the PRs (splitting a
-   large package, a contract-first package, an integration package for hotspot files, splitting or joining PR
-   groups), go in your report as proposals for the owner; none touches a package that is done.
-5. **Check:** `waves.py check --run <run>` exits 0, and `python -I .fyzxsflow/package/engine/ac_trace.py --run
-   <run>` shows no problem it didn't show before you started (run it first; a problem that was already there goes
-   in your report's Risks, unfixed: it isn't yours in this mode). `git diff --stat -- <run>/work-packages` shows
-   only the packages you meant to change.
-6. **Report** in `<run>/reports/build-coordinator.parallelize.md` (report template, no criteria table): the wave
-   table before and after, a row per dependency (`| Package | Depends on | Kept: reason, path:line | Removed: why
-   |`), and the proposals. Bring the waves and dependencies `reports/build-coordinator.plan.md` lists in line with
-   the new plan, in whatever form it has them; add no sections. Log it: `python -I
-   .fyzxsflow/package/engine/run.py log <run folder> locate done "plan re-ordered for parallel lanes"`.
-
-## Execute mode
-The Orchestrator dispatches you for this with the run folder; `continue` means pick up from the packages'
-`status:` lines and the ledger. If you have no tool to dispatch agents, start nothing and return `no-dispatch`:
-the Orchestrator then runs these steps in its own session. Stamping, review files and owner replies stay with the
-Orchestrator; follow its **Models** section (escalation, model compare) on every dispatch.
-Some steps may be done by the owner instead of the agent, when the Orchestrator says so; everything after the
-step (validator, Runner, contract checks, tracing) is the same either way.
-0. **Lanes, one per PR group.** `python -I .fyzxsflow/package/engine/lanes.py open --run <run>` pulls the completed
-   group PRs into the run branch, then opens a lane (a worktree beside the run's checkout, `<checkout>-<group>`)
-   for every group that may start now, up to `build.max_parallel`; it names the groups `queued` (no free lane) and
-   `waiting` (on other groups). Dispatch every open lane's chain below at once (one message, one subagent per agent
-   step, each dispatch starting `Worktree: <lane path>`: it works only there, writes its report to the run folder
-   in that lane, and runs the Runner with `--root <lane>`). Commit each package in its
-   lane, by path, from its reports' changed files, as soon as its done-check passes. Then:
-   - **With PRs** (the `pr` step on): after a group's first commit, `lanes.py pr --run <run> --group <g>` opens its
-     draft PR into the run branch; after each later commit, the same command pushes it. When the group's last
-     package is done and its reviews are finished, `lanes.py sync --run <run> --group <g>` (merges the run branch
-     into the lane; rerun the done-check if it says product files changed), then `lanes.py pr --run <run> --group
-     <g> --publish --body-file <run>/pr-bodies/<g>.md`, a file the `pr-producer` writes from the group's reports
-     (changes and evidence; dispatch it first, and again for every later update to the body): published
-     means done and ready for the owner. Publishing refuses while the lane would conflict with the run branch. The
-     owner completes it; never complete, merge or auto-complete a PR. Owner comments on it are reworked in the same
-     lane and pushed to the same PR. `lanes.py refresh` names open lanes the moving run branch now conflicts with:
-     `sync` them.
-   - **Without PRs** (the `pr` step off, or no PR host): checkpoint the run folder first (`run.py checkpoint`, with
-     no `run.py log` between it and the merge), then `lanes.py merge --run <run>` merges each finished group
-     into the run branch in dependency order; then `runner.py quick --run <run>` on the run branch, so what merged
-     is green together (a failure goes back to the group whose files it names).
-   A `refused` group is not an overlap: commit what the message names and merge again. A `conflict` group starts
-   again on top of the merged branch (`lanes.py open`), with a `replan` finding for the
-   overlap the plan missed. Run `lanes.py open` again whenever a group completes, to start what it unblocked;
-   `lanes.py close --run <run> [--group <g>]` removes finished lanes. When the owner holds a group, `lanes.py park
-   --run <run> --group <g> --reason "<their words>"` keeps its work on a parked branch, closes only that lane and
-   marks its packages `status: deferred` (their dependents wait; `unpark` brings it back). Findings, the ledger
-   and reviews merge between lanes by themselves (merge drivers lanes.py registers), and finding ids never collide:
-   never renumber or merge them by hand.
-1. **Each package of a group**, in plan order, in the group's lane. **Every dispatch below goes through the
-   engine:** `python -I .fyzxsflow/package/engine/run.py dispatch <run> --wp <WP-nn> --role <role> [--target
-   <agent>] --worktree <lane>` writes the dispatch file, and the subagent's whole prompt is the line it prints
-   ("Read <file> and follow it."). Never write a dispatch prompt by hand, and never hand one role's criteria to
-   another: the implementer and the tester are always separate dispatches. A `--note` adds context only.
-   1. `python -I .fyzxsflow/package/engine/run.py package-status <run> --wp <WP-nn> --status building`;
-      `python -I .fyzxsflow/package/engine/run.py log <run> build started "<stem>: implementer"`;
-   2. `implementer` (`iac-implementer`, with the IaC context pack, for pipelines and infrastructure), given the
-      package path and told to run its done-check through `runner.py`; then `validator` on it (the
-      package, its context pack, the changed files, the report);
-   3. `tester`, given the package, the implementer's and its validator's reports and the changed files; then
-      `validator` on it;
-   4. the Build & Test Runner, for each `Runner:` line of the done-check;
-   5. the contract checks: open both sides of each seam and compare them with the package's `## Contract`;
-   6. `ac_trace.py --run <run> --require-evidence`: no `FAIL` line may name this package's criteria (other
-      packages' lines are expected); a missing or malformed row goes back to the agent that owns the criterion;
-   7. `run.py package-status <run> --wp <WP-nn> --status done`; `run.py log <run> build done "<stem>: done-check
-      <result>"`. The engine refuses `done` until the maker, the tester (a separate dispatch) and a Validator pass
-      on each have reports, stamped, and one of them cites a passing `runner/<id>.json`; it names what's missing.
-      Run the missing step. Only the owner may accept a package without it (`--override "<their words>"`).
-   Before steps 3 and 4 run `python -I .fyzxsflow/package/engine/review.py needed --run <run> --agent <the agent
-   whose output you hand on> --stage build --package <WP-nn> --segment <segment> --paths <changed files>`. On
-   `review=pause` with an `always:` or `run-request:` reason, or `- pause: each` in `review-requests.md`, stop that
-   group at that hand-off for the owner (its tester waits); other groups go on.
-2. **What comes back:**
-   - Validator `fail`: re-dispatch the agent with the validator's report. A second fail: `python -I
-     .fyzxsflow/package/engine/models.py <agent> --up 1`, re-dispatch on that model, log an `escalation` finding;
-     `capped=yes` stops that group.
-   - Runner `code` failure: back to the agent owning the file, with the summary path; after 2 rounds stop that
-     group. Exit 3 (destructive steps refused) stops it for the owner. Exit 4 (locked): wait, then rerun.
-   - `replan` stops the build. `scope-request`: grant it only when the file is in no other package's scope and serves
-     this package's criteria (`findings.py amend <F-n> --run <run> --note "granted: <why>"`, then `lanes.py grant
-     --run <run> --group <g> --path <the file>` so the hook lets the lane change it); else stop that group.
-3. **Each group's end** (and whenever no group can go on): update your report; return each hand-off in order: stem, agent, report path, `review_file`
-   (`run.py packages <run> --current <WP-nn> --agent <agent>`), validator verdict, `review.py needed` answer.
-4. **Rework** (a redo, review findings, Runner or gate kick-backs): set the package back to `building` and re-run
-   it from the agent named, with every step after it. Reports are updated in place.
-5. **Close-out** (once every group is completed into the run branch, and again when the Orchestrator asks after ci, Prove or review fixes): for
-   every live brief criterion and every package criterion, open the evidence (the cited line, the Runner or gate
-   summary, the proof log) and write its row. A criterion only Prove can show stays `partial` until then.
 
 ## Output
 - Plan: `<run>/work-packages/WP-<nn>-<segment>-<what>.md`. `<nn>` is the build order, two digits; `<what>` is 2 to
@@ -229,6 +85,15 @@ step (validator, Runner, contract checks, tracing) is the same either way.
   from the file, with its `path:line`. A test named as picking up a change must actually assert it.
 - A generated file is regenerated by a Runner step named in the done-check, never written by hand.
 - No run ids (`F-n`, `AC-n`, `WP-nn`) in text a criterion tells an agent to put in product files.
+
+## Where the rest lives
+These modes are in their own files, with the same authority as this one. Read the file before you start the mode.
+
+| Section | File |
+|---|---|
+| **Plan mode** | `.fyzxsflow/package/agents/build-coordinator/plan.md` |
+| **Parallelize mode** | `.fyzxsflow/package/agents/build-coordinator/parallelize.md` |
+| **Execute mode** | `.fyzxsflow/package/agents/build-coordinator/execute.md` |
 
 ## Learned
 <!-- This project's entries live in `.fyzxsflow/learned/build-coordinator.md` (maintained by the Curator; each entry: the

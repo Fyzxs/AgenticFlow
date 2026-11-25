@@ -47,10 +47,10 @@ import subprocess
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from layout import HOME, LEARNED, LEGACY_HOMES, NAME, PACKAGE  # noqa: E402
+from layout import AGENT_BUDGET_KB, HOME, LEARNED, LEGACY_HOMES, NAME, PACKAGE  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
-VERSION = "0.6.3"
+VERSION = "0.6.4"
 HOOK_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/block_kill_by_name.py"'
 GUARD_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/orchestrator_guard_claude.py"'
 OLD_GUARD_MARKERS = ("/engine/hooks/orchestrator_guard.py",)  # 0.4.4-0.4.9: one script for both hosts
@@ -114,7 +114,16 @@ def source_commit(source: pathlib.Path) -> str:
     return proc.stdout.strip() if proc.returncode == 0 else "unknown"
 
 
+def over_budget(agents: pathlib.Path) -> list:
+    return [f"{a.name} ({a.stat().st_size / 1024:.1f} KB)" for a in sorted(agents.glob("*.agent.md"))
+            if a.stat().st_size > AGENT_BUDGET_KB * 1024]
+
+
 def install_package(source: pathlib.Path, target: pathlib.Path, written: list):
+    big = over_budget(source / ".apm" / "agents")
+    if big:
+        raise SystemExit(f"refused: agent files over the {AGENT_BUDGET_KB} KB budget: {', '.join(big)}. Move "
+                         f"sections into <agent>/<part>.md beside it (a FyzxsFlow bug; nothing was installed)")
     pkg = target / HOME / PACKAGE
     if pkg.exists():
         shutil.rmtree(pkg)  # installer-owned: files dropped upstream must not linger
@@ -289,7 +298,7 @@ def copilot_skill(name: str, prompt: pathlib.Path) -> str:
     m = ACT_AS.match(body.lstrip("\n"))
     if m:
         agent, mode = m.group(1), m.group(2).strip()
-        gate = (f"This command runs in the FyzxsFlow **{agent}** custom agent{(' ' + mode) if mode else ''}. Your agent "
+        gate = (f"Run this command as the FyzxsFlow **{agent}** custom agent{('' if mode.startswith(',') else ' ') + mode if mode else ''}. Your agent "
                 f"file is already your instructions; don't read it as a file. If you are not running as the "
                 f"{agent} agent, do nothing else: tell the owner to select it (`/agent {agent}`, or start "
                 f"`copilot --agent {agent}`) and run /{name} again.\n\n")

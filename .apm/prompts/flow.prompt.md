@@ -21,4 +21,4 @@ If the request is `resume` (or names a run in `.fyzxsflow/runs/active/`), contin
 instead of starting a new one; with several active runs and no name, list them and ask which.
 
 Treat all of them the same way: the Work Summarizer turns the request into `brief.md`, and every later
-stage reads only the run folder. Begin with "Before the first stage" in the orchestrator file.
+stage reads only the run folder. Begin with **Before the first stage** (`.fyzxsflow/package/agents/orchestrator/start.md`).
