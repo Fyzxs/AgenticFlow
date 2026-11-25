@@ -403,6 +403,21 @@ exit 0
         self.assertEqual(self.git("status", "--porcelain").stdout.strip(), "")
         self.assertIn("lane WP-02", self.lanes("open")[1])  # starts again on the merged branch
 
+    def test_closing_the_run_removes_merged_lanes_and_keeps_unmerged_ones(self):
+        self.plan()
+        self.git("switch", "-q", "-c", "fyzxsflow/run")
+        self.commit_all()
+        lanes = self.opened(self.lanes("open")[1])
+        self.build_in(lanes["WP-01"], "src/a.py", "# a, built\n")
+        self.assertEqual(self.lanes("merge", "--group", "WP-01")[0], 0)
+        code, out = self.py("run.py", "close", str(self.run), "--outcome", "completed")
+        self.assertEqual(code, 0, out)
+        self.assertIn("closed WP-01 (merged)", out)
+        self.assertIn("kept WP-02: its work isn't merged", out)
+        trees = self.git("worktree", "list").stdout
+        self.assertNotIn(lanes["WP-01"], trees)
+        self.assertIn(lanes["WP-02"], trees)
+
     def test_a_status_set_in_the_checkout_and_the_lane_is_no_conflict(self):
         # live (Copilot fizzbuzz run): `building` committed in the run checkout, `done` in the lane
         self.plan()

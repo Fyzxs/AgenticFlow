@@ -5,6 +5,9 @@
   (docs-gardener, gate-analyst) unanswered: the owner's one `approve` answered only the pr-reviewer's.
   `run.py close --outcome completed` now refuses (exit 3) while `reviews.jsonl` has an open pause, naming each;
   `--override "<owner's words>"` closes anyway and logs them. Abandoning a run is never refused.
+- **Closing a run removes its merged lanes.** The rerun left its finished lane's worktree beside the checkout:
+  only the Build Coordinator's Execute mode says to run `lanes.py close`. `run.py close` now does it (merged
+  lanes only; a lane whose work isn't merged is kept and named).
 
 ## 0.6.8 (2026-11-25)
 - **Doctor warns when Copilot doesn't trust the folder.** The live FizzBuzz run's resumed sessions (each owner

@@ -18,6 +18,7 @@
   python -I engine/run.py close <run-dir> --outcome completed|abandoned [--note "PR #12"] [--override "<owner's words>"]
       -> `completed` is refused (exit 3, naming them) while a review in reviews.jsonl still waits for the owner;
          --override records the owner's words in the ledger and closes anyway. `abandoned` always closes.
+         Removes the run's merged lanes (lanes.py close); a lane whose work isn't merged is kept.
   python -I engine/run.py list [--root .]          -> active runs in every worktree of the repo, with their last ledger line
   python -I engine/run.py packages <run-dir> [--current WP-04 [--agent implementer]]
       -> the plan with each package's status; with --current, "Package n of N: <title>", done packages, the next
@@ -544,6 +545,17 @@ def repo_root(run: pathlib.Path) -> pathlib.Path:
     raise SystemExit(f"{run} is not inside a .fyzxsflow/ folder")
 
 
+def close_lanes(run: pathlib.Path):
+    """Removes the run's merged lanes (worktree and branch); a lane whose work isn't merged is kept and named."""
+    import lanes as lanesmod
+    try:
+        if not lanesmod.load(lanesmod.repo_root(run), run):
+            return
+        lanesmod.cmd_close(argparse.Namespace(run=str(run), group=None, force=False))
+    except (SystemExit, OSError, ValueError) as e:
+        print(f"lanes not closed: {e}", file=sys.stderr)
+
+
 def cmd_close(args) -> int:
     run = pathlib.Path(args.run).resolve()
     if run.parent.name != "active":
@@ -567,6 +579,8 @@ def cmd_close(args) -> int:
         if pauses:
             append(run, "run", "decided", f"closed with {len(pauses)} open review(s) by the owner's word "
                                           f"(\"{args.override}\")")
+    if git(root, "rev-parse", "--git-dir").returncode == 0:
+        close_lanes(run)
     if runs_mode(root) == "local" or git(root, "rev-parse", "--git-dir").returncode != 0:
         append(run, "run", "done" if args.outcome == "completed" else "failed", note)
         dest.parent.mkdir(parents=True, exist_ok=True)
