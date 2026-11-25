@@ -652,6 +652,43 @@ def maker_scope(payload: dict):
     return None
 
 
+# ---------------------------------------------------------------- an agent's report is the agent's (orchestrator: blocks)
+
+REPORT_PATH = re.compile(rf"(?:^|/){re.escape(HOME)}/runs/(?:[^/]+/)+reports/")
+
+
+def in_place_targets(command: str) -> list:
+    """Files `sed -i` / `perl -i` rewrite."""
+    out = []
+    for words in never_segments(command):
+        if words and words[0].lower() in ("sed", "perl") and any(w.startswith("-i") or w.startswith("--in-place")
+                                                                  or (w.startswith("-") and not w.startswith("--")
+                                                                      and "i" in w[1:]) for w in words[1:]):
+            out += [w for w in words[2:] if not w.startswith("-") and ("/" in w or "." in w)]
+    return out
+
+
+def report_guard(payload: dict, scoped: bool):
+    """None, or why the orchestrator may not write an agent's report: a report records what that agent did; a
+    missing or wrong line goes back to the agent (or is the owner's call), never the orchestrator's edit."""
+    if not is_orchestrators_call(payload, scoped):
+        return None
+    tool, args, _, _ = fields(payload)
+    if tool in EDIT_TOOLS:
+        targets = edited_paths(args)
+    elif tool in SHELL_TOOLS:
+        command = str(args.get("command") or args.get("script") or "")
+        targets = shell_write_targets(command) + in_place_targets(command)
+    else:
+        return None
+    hit = next((t for t in targets if REPORT_PATH.search(t.replace("\\", "/"))), None)
+    if not hit:
+        return None
+    return (f"Blocked by FyzxsFlow: {hit} is an agent's report, and only that agent writes it. Stamping "
+            f"(run.py stamp) adds the model lines, and a missing model_reported is stamped unknown. Anything else "
+            f"wrong in it: send it back to the agent with what to fix, or ask the owner.")
+
+
 # ---------------------------------------------------------------- after an edit: encoding damage (reports, never fixes)
 
 MOJIBAKE = re.compile("â€|Ã[\u0080-¿]|Â[ -¿]|�")

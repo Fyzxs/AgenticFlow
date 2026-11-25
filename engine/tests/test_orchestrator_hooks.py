@@ -391,5 +391,30 @@ class ReviewGateTests(unittest.TestCase):
         self.assertEqual(self.review("open", "--run", str(self.run_dir)).returncode, 0)
 
 
+class ReportTests(unittest.TestCase):
+    """An agent's report is the agent's: the orchestrator's writes to it are refused, on both hosts (live: the
+    Copilot rerun's orchestrator added model_reported to a validator's report itself)."""
+    REPORT = ".fyzxsflow/runs/active/r1/reports/validator.work-summarizer.md"
+
+    def test_the_orchestrators_edit_or_shell_write_to_a_report_is_blocked(self):
+        for payload in (orch("Edit", file_path=self.REPORT), orch("Write", file_path="/abs/repo/" + self.REPORT),
+                        orch("Bash", command=f"sed -i 's/^---$/---\\nmodel_reported: unknown/' {self.REPORT}"),
+                        orch("Bash", command=f"echo 'model_reported: unknown' >> {self.REPORT}")):
+            p = hook(payload)
+            self.assertEqual(p.returncode, 2, payload)
+            self.assertIn("is an agent's report, and only that agent writes it", p.stderr)
+        p = hook({"toolName": "edit", "toolArgs": json.dumps({"path": self.REPORT})}, "--scoped", "pre")
+        self.assertEqual(p.returncode, 2)
+        self.assertEqual(json.loads(p.stdout)["permissionDecision"], "deny")
+
+    def test_the_agent_itself_and_the_orchestrators_reads_and_stamps_are_fine(self):
+        self.assertEqual(hook({"tool_name": "Write", "agent_id": "a1", "agent_type": "validator",
+                               "tool_input": {"file_path": self.REPORT}}).returncode, 0)
+        for cmd in (f"cat {self.REPORT}", f"python -I {ENG}/run.py stamp {self.REPORT} --agent validator",
+                    f"sed -n 1,5p {self.REPORT}", f"grep -i model {self.REPORT} > /dev/null"):
+            self.assertEqual(hook(orch("Bash", command=cmd)).returncode, 0, cmd)
+        self.assertEqual(hook(orch("Edit", file_path=".fyzxsflow/runs/active/r1/reviews/intake.x.md")).returncode, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -25,7 +25,7 @@ These hold in every mode and win over anything that seems to say otherwise.
 4. **Every hand-off is checked, and a pause waits for the owner.** When an agent (and its Validator) returns:
    stamp its report, run `review.py needed`, write its review file, and on `review=pause` stop for the owner
    (**Human review between hand-offs**). The hook refuses your next dispatch until that check is recorded. Never
-   record a reply the owner didn't give.
+   record a reply the owner didn't give, and never edit an agent's report (blocked): what's wrong goes back to it.
 5. **A denied call is an answer.** When a hook or the host refuses something, stop and report it; never reach the
    same result another way.
 6. **Stop only at a gate** (**Gates (the only times you stop)**), and at every one of them.
