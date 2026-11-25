@@ -1,12 +1,14 @@
 # Changelog
 
-## 0.6.6 (2026-11-25)
+## 0.6.7 (2026-11-25)
 From the first live `/flow` on Copilot (FizzBuzz): the run went through Intake, Locate and Build without one
 review check, because the hand-off rule moved to `orchestrator/review.md` in 0.6.4 and the orchestrator never
 opened it.
 - **Every hand-off is checked, mechanically.** `review.py needed` records each answer in `reviews.jsonl`
   (`checked`), and the orchestrator hook refuses its next dispatch while a returned, stamped report has no check
-  (its Validator may still run). The rule is also a Non-negotiable in the orchestrator's own file.
+  (its Validator may still run). The rule is also a Non-negotiable in the orchestrator's own file. A report
+  counts whether or not it is stamped: on the rerun the orchestrator stamped the Code Indicator late and
+  dispatched the planner before checking it.
 - **A tests-only package can be done:** its tester is its maker (tester report + a Validator pass).
 
 ## 0.6.5 (2026-11-25)

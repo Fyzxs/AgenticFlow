@@ -286,8 +286,10 @@ def dispatch_target(args: dict) -> str:
 
 
 def unchecked_handoffs(run: pathlib.Path) -> list:
-    """Stamped agent reports whose hand-off was never checked with `review.py needed` (validators are part of
-    their target's hand-off; the build-coordinator's execute report is its close-out, not a hand-off)."""
+    """Agent reports, stamped or not, whose hand-off was never checked with `review.py needed` (validators are
+    part of their target's hand-off; the build-coordinator's execute report is its close-out, not a hand-off). A
+    report counts from the moment it exists: in the first live Copilot run the orchestrator stamped late, after it
+    had already dispatched the next agent."""
     import json as _json
     checked = []
     f = run / "reviews.jsonl"
@@ -304,7 +306,7 @@ def unchecked_handoffs(run: pathlib.Path) -> list:
         fm = re.match(r"\A---\n(.*?)\n---\n", text, re.S)
         meta = dict(re.findall(r"^(\w[\w-]*):\s*(.*?)\s*$", fm.group(1), re.M)) if fm else {}
         agent, target = meta.get("agent", ""), meta.get("target", "")
-        if not agent or "model" not in meta or agent == "validator" or rep.name.endswith(".execute.md"):
+        if not agent or agent == "validator" or rep.name.endswith(".execute.md"):
             continue
         package = re.match(r"WP-\d+", target)
         ok = any(a == agent and (not package or (t.lower() == package.group(0).lower()
@@ -336,7 +338,7 @@ def handoff_gate(payload: dict, scoped: bool):
     run, (name, agent, package) = missing[0]
     where = f"--package {package} " if package else "--stage <its stage> "
     return (f"Blocked by FyzxsFlow: {agent}'s output (reports/{name}) was never checked for review, so the next "
-            f"dispatch has to wait. Run `python -I {HOME}/{PACKAGE}/engine/review.py needed --run {run.name} --agent "
+            f"dispatch has to wait. Stamp it (run.py stamp), run `python -I {HOME}/{PACKAGE}/engine/review.py needed --run {run.name} --agent "
             f"{agent} {where}...`, write its review file, and on review=pause stop for the owner "
             f"(**Human review between hand-offs**, orchestrator/review.md).")
 

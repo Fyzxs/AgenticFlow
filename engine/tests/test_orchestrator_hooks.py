@@ -355,7 +355,7 @@ class ReviewGateTests(unittest.TestCase):
     def test_a_returned_agent_must_be_checked_for_review_before_the_next_dispatch(self):
         rep = self.run_dir / "reports" / "work-summarizer.md"
         rep.parent.mkdir()
-        rep.write_text("---\nagent: work-summarizer\ntarget: brief\nmodel: claude:sonnet\n---\n", encoding="utf-8")
+        rep.write_text("---\nagent: work-summarizer\ntarget: brief\n---\n", encoding="utf-8")  # not stamped yet
         dispatch = {"tool_name": "Agent", "agent_type": "orchestrator", "tool_input": {"subagent_type": "code-indicator"}}
         p = self.call(dispatch)
         self.assertEqual(p.returncode, 2)
