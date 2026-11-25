@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.8 (2026-11-25)
+- **A package's status no longer conflicts a lane merge.** Execute mode sets a package to `building` in the run
+  checkout and to `done` in its lane, so `lanes.py merge` met a conflict on the `status:` line and the live Copilot
+  run (FizzBuzz) had to rebuild the lane by hand. Work-package files now merge with their own driver
+  (`lanes.py package-merge-driver`, registered with the others when a lane opens): when both sides changed the
+  status, the one furthest along wins (planned < deferred < building < done); the rest of the file merges as usual,
+  and a real conflict there still stops the merge.
+
 ## 0.6.7 (2026-11-25)
 From the first live `/flow` on Copilot (FizzBuzz): the run went through Intake, Locate and Build without one
 review check, because the hand-off rule moved to `orchestrator/review.md` in 0.6.4 and the orchestrator never

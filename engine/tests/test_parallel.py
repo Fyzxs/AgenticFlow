@@ -403,6 +403,48 @@ exit 0
         self.assertEqual(self.git("status", "--porcelain").stdout.strip(), "")
         self.assertIn("lane WP-02", self.lanes("open")[1])  # starts again on the merged branch
 
+    def test_a_status_set_in_the_checkout_and_the_lane_is_no_conflict(self):
+        # live (Copilot fizzbuzz run): `building` committed in the run checkout, `done` in the lane
+        self.plan()
+        self.git("switch", "-q", "-c", "fyzxsflow/run")
+        self.commit_all()
+        lanes = self.opened(self.lanes("open")[1])
+        wp = self.run.relative_to(self.root) / "work-packages" / "WP-01-x.md"
+        text = (self.root / wp).read_text(encoding="utf-8")
+        (self.root / wp).write_text(text.replace("status: planned", "status: building"), encoding="utf-8")
+        self.commit_all("checkpoint")
+        self.build_in(lanes["WP-01"], "src/a.py", "# a, built\n")
+        lane_text = text.replace("status: planned", "status: done") + "\n## Notes\n- from the lane\n"
+        self.build_in(lanes["WP-01"], str(wp), lane_text)
+        code, out = self.lanes("merge", "--group", "WP-01")
+        self.assertEqual(code, 0, out)
+        self.assertIn("merged WP-01", out)
+        merged = (self.root / wp).read_text(encoding="utf-8")
+        self.assertIn("status: done", merged)
+        self.assertNotIn("status: building", merged)
+        self.assertIn("- from the lane", merged)
+
+    def test_the_package_driver_keeps_the_status_furthest_along_and_flags_a_real_conflict(self):
+        d = self.tmp / "drv"
+        d.mkdir()
+        def drive(base, ours, theirs):
+            for n, t in (("base", base), ("ours", ours), ("theirs", theirs)):
+                (d / n).write_bytes(t.encode("utf-8"))
+            code, out = self.py("lanes.py", "package-merge-driver", str(d / "base"), str(d / "ours"), str(d / "theirs"))
+            return code, (d / "ours").read_bytes().decode("utf-8")
+        doc = "---\nid: WP-01\nstatus: {}\n---\nbody {}\n"
+        self.assertEqual(drive(doc.format("planned", 1), doc.format("done", 1), doc.format("building", 1)),
+                         (0, doc.format("done", 1)))
+        self.assertEqual(drive(doc.format("building", 1), doc.format("building", 1), doc.format("planned", 1)),
+                         (0, doc.format("planned", 1)))  # one side changed it: that side, even backwards
+        crlf = doc.replace("\n", "\r\n")
+        self.assertEqual(drive(crlf.format("planned", 1), crlf.format("building", 1), crlf.format("done", 2)),
+                         (0, crlf.format("done", 2)))
+        code, text = drive(doc.format("planned", 1), doc.format("done", 2), doc.format("building", 3))
+        self.assertEqual(code, 1)
+        self.assertIn("<<<<<<<", text)
+        self.assertIn("status: done", text)
+
     def test_an_uncommitted_ledger_line_refuses_the_merge_instead_of_marking_a_conflict(self):
         self.plan()
         self.git("switch", "-q", "-c", "fyzxsflow/run")

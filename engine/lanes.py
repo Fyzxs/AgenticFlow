@@ -57,8 +57,11 @@ worktree finds it. Each lane is committed by path from its agents' reports. Run 
 GitHub (gh) and Azure DevOps (az repos), from the remote's URL or the profile's `PR host:`.
 
 Opening a lane registers, in the repo's local git config (never a committed file), the merge drivers for the run
-folder: findings.jsonl merges by finding id (findings.py merge-driver), ledger.md and reviews.jsonl by union. Finding
-ids come from one counter shared by every worktree, so lanes never mint the same id.
+folder: findings.jsonl merges by finding id (findings.py merge-driver), ledger.md and reviews.jsonl by union, and
+a work package's file by `lanes.py package-merge-driver`: its frontmatter `status:` is set in both the run checkout
+(`building`) and the lane (`done`), so when both changed it the furthest along wins (planned < deferred < building <
+done) and the rest of the file merges as usual. Finding ids come from one counter shared by every worktree, so lanes
+never mint the same id.
 """
 
 import argparse
@@ -77,8 +80,11 @@ import lane_resolve  # noqa: E402
 OPEN_STATES = ("open", "draft", "published")
 DONE_STATES = ("completed", "merged")
 DRIVER = "fyzxsflow-findings"
+PACKAGE_DRIVER = "fyzxsflow-package"
 ATTRIBUTES = (f"{HOME}/runs/**/findings.jsonl merge={DRIVER}", f"{HOME}/runs/**/ledger.md merge=union",
-              f"{HOME}/runs/**/reviews.jsonl merge=union")
+              f"{HOME}/runs/**/reviews.jsonl merge=union", f"{HOME}/runs/**/work-packages/*.md merge={PACKAGE_DRIVER}")
+STATUS_RANK = ("planned", "deferred", "building", "done")
+STATUS_LINE = re.compile(r"^status:[ \t]*([^\r\n#]*?)(?=[ \t]*(?:#|\r?$))", re.M)
 
 
 def git(cwd, *args) -> subprocess.CompletedProcess:
@@ -130,6 +136,9 @@ def register_drivers(root: pathlib.Path):
     git(root, "config", f"merge.{DRIVER}.name", "FyzxsFlow findings.jsonl, merged by finding id")
     git(root, "config", f"merge.{DRIVER}.driver",
         f'"{sys.executable}" -I "{engine / "findings.py"}" merge-driver %O %A %B %P')
+    git(root, "config", f"merge.{PACKAGE_DRIVER}.name", "FyzxsFlow work package, status merged by progress")
+    git(root, "config", f"merge.{PACKAGE_DRIVER}.driver",
+        f'"{sys.executable}" -I "{engine / "lanes.py"}" package-merge-driver %O %A %B %P')
     attrs = common_dir(root) / "info" / "attributes"
     attrs.parent.mkdir(parents=True, exist_ok=True)
     have = attrs.read_text(encoding="utf-8").splitlines() if attrs.exists() else []
@@ -158,9 +167,48 @@ def conflicts(root: pathlib.Path, ours: str, theirs: str) -> list:
                 current = line.split()[-1]
             elif current and current != "pending" and line.startswith("+<<<<<<<") and current not in files:
                 files.append(current)
-    driven = {a.split()[0].rsplit("/", 1)[-1] for a in ATTRIBUTES}
+    driven = {a.split()[0].rsplit("/", 1)[-1] for a in ATTRIBUTES if "*.md" not in a}
     return [f for f in dict.fromkeys(files)
-            if not (f.startswith(f"{HOME}/runs/") and f.rsplit("/", 1)[-1] in driven)]
+            if not (f.startswith(f"{HOME}/runs/") and (f.rsplit("/", 1)[-1] in driven or package_file(f)))]
+
+
+def package_file(path: str) -> bool:
+    return path.startswith(f"{HOME}/runs/") and path.rsplit("/", 2)[-2:-1] == ["work-packages"] and path.endswith(".md")
+
+
+def merge_status(base: str, ours: str, theirs: str) -> str:
+    """One side changed it: that side. Both: the one further along."""
+    if ours == base or ours == theirs:
+        return theirs
+    if theirs == base:
+        return ours
+    rank = {s: i for i, s in enumerate(STATUS_RANK)}
+    return max(ours, theirs, key=lambda s: rank.get(s, -1))
+
+
+def cmd_package_merge_driver(args) -> int:
+    """git's merge driver for a work package (%O %A %B): the result goes into %A; exit 1 leaves conflict markers."""
+    import tempfile
+    texts = [pathlib.Path(f).read_bytes().decode("utf-8") for f in (args.base, args.ours, args.theirs)]
+    found = [STATUS_LINE.search(t) for t in texts]
+    statuses = [m.group(1).strip() if m else "" for m in found]
+    status = merge_status(*statuses)
+    marker = "status: FYZXSFLOW-STATUS"
+    neutral = [STATUS_LINE.sub(marker, t, count=1) if m else t for t, m in zip(texts, found)]
+    with tempfile.TemporaryDirectory() as tmp:
+        paths = []
+        for name, text in zip(("base", "ours", "theirs"), neutral):
+            f = pathlib.Path(tmp) / name
+            f.write_bytes(text.encode("utf-8"))
+            paths.append(str(f))
+        out = subprocess.run(["git", "merge-file", "-p", "-L", "ours", "-L", "base", "-L", "theirs",
+                              paths[1], paths[0], paths[2]], capture_output=True)
+    merged = out.stdout.decode("utf-8").replace(marker, f"status: {status}" if status else "status: planned", 1)
+    pathlib.Path(args.ours).write_bytes(merged.encode("utf-8"))
+    if out.returncode:
+        print(f"{args.path or args.ours}: both sides changed the package beyond its status; resolve by hand",
+              file=sys.stderr)
+    return 1 if out.returncode else 0
 
 
 def titles(run: pathlib.Path, ids: list) -> dict:
@@ -691,6 +739,8 @@ def main(argv=None) -> int:
     r.add_argument("--publish", action="store_true")
     r.add_argument("--body-file", help="with --publish: the description (the group's report summary and evidence)")
     m = sub.add_parser("merge"); m.add_argument("--run", required=True); m.add_argument("--group")
+    d = sub.add_parser("package-merge-driver")
+    d.add_argument("base"); d.add_argument("ours"); d.add_argument("theirs"); d.add_argument("path", nargs="?")
     c = sub.add_parser("close"); c.add_argument("--run", required=True); c.add_argument("--group")
     c.add_argument("--force", action="store_true")
     gr = sub.add_parser("grant"); gr.add_argument("--run", required=True); gr.add_argument("--group", required=True)
@@ -707,7 +757,7 @@ def main(argv=None) -> int:
         from layout import resolve_run
         args.run = str(resolve_run(args.run))
     return {"open": cmd_open, "pr": cmd_pr, "refresh": cmd_refresh, "status": cmd_status, "merge": cmd_merge,
-            "close": cmd_close, "grant": cmd_grant, "sync": cmd_sync, "park": cmd_park, "unpark": cmd_unpark, "move": cmd_move}[args.cmd](args)
+            "close": cmd_close, "grant": cmd_grant, "package-merge-driver": cmd_package_merge_driver, "sync": cmd_sync, "park": cmd_park, "unpark": cmd_unpark, "move": cmd_move}[args.cmd](args)
 
 
 if __name__ == "__main__":
