@@ -23,11 +23,11 @@
   python -I engine/run.py packages <run-dir> [--current WP-04 [--agent implementer]]
       -> the plan with each package's status; with --current, "Package n of N: <title>", done packages, the next
          package, and (with --agent) the readable review file name reviews/<package file stem>.<agent>.md
-  python -I engine/run.py stamp <report> --agent <a> [--host claude] [--up N | --down] [--model <override>] [--lenient]
+  python -I engine/run.py stamp <report> --agent <a> [--host claude] [--up N | --down] [--model <override>]
       -> writes tier, model (host:model or host:inherit) and escalated into the report's frontmatter and commits
-         the run folder: the agent's output is handed off the moment it returns. Refuses (exit 2) a report that
-         doesn't say which model did the work (model_reported): send it back to the agent. --lenient (the owner's
-         call only) stamps it as "unknown". Warns on a criteria row that isn't a bare id.
+         the run folder: the agent's output is handed off the moment it returns. A report that doesn't say which
+         model did the work gets model_reported: unknown (a note, not a refusal). Warns on a criteria row that
+         isn't a bare id.
   python -I engine/run.py models <run-dir>      -> every report with its dispatched and self-reported model
   python -I engine/run.py package-status <run-dir> --wp WP-04 --status planned|building|done|deferred
                                        [--override "<the owner's words>"]
@@ -465,12 +465,10 @@ def cmd_stamp(args) -> int:
     if args.model:
         values["model"] += " (owner override)"
     if "model_reported" not in report_meta(text) and "model_reported" not in values:
-        if not args.lenient:
-            print(f"refused: {report.name} does not say which model did the work (model_reported). Send it back to "
-                  f"the agent to add it; only the owner may waive it (--lenient)", file=sys.stderr)
-            return 2
+        # The agent should say which model it ran as, but needn't: with no model configured the host picks one,
+        # and an agent may not know. Recorded as unknown, never a reason to send the work back.
         values["model_reported"] = "unknown"
-        print(f"warning: {report.name}: model_reported waived (--lenient)")
+        print(f"note: {report.name} doesn't say which model did the work; model_reported: unknown")
     report.write_text(set_frontmatter(text, values), encoding="utf-8", newline="\n")
     print(f"stamped {report.name}: tier={values['tier']} model={values['model']} escalated={values['escalated']}")
     for problem in criteria_row_problems(report.read_text(encoding="utf-8")):
@@ -981,8 +979,7 @@ def main(argv=None) -> int:
     st.add_argument("--up", type=int, default=0, help="the escalation the agent was dispatched with")
     st.add_argument("--down", action="store_true", help="a model-compare shadow output")
     st.add_argument("--model", help="an owner override for this run: the model actually used")
-    st.add_argument("--lenient", action="store_true",
-                    help="the owner's call only: stamp a report that doesn't say which model did the work")
+    st.add_argument("--lenient", action="store_true", help=argparse.SUPPRESS)  # before 0.6.10; no effect now
     st.add_argument("--no-checkpoint", action="store_true",
                     help="don't commit the run folder (e.g. stamping a shadow output mid-dispatch)")
     md = sub.add_parser("models")

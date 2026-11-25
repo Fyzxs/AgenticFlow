@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.10 (2026-11-25)
+- **`model_reported` is a should, not a must.** With no model configured for an agent the host picks one, and the
+  agent may not know which. `stamp` now records a missing `model_reported` as `unknown` with a note instead of
+  refusing (0.6.1); the rerun's orchestrator had worked round the refusal by editing a validator's report itself.
+  `--lenient` is accepted and does nothing.
+
 ## 0.6.9 (2026-11-25)
 - **A run can't complete with a review still open.** The live FizzBuzz run closed with two Deliver reviews
   (docs-gardener, gate-analyst) unanswered: the owner's one `approve` answered only the pr-reviewer's.

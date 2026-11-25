@@ -192,16 +192,15 @@ class RunTests(TempRepo):
         self.assertEqual(impl.read_text(encoding="utf-8").count("tier:"), 1)
         val = r / "reports" / "WP-01.validator.implementer.md"
         val.write_text("---\nagent: validator\nresult: pass\n---\n", encoding="utf-8")
-        self.assertEqual(run("run.py", "stamp", str(val), "--agent", "validator", "--model", "fable")[0], 2)
-        run("run.py", "stamp", str(val), "--agent", "validator", "--model", "fable", "--lenient")
+        run("run.py", "stamp", str(val), "--agent", "validator", "--model", "fable")
         self.assertIn("model: claude:fable (owner override)", val.read_text(encoding="utf-8"))
         self.assertIn("model_reported: unknown", val.read_text(encoding="utf-8"))
         silent = r / "reports" / "WP-02.tester.md"
         silent.write_text("---\nagent: tester\nresult: done\n---\n", encoding="utf-8")
         code, out = run("run.py", "stamp", str(silent), "--agent", "implementer")
-        self.assertEqual(code, 2)  # refused: back to the agent
-        self.assertIn("does not say which model did the work", out)
-        self.assertNotIn("model:", silent.read_text(encoding="utf-8"))
+        self.assertEqual(code, 0, out)  # the agent should say, but needn't: the host may pick the model
+        self.assertIn("doesn't say which model did the work; model_reported: unknown", out)
+        self.assertIn("model_reported: unknown", silent.read_text(encoding="utf-8"))
         bad = r / "reports" / "WP-02.implementer.md"
         bad.write_text("---\nagent: implementer\nmodel_reported: m\n---\n| Criterion | Status | Evidence |\n|---|---|---|\n"
                        "| WP-02.1 | met | x |\n| **WP-02.2** the mapper | met | y |\n\nSee src/Nope.cs:4.\n",
