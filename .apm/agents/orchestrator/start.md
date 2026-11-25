@@ -59,4 +59,4 @@
    delivered like any other.
 7. **Process owner feedback** at the start of every run, at every hand-off, on resume, and whenever the
    owner says "process feedback" (with or without a run): `python -I .fyzxsflow/package/engine/feedback.py scan`
-   lists new inbox items and review files with new or edited Human Feedback. See **Owner feedback** below.
+   lists new inbox items and review files with new or edited Human Feedback. See **Owner feedback** (`.fyzxsflow/package/agents/orchestrator/review.md`).
