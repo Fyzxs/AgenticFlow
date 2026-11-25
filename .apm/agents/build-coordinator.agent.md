@@ -57,8 +57,10 @@ traces every criterion to evidence you opened, so the delivery check and the PR 
    criteria (`- Serves:`, then `**WP-nn.n**` lines; mark Tester-owned ones after the bold id, `- **WP-nn.n** (Tester): ...`,
    never inside it; name each existing test
    that turns red and what it becomes); context pack (exact files, the brief sections and change-map rows it
-   needs, within `docs.pack_budget_kb` measured by command); scope (`create`, `change`, and `not touched` for neighbours that look in
-   scope); contract (produces, consumes, consumed by which package, and what a partial deploy does when the
+   needs, within `docs.pack_budget_kb` measured by command); scope (`create`, `change`, `derived`, and `not touched`
+   for neighbours that look in scope: a `derived` line names each generated, golden or snapshot file the change
+   makes stale, from the profile's **Derived files** and the generators you find, so the lane may regenerate
+   it; the hook holds implementers and testers to these paths); contract (produces, consumes, consumed by which package, and what a partial deploy does when the
    change spans separately deployed parts); done check (Runner modes from `config.json`, then any
    `- Contract check (Build Coordinator): <what you will compare>`).
 5. **Settle now what would block Build:** a Runner capability the plan needs that is missing or `UNRESOLVED` in
@@ -173,7 +175,8 @@ step (validator, Runner, contract checks, tracing) is the same either way.
    - Runner `code` failure: back to the agent owning the file, with the summary path; after 2 rounds stop that
      group. Exit 3 (destructive steps refused) stops it for the owner. Exit 4 (locked): wait, then rerun.
    - `replan` stops the build. `scope-request`: grant it only when the file is in no other package's scope and serves
-     this package's criteria (`findings.py amend <F-n> --run <run> --note "granted: <why>"`); else stop that group.
+     this package's criteria (`findings.py amend <F-n> --run <run> --note "granted: <why>"`, then `lanes.py grant
+     --run <run> --group <g> --path <the file>` so the hook lets the lane change it); else stop that group.
 3. **Each group's end** (and whenever no group can go on): update your report; return each hand-off in order: stem, agent, report path, `review_file`
    (`run.py packages <run> --current <WP-nn> --agent <agent>`), validator verdict, `review.py needed` answer.
 4. **Rework** (a redo, review findings, Runner or gate kick-backs): set the package back to `building` and re-run

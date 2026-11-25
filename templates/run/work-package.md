@@ -23,8 +23,11 @@ blocks: []
 - brief sections: Problem, AC-1, AC-3
 
 ## Scope
+<!-- Every path this package may change: the lane's implementer and tester are held to it (lanes.py grant adds
+     a granted scope-request). A folder ends in /; * and ? glob. -->
 - create: `path/...`
 - change: `path/...`
+- derived: `path/...` — <regenerated from what (a golden doc, snapshot or generated file the change makes stale)>
 
 ## Series reasons
 <!-- One line per depends_on entry: why this package can't build in parallel with it (waves.py checks it).

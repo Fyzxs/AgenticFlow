@@ -15,9 +15,11 @@ repo hooks read the session's selected agent from Copilot's session state (orche
   prompt: a FyzxsFlow skill (/flow, /fyzxsflow-*) typed in a session not running as its agent is blocked
           ({"decision": "block"}), before any model call. When the agent isn't known yet (the first prompt of a
           `-p` session), the first tool call checks it instead.
-  pre:    the never-list, for every caller; the skill check above; the review gate for the orchestrator. Denies
+  pre:    the never-list, for every caller; an implementer or tester outside its lane's scope; the skill check
+          above; the review gate for the orchestrator. Denies
           print {"permissionDecision": "deny"} (plus hookSpecificOutput for VS Code) and exit 2.
-  post:   the delegation reminder for the orchestrator's own work, as additionalContext.
+  post:   encoding damage in a file just edited (mojibake, LF turned CRLF), for every caller, and the delegation
+          reminder for the orchestrator's own work, as additionalContext.
 A preToolUse hook that fails denies the call (Copilot's rule), so a broken guard fails closed. Malformed input is
 allowed. --probe (pre only) logs payloads to .fyzxsflow/runs/_adhoc/hook-probe.jsonl and allows everything.
 """
@@ -59,10 +61,13 @@ def main(argv=None) -> int:
             print(json.dumps({"decision": "block", "reason": blocked}))
         return 0
     if event == "pre":
-        blocked = (rules.never_list(payload) or (None if scoped else rules.skill_gate_tool(payload))
+        blocked = (rules.never_list(payload) or rules.maker_scope(payload)
+                   or (None if scoped else rules.skill_gate_tool(payload))
                    or rules.review_gate(payload, scoped=scoped))
         return deny(blocked) if blocked else 0
-    note = rules.reminder(payload, scoped=scoped)
+    notes = [n for n in (None if scoped else rules.encoding_problems(payload),
+                         rules.reminder(payload, scoped=scoped)) if n]
+    note = "\n\n".join(notes)
     if note:
         print(json.dumps({"additionalContext": note,
                           "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": note}}))

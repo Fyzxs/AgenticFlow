@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.2 (2026-11-25)
+- **A lane knows what it may change.** `lanes.py open` records each lane (run, group, packages, `owns` = its
+  packages' Scope paths, branch, into) in the lane's own git directory, never in the tree. `engine/lane_resolve.py`
+  finds it from any path, for FyzxsFlow's hooks and for a repo's own guard to import (no env var: Copilot `task`
+  subagents share one process). `lanes.py grant` adds a granted scope-request.
+- **Implementers and testers stay in scope (blocks, both hosts).** An edit outside the lane's scope, or a shell
+  write (`>`, `Set-Content`, `Out-File`, `tee`) into a tracked file, is denied with what to do instead.
+- **Derived files are planned.** A package's Scope takes `derived:` lines for generated, golden and snapshot files
+  its change makes stale; the profile gets a **Derived files** section to list generators.
+- **Encoding damage is reported** (Copilot, after each edit): mojibake such as `â€` and LF turned CRLF.
+- **A denied call is an answer** (role contracts): stop and report `blocked: <call>`, never work around it.
+
 ## 0.6.1 (2026-11-25)
 - **A package is done only when its steps are.** `run.py package-status --status done` refuses (exit 3, naming
   what's missing) until the maker's report and a Validator pass on it, the tester's report from a separate

@@ -11,6 +11,10 @@ invent disagreement, and never act on a disputed item in code or docs on your ow
 code, follow the code and log a `docs-drift` finding naming both, so the doc gets fixed; the one exception
 is a pattern a doc marks legacy, which you never copy, however often it appears in the code.
 
+**A denied tool call is an answer, not an obstacle.** When a hook or the host refuses a command or an edit, stop
+that line of work and report `blocked: <the denied call>` with the reason it gave. Never reach the same result
+another way (another tool, a script, a redirect, a hand-run of what an engine script refuses).
+
 ## Implementor
 1. Read the files it was given, and only those (plus what they point to).
 2. Do the work.

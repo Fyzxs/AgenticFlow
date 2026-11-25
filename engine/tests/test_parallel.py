@@ -272,6 +272,44 @@ class LanesTests(ParallelBase):
         self.assertEqual(out.count("closed"), 4, out)
         self.assertEqual(len(self.git("worktree", "list").stdout.splitlines()), 1)
 
+    def test_a_lane_records_what_it_may_change_and_the_hook_holds_makers_to_it(self):
+        self.plan()
+        self.git("switch", "-q", "-c", "fyzxsflow/run")
+        self.commit_all()
+        lanes = self.opened(self.lanes("open")[1])
+        lane = pathlib.Path(lanes["WP-01"])
+        self.assertEqual(self.git("status", "--porcelain", cwd=lane).stdout, "")  # the record isn't in the tree
+        sys.path.insert(0, str(ENGINE))
+        import lane_resolve
+        info = lane_resolve.find(lane / "src" / "new.py")
+        self.assertEqual((info["group"], info["packages"], info["owns"]), ("WP-01", ["WP-01"], ["src/a.py"]))
+        self.assertIsNone(lane_resolve.find(self.root / "src" / "a.py"))  # the run's own checkout is no lane
+        hook = ENGINE / "hooks" / "orchestrator_guard_claude.py"
+
+        def write(path, who="implementer"):
+            payload = {"tool_name": "Write", "tool_input": {"file_path": str(path)}, "cwd": str(lane),
+                       "agent_id": "a1", "agent_type": who}
+            return subprocess.run([sys.executable, "-I", "-B", str(hook)], input=json.dumps(payload),
+                                  capture_output=True, text=True)
+        self.assertEqual(write(lane / "src" / "a.py").returncode, 0)
+        self.assertEqual(write(lane / ".fyzxsflow/runs/active/r/reports/WP-01.implementer.md").returncode, 0)
+        blocked = write(lane / "src" / "b.py")
+        self.assertEqual(blocked.returncode, 2)
+        self.assertIn("outside the scope of lane WP-01", blocked.stderr)
+        self.assertIn("scope-request", blocked.stderr)
+        self.assertEqual(write(lane / "src" / "b.py", who="docs-gardener").returncode, 0)  # not a maker
+        code, out = self.lanes("grant", "--group", "WP-01", "--path", "src/b.py", "docs/")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(write(lane / "src" / "b.py").returncode, 0)
+        self.assertEqual(write(lane / "docs" / "spec.md").returncode, 0)
+        shell = {"tool_name": "Bash", "cwd": str(lane), "agent_id": "a1", "agent_type": "tester"}
+        for cmd, code in (("echo x > src/a.py", 2), ("Set-Content -Path src/a.py -Value x", 2),
+                          ("dotnet test > /dev/null 2>&1", 0), ("echo x > scratch.txt", 2),
+                          ("echo x > .fyzxsflow/runs/active/r/notes.txt", 0), ("echo x > src/b2.py", 2)):
+            p = subprocess.run([sys.executable, "-I", "-B", str(hook)], capture_output=True, text=True,
+                               input=json.dumps({**shell, "tool_input": {"command": cmd}}))
+            self.assertEqual(p.returncode, code, f"{cmd}: {p.stderr}")
+
     def test_pr_mode_waits_for_the_owner_to_complete_a_group_pr(self):
         self.plan()
         bare = self.tmp / "remote.git"

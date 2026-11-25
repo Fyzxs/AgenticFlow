@@ -240,6 +240,29 @@ class CopilotSessionTests(unittest.TestCase):
         self.assertEqual(self.call("pre", {**task, "sessionId": "s7"}).returncode, 0)
 
 
+class EncodingTests(unittest.TestCase):
+    @staticmethod
+    def post(payload):
+        return subprocess.run([sys.executable, "-I", "-B", str(COPILOT), "post"], input=json.dumps(payload),
+                              capture_output=True, text=True)
+
+    def test_copilot_reports_mojibake_and_crlf_after_an_edit(self):
+        with tempfile.TemporaryDirectory() as d:
+            git = lambda *a: subprocess.run(["git", "-C", d, *a], capture_output=True, text=True)  # noqa: E731
+            git("init", "-q"); git("config", "user.email", "t@e"); git("config", "user.name", "t")
+            f = pathlib.Path(d) / "wp.md"
+            f.write_bytes("one \u2014 two\n".encode("utf-8"))
+            git("add", "wp.md"); git("commit", "-qm", "i")
+            f.write_bytes("one \u00e2\u20ac\u201d two\r\n".encode("utf-8"))
+            p = self.post({"toolName": "edit", "toolArgs": {"path": "wp.md"}, "cwd": d, "agentId": "a", "agentType": "x"})
+            note = json.loads(p.stdout)["additionalContext"]
+            self.assertIn("mojibake", note)
+            self.assertIn("CRLF", note)
+            f.write_bytes("one \u2014 two\n".encode("utf-8"))
+            self.assertEqual(self.post({"toolName": "edit", "toolArgs": {"path": "wp.md"}, "cwd": d,
+                                        "agentId": "a"}).stdout, "")
+
+
 class CopilotTests(unittest.TestCase):
     """Copilot payloads: camelCase (toolName, toolArgs as a JSON string) or snake_case; the hook is agent-scoped."""
 

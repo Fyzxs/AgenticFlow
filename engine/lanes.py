@@ -37,6 +37,10 @@ waits for a wave or an unrelated group. The engine never completes, merges or au
          waves.py sets them and their dependents aside. Commit the package files by path. Refuses uncommitted work.
   python -I .fyzxsflow/package/engine/lanes.py unpark --run <run> --group <g>
       -> gives the packages back their status; the next `open` reopens the lane from the parked branch.
+  python -I .fyzxsflow/package/engine/lanes.py grant --run <run> --group <g> --path <p> [<p> ...]
+      -> a granted scope-request: the lane may change these paths too. Each lane's record (lane_resolve.py: run,
+         group, packages, owns = its packages' Scope paths, branch, into) lives in the lane's git directory; the
+         hooks hold an implementer or tester in a lane to it.
   python -I .fyzxsflow/package/engine/lanes.py close --run <run> [--group <g>] [--force]
       -> removes the lanes of completed, abandoned, merged or conflicted groups (with --group, only that one). A lane
          whose PR is still open, or whose local work isn't merged, stays unless --force.
@@ -68,6 +72,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from layout import HOME  # noqa: E402
 import pr as prmod  # noqa: E402
 import waves as wmod  # noqa: E402
+import lane_resolve  # noqa: E402
 
 OPEN_STATES = ("open", "draft", "published")
 DONE_STATES = ("completed", "merged")
@@ -281,8 +286,30 @@ def cmd_open(args) -> int:
                    "path": str(path), "branch": branch, "state": "open", "packages": members[g],
                    "base": git(root, "rev-parse", "HEAD").stdout.strip(), "into": run_branch(root)}
         save(root, run, data)
+        record_lane(path, run, g, members[g], packages, branch, run_branch(root))
         slots -= 1
         print(f"lane {g} {path} {branch} {','.join(members[g])}")
+    return 0
+
+
+def record_lane(path: pathlib.Path, run: pathlib.Path, group: str, ids: list, packages: list, branch: str,
+                into: str, extra: list = ()):
+    """The lane's record for hooks and repo guards (lane_resolve.py): what its packages may change."""
+    owns = sorted({s for p in packages if p["id"] in ids for s in p["scope"]} | set(extra))
+    lane_resolve.write(path, {"run": str(path / run.relative_to(repo_root(run))), "run_id": run.name, "group": group,
+                              "packages": ids, "owns": owns, "branch": branch, "into": into})
+
+
+def cmd_grant(args) -> int:
+    """A granted scope-request: the lane may change these paths too (the Build Coordinator's call)."""
+    run = pathlib.Path(args.run).resolve()
+    root = repo_root(run)
+    lane = lane_or_exit(load(root, run), args.group)
+    info = lane_resolve.find(lane["path"]) or {}
+    extra = sorted(set(info.get("owns") or []) | set(args.path))
+    record_lane(pathlib.Path(lane["path"]), run, args.group, lane["packages"], wmod.load(run), lane["branch"],
+                lane.get("into", ""), extra)
+    print(f"granted {args.group}: {', '.join(args.path)}")
     return 0
 
 
@@ -666,6 +693,8 @@ def main(argv=None) -> int:
     m = sub.add_parser("merge"); m.add_argument("--run", required=True); m.add_argument("--group")
     c = sub.add_parser("close"); c.add_argument("--run", required=True); c.add_argument("--group")
     c.add_argument("--force", action="store_true")
+    gr = sub.add_parser("grant"); gr.add_argument("--run", required=True); gr.add_argument("--group", required=True)
+    gr.add_argument("--path", nargs="+", required=True, help="paths (or folder/ or globs) the lane may now change")
     for name in ("sync", "unpark", "move", "park"):
         x = sub.add_parser(name); x.add_argument("--run", required=True); x.add_argument("--group", required=True)
         if name == "park":
@@ -678,7 +707,7 @@ def main(argv=None) -> int:
         from layout import resolve_run
         args.run = str(resolve_run(args.run))
     return {"open": cmd_open, "pr": cmd_pr, "refresh": cmd_refresh, "status": cmd_status, "merge": cmd_merge,
-            "close": cmd_close, "sync": cmd_sync, "park": cmd_park, "unpark": cmd_unpark, "move": cmd_move}[args.cmd](args)
+            "close": cmd_close, "grant": cmd_grant, "sync": cmd_sync, "park": cmd_park, "unpark": cmd_unpark, "move": cmd_move}[args.cmd](args)
 
 
 if __name__ == "__main__":

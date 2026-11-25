@@ -68,7 +68,7 @@ def parse(path: pathlib.Path) -> dict:
     deps = WP_ID.findall(meta.get("depends_on", ""))
     scope = set()
     for line in section(text, "Scope").splitlines():
-        if re.match(r"^\s*-\s*(create|change)\s*:", line):
+        if re.match(r"^\s*-\s*(create|change|derived)\s*:", line):
             scope.update(t.strip().rstrip("/") for t in BACKTICK.findall(line) if "..." not in t)
     reasons = {}
     for line in section(text, "Series reasons").splitlines():

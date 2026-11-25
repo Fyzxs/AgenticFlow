@@ -6,6 +6,12 @@
 ## What this repo is
 UNRESOLVED: one paragraph.
 
+## Derived files
+<!-- Files a generator, golden test or snapshot rewrites when their source changes, one line each:
+     - `docs/spec/validation-codes.md` ← rule text in `src/Rules/` (regenerate: `<command>`)
+     The Build Coordinator adds them to a package's Scope as `derived:` lines. "none" when there are none. -->
+- none known yet
+
 ## Surfaces
 | Surface | Present | Docs |
 |---|---|---|

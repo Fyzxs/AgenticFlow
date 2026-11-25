@@ -5,6 +5,8 @@
 One entry in .claude/settings.json (install.py), matcher Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Agent|Task:
   - never-list, for every caller (subagents too): completing/merging PRs, raw PR and worktree commands, pushing or
     merging into the default branch (orchestrator_rules.never_list) are denied;
+  - lane scope: an implementer or tester in a lane writing outside its packages' Scope, or into a tracked file
+    through the shell, is denied (orchestrator_rules.maker_scope);
   - review gate: while the run waits on the owner's review, a dispatch or a lanes.py / pr.py move is denied
     (JSON permissionDecision "deny", the reason on stderr, exit 2);
   - delegation reminder: otherwise the orchestrator's own work runs, with `additionalContext` naming the agent to
@@ -33,7 +35,7 @@ def main(argv=None) -> int:
     if "--probe" in argv:
         rules.probe_log(payload, scoped=False)
         return 0
-    blocked = rules.never_list(payload) or rules.review_gate(payload, scoped=False)
+    blocked = rules.never_list(payload) or rules.maker_scope(payload) or rules.review_gate(payload, scoped=False)
     if blocked:
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                                  "permissionDecisionReason": blocked}}))

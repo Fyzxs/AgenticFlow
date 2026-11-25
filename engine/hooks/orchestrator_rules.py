@@ -514,3 +514,112 @@ def skill_gate_tool(payload: dict):
         f.unlink(missing_ok=True)
         return None
     return "Blocked by FyzxsFlow: " + wrong_agent(need.get("skill", ""), need.get("agent", ""), agent)
+
+
+# ---------------------------------------------------------------- makers stay in their lane's scope (blocks)
+
+MAKER_ROLES = {"implementer", "tester", "iac-implementer", "e2e-implementer"}
+SHELL_WRITERS = {"set-content", "out-file", "add-content", "tee", "tee-object"}
+NULL_TARGETS = {"/dev/null", "$null", "nul", "/dev/stderr", "/dev/stdout"}
+
+
+def engine_module(name: str):
+    engine = pathlib.Path(__file__).resolve().parent.parent
+    if str(engine) not in sys.path:
+        sys.path.insert(0, str(engine))
+    return __import__(name)
+
+
+def shell_write_targets(command: str) -> list:
+    """Files a shell command writes by redirect or a writer command (Set-Content, Out-File, tee)."""
+    try:
+        lex = shlex.shlex(command.replace("\r", "").replace("\n", " ; "), posix=True, punctuation_chars="<>|&;")
+        lex.whitespace_split = True
+        tokens = list(lex)
+    except ValueError:
+        return []
+    out = []
+    for i, t in enumerate(tokens):
+        if t in (">", ">>", ">|", "&>", "&>>") and i + 1 < len(tokens) and not tokens[i + 1].isdigit():
+            out.append(tokens[i + 1])
+    for words in never_segments(command):
+        cmd = words[0].lower()
+        if cmd not in SHELL_WRITERS:
+            continue
+        rest = words[1:]
+        named = [rest[j + 1] for j, w in enumerate(rest[:-1]) if w.lower() in ("-path", "-filepath", "-literalpath")]
+        positional = [w for j, w in enumerate(rest) if not w.startswith("-")
+                      and (j == 0 or rest[j - 1].lower() not in ("-value", "-encoding", "-inputobject"))]
+        out += named or positional[:1]
+    return [t for t in out if t.lower() not in NULL_TARGETS and not t.startswith("&")]
+
+
+def tracked(path: pathlib.Path) -> bool:
+    return bool(git_out(path.parent if path.parent.exists() else pathlib.Path("."), "ls-files", "--error-unmatch",
+                        "--", str(path)))
+
+
+def maker_scope(payload: dict):
+    """None, or why an implementer or tester in a lane may not write there: outside its packages' Scope (lanes.py
+    grant widens it), or a shell write into a tracked file (only the file-edit tools keep encoding and line ends)."""
+    tool, args, _, agent_type = fields(payload)
+    if agent_type not in MAKER_ROLES:
+        return None
+    cwd = pathlib.Path(payload.get("cwd") or ".")
+    lanes = engine_module("lane_resolve")
+    if tool in EDIT_TOOLS:
+        for p in edited_paths(args):
+            full = (cwd / p) if not pathlib.Path(p).is_absolute() else pathlib.Path(p)
+            lane = lanes.find(full)
+            if lane and not lanes.owns(lane, full):
+                return (f"Blocked by FyzxsFlow: {lanes.relative(lane, full) or p} is outside the scope of lane "
+                        f"{lane.get('group')} ({', '.join(lane.get('packages') or [])}). Don't work around it: raise "
+                        f"a scope-request finding (findings.py add --kind scope-request) and stop; the Build "
+                        f"Coordinator grants it (lanes.py grant) or re-plans.")
+        return None
+    if tool in SHELL_TOOLS:
+        for t in shell_write_targets(str(args.get("command") or args.get("script") or "")):
+            full = (cwd / t) if not pathlib.Path(t).is_absolute() else pathlib.Path(t)
+            lane = lanes.find(full)
+            if lane and lanes.owns(lane, full) and lanes.relative(lane, full).startswith(".fyzxsflow/runs/"):
+                continue
+            if tracked(full) or (lane and not lanes.owns(lane, full)):
+                return (f"Blocked by FyzxsFlow: a shell write into {t}. Change tracked files with the file-edit tool "
+                        f"(it keeps the encoding and line endings). Shell writes (>, Set-Content, Out-File, tee) go only "
+                        f"to /dev/null, the run folder, or a new file in your scope.")
+    return None
+
+
+# ---------------------------------------------------------------- after an edit: encoding damage (reports, never fixes)
+
+MOJIBAKE = re.compile("â€|Ã[\u0080-¿]|Â[ -¿]|�")
+
+
+def encoding_problems(payload: dict):
+    tool, args, _, _ = fields(payload)
+    if tool not in EDIT_TOOLS:
+        return None
+    cwd = pathlib.Path(payload.get("cwd") or ".")
+    found = []
+    for p in edited_paths(args):
+        full = (cwd / p) if not pathlib.Path(p).is_absolute() else pathlib.Path(p)
+        try:
+            raw = full.read_bytes()
+        except OSError:
+            continue
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            found.append(f"{p} is not UTF-8")
+            continue
+        if MOJIBAKE.search(text):
+            found.append(f"{p} has mojibake (e.g. 'â€' for an em dash): text was decoded with the wrong encoding")
+        if b"\r\n" in raw:
+            head = git_out(full.parent, "show", f"HEAD:./{full.name}")
+            if head and "\r" not in head:
+                found.append(f"{p} now has CRLF line endings; it had LF")
+    if not found:
+        return None
+    return ("FyzxsFlow found encoding damage in the file you just edited: " + "; ".join(found)
+            + ". Fix it now with the file-edit tool (restore the original characters and line endings), and say so "
+              "in your report.")
