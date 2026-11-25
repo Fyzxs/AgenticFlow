@@ -64,8 +64,9 @@ yourself (the owner asked, or no agent can), log why: `run.py log <run> <stage> 
 4. **Hand off, checkpoint and pick up owner edits:**
    - **as each agent returns** (validators and reviewers too), stamp its report:
      `python -I .fyzxsflow/package/engine/run.py stamp <report> --agent <agent> --host <host>`. Stamping commits
-     the run folder, so the agent's output is recorded as the agent's; act on any warnings it prints
-     (missing model, criteria rows without a bare id, unresolved citations) before handing off;
+     the run folder, so the agent's output is recorded as the agent's. It refuses a report with no
+     `model_reported`: send it back to the agent (only the owner waives it, `--lenient`). Act on any warnings it
+     prints (criteria rows without a bare id, unresolved citations) before handing off;
    - at the end of a stage: `python -I .fyzxsflow/package/engine/run.py checkpoint <run> <stage>`;
    - when the owner replies, and whenever you resume after a gate or a new session:
      `python -I .fyzxsflow/package/engine/run.py edits <run> --record`. If it lists files, the owner changed them:

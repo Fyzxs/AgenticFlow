@@ -4,6 +4,7 @@ target: <WP-01 | review | ...>
 run: <run-id>
 result: <done | partial | failed>      # validators: pass | corrected | fail
 model_reported: <the model you are running as, as you know it, e.g. claude-sonnet-5-5; or unknown>
+dispatch: <the id in your dispatch file, when you were given one (run.py dispatch); else leave the line out>
 # tier, model and escalated are stamped by the Orchestrator (run.py stamp) after you finish; leave them out
 ---
 

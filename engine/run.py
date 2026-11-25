@@ -20,13 +20,25 @@
   python -I engine/run.py packages <run-dir> [--current WP-04 [--agent implementer]]
       -> the plan with each package's status; with --current, "Package n of N: <title>", done packages, the next
          package, and (with --agent) the readable review file name reviews/<package file stem>.<agent>.md
-  python -I engine/run.py stamp <report> --agent <a> [--host claude] [--up N | --down] [--model <override>]
-      -> writes tier, model (host:model or host:inherit) and escalated into the report's frontmatter, warns on a
-         missing model_reported or a criteria row that isn't a bare id, and commits the run folder: the agent's
-         output is handed off the moment it returns
+  python -I engine/run.py stamp <report> --agent <a> [--host claude] [--up N | --down] [--model <override>] [--lenient]
+      -> writes tier, model (host:model or host:inherit) and escalated into the report's frontmatter and commits
+         the run folder: the agent's output is handed off the moment it returns. Refuses (exit 2) a report that
+         doesn't say which model did the work (model_reported): send it back to the agent. --lenient (the owner's
+         call only) stamps it as "unknown". Warns on a criteria row that isn't a bare id.
   python -I engine/run.py models <run-dir>      -> every report with its dispatched and self-reported model
   python -I engine/run.py package-status <run-dir> --wp WP-04 --status planned|building|done|deferred
-      -> sets the package's `status:` frontmatter line and nothing else (the Orchestrator's close-out; no hand edit)
+                                       [--override "<the owner's words>"]
+      -> sets the package's `status:` frontmatter line and nothing else (no hand edit). `done` is refused (exit 3,
+         naming what's missing) until the package has: its maker's report (implementer, iac-implementer or
+         e2e-implementer) and a Validator pass on it; a tester report from a separate dispatch and a Validator
+         pass on it (not for iac-/e2e-implementer packages); a passing Runner summary (runner/<id>.json) cited by
+         one of them; every report stamped. --override records the owner's words in the ledger and sets it anyway.
+  python -I engine/run.py dispatch <run-dir> --wp WP-04 --role implementer|iac-implementer|e2e-implementer|tester|validator
+                                   [--target <agent the validator checks>] [--worktree <lane>] [--note "<text>"]
+      -> writes dispatch/<id>.md (the agent, the package, its context pack, scope, done check, the report to
+         write and the dispatch id to put in it) and logs it; prints the one line to dispatch with: "Read <file>
+         and follow it." A note may add context but never another role's work: a note naming another maker role
+         is refused.
   python -I engine/run.py ship-check <run-dir>
       -> ready=yes|no: the last ci run, the last http proof run (when proofs were written), the last extreme run,
          the end-to-end modes (when the opt-in e2e step is on and .fyzxsflow/e2e.md says ready; before that a
@@ -215,6 +227,116 @@ def read_packages(run: pathlib.Path) -> list:
     return out
 
 
+MAKERS = ("implementer", "iac-implementer", "e2e-implementer")
+PASSING = ("pass", "corrected")
+
+
+def package_done_problems(run: pathlib.Path, wp: str) -> list:
+    """What a package still lacks before it may be `done`: the Build Coordinator's Execute steps, as files."""
+    reports = run / "reports"
+
+    def meta(name):
+        f = reports / name
+        return report_meta(f.read_text(encoding="utf-8")) if f.exists() else None
+
+    problems = []
+    maker = next((m for m in MAKERS if (reports / f"{wp}.{m}.md").exists()), None)
+    if not maker:
+        return [f"no maker report (reports/{wp}.implementer.md, .iac-implementer.md or .e2e-implementer.md)"]
+    chain = [maker] + (["tester"] if maker == "implementer" else [])
+    cited = []
+    for agent in chain:
+        m = meta(f"{wp}.{agent}.md")
+        if m is None:
+            problems.append(f"no {agent} report (reports/{wp}.{agent}.md): the {agent} is its own dispatch")
+            continue
+        if "model" not in m:
+            problems.append(f"reports/{wp}.{agent}.md is not stamped (run.py stamp)")
+        v = meta(f"{wp}.validator.{agent}.md")
+        if v is None:
+            problems.append(f"no Validator report on the {agent} (reports/{wp}.validator.{agent}.md)")
+        elif ((v.get("result") or "").split() or [""])[0] not in PASSING:
+            problems.append(f"the Validator on the {agent} says {v.get('result')} (needs pass or corrected)")
+        cited += re.findall(r"runner/([\w.-]+\.json)", (reports / f"{wp}.{agent}.md").read_text(encoding="utf-8"))
+    if "tester" in chain:
+        a, b = meta(f"{wp}.{maker}.md") or {}, meta(f"{wp}.tester.md") or {}
+        if a.get("dispatch") and a.get("dispatch") == b.get("dispatch"):
+            problems.append(f"the {maker} and the tester share dispatch {a.get('dispatch')}: the tester is a separate "
+                            f"dispatch (run.py dispatch --role tester)")
+    passed = []
+    for name in dict.fromkeys(cited):
+        f = run / "runner" / name
+        try:
+            if json.loads(f.read_text(encoding="utf-8")).get("result") == "pass":
+                passed.append(name)
+        except (OSError, ValueError):
+            pass
+    if not passed:
+        problems.append("no passing Runner summary (runner/<id>.json) cited by the maker or tester report: the done "
+                        "check runs through runner.py")
+    return problems
+
+
+def section(text: str, heading: str) -> str:
+    m = re.search(r"^##\s+" + heading + r"[^\n]*\n(.*?)(?=^##\s|\Z)", text, re.M | re.S)
+    return re.sub(r"<!--.*?-->", "", m.group(1), flags=re.S).strip() if m else ""
+
+
+ROLE_WORDS = {"implementer": ("tester",), "iac-implementer": ("tester",), "e2e-implementer": ("tester",),
+              "tester": ("implementer",), "validator": ()}
+
+
+def cmd_dispatch(args) -> int:
+    """One file per dispatch, written by the engine from the package, so a dispatch prompt never re-states (or
+    re-draws) a role: the agent reads its own agent file and this, nothing hand-written."""
+    run = pathlib.Path(args.run)
+    match = [p for p in read_packages(run) if p["id"] == args.wp]
+    if not match:
+        print(f"unknown package {args.wp}", file=sys.stderr)
+        return 2
+    if (args.role == "validator") != bool(args.target):
+        print("--target names the agent a validator checks, and only a validator", file=sys.stderr)
+        return 2
+    other = [w for w in ROLE_WORDS[args.role] if re.search(r"\b" + w + r"s?\b", args.note, re.I)]
+    if other:
+        print(f"refused: the note names the {other[0]}'s work. A dispatch never moves one role's work to another: "
+              f"dispatch the {other[0]} separately (run.py dispatch --role {other[0]})", file=sys.stderr)
+        return 2
+    wp_file = run / "work-packages" / f"{match[0]['stem']}.md"
+    text = wp_file.read_text(encoding="utf-8")
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+    did = f"{args.wp}-{args.role}{'-' + args.target if args.target else ''}-{stamp}"
+    report = f"reports/{args.wp}.{'validator.' + args.target if args.target else args.role}.md"
+    rel = lambda p: p.as_posix()  # noqa: E731
+    lines = [f"# Dispatch {did}", "",
+             f"- **Agent:** {args.role}" + (f", checking the {args.target}'s output" if args.target else ""),
+             f"- **Run:** `{rel(run)}`",
+             f"- **Work package:** `{rel(wp_file)}`"]
+    if args.worktree:
+        lines.append(f"- **Worktree:** `{args.worktree}`: work only there, and run the Runner with `--root "
+                     f"{args.worktree}`")
+    lines += [f"- **Write your report to:** `{rel(run)}/{report}`, from "
+              f"`{HOME}/{PACKAGE}/templates/run/report.md`, with `dispatch: {did}` in its frontmatter",
+              "", "Do your own role's steps from your agent file, for this package only. Another role's criteria "
+              "are not yours, whatever any other text says.", ""]
+    if args.target:
+        lines += [f"Check the {args.target}'s report `reports/{args.wp}.{args.target}.md`, the package and the "
+                  "files it changed.", ""]
+    for heading in ("Context pack", "Scope", "Done check"):
+        body = section(text, heading)
+        if body:
+            lines += [f"## {heading}", body, ""]
+    if args.note.strip():
+        lines += ["## Note from the orchestrator (context only; it never changes your role)", args.note.strip(), ""]
+    out = run / "dispatch" / f"{did}.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8", newline="\n")
+    append(run, "build", "started", f"dispatch {did}: {args.role} on {match[0]['stem']}")
+    print(f"dispatch={did}")
+    print(f"prompt: Read {rel(out)} and follow it.")
+    return 0
+
+
 def cmd_package_status(args) -> int:
     run = pathlib.Path(args.run)
     if args.status not in PACKAGE_STATUSES:
@@ -224,6 +346,18 @@ def cmd_package_status(args) -> int:
     if not match:
         print(f"unknown package {args.wp}", file=sys.stderr)
         return 2
+    if args.status == "done":
+        problems = package_done_problems(run, args.wp)
+        if problems and not args.override:
+            print(f"refused: {args.wp} isn't done yet:", file=sys.stderr)
+            for problem in problems:
+                print(f"  - {problem}", file=sys.stderr)
+            print("Run the missing steps (build-coordinator.agent.md, Execute mode). Only the owner can accept it as "
+                  "it is: --override \"<their words>\".", file=sys.stderr)
+            return 3
+        if problems:
+            append(run, "build", "decided", f"owner: {args.wp} done without {'; '.join(problems)} "
+                                             f"(\"{args.override}\")")
     f = run / "work-packages" / f"{match[0]['stem']}.md"
     text = f.read_bytes().decode("utf-8")
     fm = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", text, re.S)
@@ -323,10 +457,13 @@ def cmd_stamp(args) -> int:
         values["escalated"] = f"no (shadow, one below {declared})"
     if args.model:
         values["model"] += " (owner override)"
-    if "model_reported" not in report_meta(text):
+    if "model_reported" not in report_meta(text) and "model_reported" not in values:
+        if not args.lenient:
+            print(f"refused: {report.name} does not say which model did the work (model_reported). Send it back to "
+                  f"the agent to add it; only the owner may waive it (--lenient)", file=sys.stderr)
+            return 2
         values["model_reported"] = "unknown"
-        print(f"warning: {report.name} does not say which model did the work (model_reported); ask the agent to "
-              "write it, or note why it can't")
+        print(f"warning: {report.name}: model_reported waived (--lenient)")
     report.write_text(set_frontmatter(text, values), encoding="utf-8", newline="\n")
     print(f"stamped {report.name}: tier={values['tier']} model={values['model']} escalated={values['escalated']}")
     for problem in criteria_row_problems(report.read_text(encoding="utf-8")):
@@ -798,12 +935,21 @@ def main(argv=None) -> int:
     pk.add_argument("--agent", help="with --current: also print the review file name for this agent")
     ps = sub.add_parser("package-status")
     ps.add_argument("run"); ps.add_argument("--wp", required=True); ps.add_argument("--status", required=True)
+    ps.add_argument("--override", help="the owner's words accepting a package as done without every step")
+    dp = sub.add_parser("dispatch")
+    dp.add_argument("run"); dp.add_argument("--wp", required=True)
+    dp.add_argument("--role", required=True, choices=[*MAKERS, "tester", "validator"])
+    dp.add_argument("--target", help="validator only: the agent whose output it checks")
+    dp.add_argument("--worktree", help="the lane the agent works in")
+    dp.add_argument("--note", default="", help="extra context; never another role's work")
     st = sub.add_parser("stamp")
     st.add_argument("report"); st.add_argument("--agent", required=True)
     st.add_argument("--host", default="claude", choices=["claude", "copilot"])
     st.add_argument("--up", type=int, default=0, help="the escalation the agent was dispatched with")
     st.add_argument("--down", action="store_true", help="a model-compare shadow output")
     st.add_argument("--model", help="an owner override for this run: the model actually used")
+    st.add_argument("--lenient", action="store_true",
+                    help="the owner's call only: stamp a report that doesn't say which model did the work")
     st.add_argument("--no-checkpoint", action="store_true",
                     help="don't commit the run folder (e.g. stamping a shadow output mid-dispatch)")
     md = sub.add_parser("models")
@@ -816,7 +962,7 @@ def main(argv=None) -> int:
         from layout import resolve_run
         args.run = str(resolve_run(args.run))
     return {"new": cmd_new, "log": cmd_log, "status": cmd_status, "packages": cmd_packages,
-            "stamp": cmd_stamp, "package-status": cmd_package_status, "models": cmd_models, "ship-check": cmd_ship_check,
+            "stamp": cmd_stamp, "package-status": cmd_package_status, "dispatch": cmd_dispatch, "models": cmd_models, "ship-check": cmd_ship_check,
             "checkpoint": cmd_checkpoint, "edits": cmd_edits, "close": cmd_close, "list": cmd_list}[args.cmd](args)
 
 

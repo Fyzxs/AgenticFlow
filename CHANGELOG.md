@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.1 (2026-11-25)
+- **A package is done only when its steps are.** `run.py package-status --status done` refuses (exit 3, naming
+  what's missing) until the maker's report and a Validator pass on it, the tester's report from a separate
+  dispatch and a Validator pass on it (not for iac-/e2e-implementer packages), every one stamped, and a passing
+  `runner/<id>.json` cited. `--override "<the owner's words>"` logs the owner's acceptance in the ledger.
+- **Dispatch prompts come from the engine.** `run.py dispatch --wp <id> --role <role> [--target <agent>]` writes
+  `dispatch/<id>.md` from the package (context pack, scope, done check, report path, dispatch id) and logs it; the
+  subagent's prompt is "Read <file> and follow it." A note naming another maker role is refused (the Copilot run
+  folded the tester's criteria into the implementer's prompt).
+- **`stamp` is strict.** A report without `model_reported` is refused; `--lenient` is the owner's call.
+
 ## 0.6.0 (2026-11-25)
 From a Copilot CLI run in VA_GqlOverSql, where `/flow` ran in the default agent, read 20 KB of the 46 KB
 orchestrator file, never saw the PR rules, and completed three PRs itself.

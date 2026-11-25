@@ -142,7 +142,11 @@ step (validator, Runner, contract checks, tracing) is the same either way.
    marks its packages `status: deferred` (their dependents wait; `unpark` brings it back). Findings, the ledger
    and reviews merge between lanes by themselves (merge drivers lanes.py registers), and finding ids never collide:
    never renumber or merge them by hand.
-1. **Each package of a group**, in plan order, in the group's lane:
+1. **Each package of a group**, in plan order, in the group's lane. **Every dispatch below goes through the
+   engine:** `python -I .fyzxsflow/package/engine/run.py dispatch <run> --wp <WP-nn> --role <role> [--target
+   <agent>] --worktree <lane>` writes the dispatch file, and the subagent's whole prompt is the line it prints
+   ("Read <file> and follow it."). Never write a dispatch prompt by hand, and never hand one role's criteria to
+   another: the implementer and the tester are always separate dispatches. A `--note` adds context only.
    1. `python -I .fyzxsflow/package/engine/run.py package-status <run> --wp <WP-nn> --status building`;
       `python -I .fyzxsflow/package/engine/run.py log <run> build started "<stem>: implementer"`;
    2. `implementer` (`iac-implementer`, with the IaC context pack, for pipelines and infrastructure), given the
@@ -155,7 +159,9 @@ step (validator, Runner, contract checks, tracing) is the same either way.
    6. `ac_trace.py --run <run> --require-evidence`: no `FAIL` line may name this package's criteria (other
       packages' lines are expected); a missing or malformed row goes back to the agent that owns the criterion;
    7. `run.py package-status <run> --wp <WP-nn> --status done`; `run.py log <run> build done "<stem>: done-check
-      <result>"`.
+      <result>"`. The engine refuses `done` until the maker, the tester (a separate dispatch) and a Validator pass
+      on each have reports, stamped, and one of them cites a passing `runner/<id>.json`; it names what's missing.
+      Run the missing step. Only the owner may accept a package without it (`--override "<their words>"`).
    Before steps 3 and 4 run `python -I .fyzxsflow/package/engine/review.py needed --run <run> --agent <the agent
    whose output you hand on> --stage build --package <WP-nn> --segment <segment> --paths <changed files>`. On
    `review=pause` with an `always:` or `run-request:` reason, or `- pause: each` in `review-requests.md`, stop that

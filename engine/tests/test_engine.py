@@ -5,6 +5,7 @@ Run: python -I engine/tests/run_all.py
 """
 
 import json
+import re
 import os
 import pathlib
 import shutil
@@ -77,7 +78,8 @@ class RunTests(TempRepo):
         f = r / "work-packages" / "WP-01-db-migration-add-column.md"
         f.write_bytes(f.read_bytes().replace(b"\n", b"\r\n") + b"Body: status: keep\r\n")
         before = f.read_bytes()
-        code, out = run("run.py", "package-status", str(r), "--wp", "WP-01", "--status", "done")
+        code, out = run("run.py", "package-status", str(r), "--wp", "WP-01", "--status", "done", "--override",
+                        "owner: accept it as is")
         self.assertEqual(code, 0, out)
         self.assertEqual(f.read_bytes(), before.replace(b"status: building", b"status: done"))
         self.assertEqual(run("run.py", "package-status", str(r), "--wp", "WP-01", "--status", "finished")[0], 2)
@@ -86,6 +88,61 @@ class RunTests(TempRepo):
         self.assertEqual(run("run.py", "package-status", str(r), "--wp", "WP-02", "--status", "building")[0], 0)
         self.assertIn("id: WP-02\nstatus: building\nsegment: api\n",
                       (r / "work-packages" / "WP-02-api-sort-field.md").read_text(encoding="utf-8"))
+
+    def test_done_is_refused_until_every_step_has_its_report(self):
+        r = self.new_run()
+        self.write_package(r, "WP-01-api-sort-field", "api", "the sort field", "building")
+        done = lambda *extra: run("run.py", "package-status", str(r), "--wp", "WP-01", "--status", "done", *extra)  # noqa: E731
+        code, out = done()
+        self.assertEqual(code, 3)
+        self.assertIn("no maker report", out)
+        rep = lambda name, body: (r / "reports" / name).write_text(body, encoding="utf-8")  # noqa: E731
+        (r / "runner").mkdir(exist_ok=True)
+        (r / "runner" / "quick-1.json").write_text(json.dumps({"result": "pass"}), encoding="utf-8")
+        rep("WP-01.implementer.md", "---\nresult: done\nmodel: claude:sonnet\ndispatch: d1\n---\nsee runner/quick-1.json\n")
+        code, out = done()
+        self.assertEqual(code, 3)
+        for missing in ("Validator report on the implementer", "no tester report", "the tester is its own dispatch"):
+            self.assertIn(missing, out)
+        self.assertNotIn("Runner summary", out)
+        rep("WP-01.validator.implementer.md", "---\nresult: fail\nmodel: claude:opus\n---\n")
+        rep("WP-01.tester.md", "---\nresult: done\nmodel: claude:sonnet\ndispatch: d1\n---\n")
+        rep("WP-01.validator.tester.md", "---\nresult: pass\nmodel: claude:opus\n---\n")
+        code, out = done()
+        self.assertIn("says fail", out)
+        self.assertIn("share dispatch d1", out)
+        rep("WP-01.validator.implementer.md", "---\nresult: corrected\nmodel: claude:opus\n---\n")
+        rep("WP-01.tester.md", "---\nresult: done\nmodel: claude:sonnet\ndispatch: d2\n---\n")
+        self.assertEqual(done()[0], 0)
+        # an IaC package has no tester step
+        self.write_package(r, "WP-02-infra-queue", "infra", "the queue", "building")
+        rep("WP-02.iac-implementer.md", "---\nresult: done\nmodel: claude:sonnet\n---\nrunner/quick-1.json\n")
+        rep("WP-02.validator.iac-implementer.md", "---\nresult: pass\nmodel: claude:opus\n---\n")
+        self.assertEqual(run("run.py", "package-status", str(r), "--wp", "WP-02", "--status", "done")[0], 0)
+
+    def test_dispatch_writes_the_prompt_from_the_package(self):
+        r = self.new_run()
+        self.write_package(r, "WP-01-api-sort-field", "api", "the sort field", "building")
+        code, out = run("run.py", "dispatch", str(r), "--wp", "WP-01", "--role", "implementer",
+                        "--note", "the owner prefers small commits")
+        self.assertEqual(code, 0, out)
+        did = re.search(r"dispatch=(\S+)", out).group(1)
+        f = r / "dispatch" / f"{did}.md"
+        self.assertIn(f"prompt: Read {f.as_posix()} and follow it.", out)
+        text = f.read_text(encoding="utf-8")
+        self.assertIn("WP-01.implementer.md", text)
+        self.assertIn(f"`dispatch: {did}`", text)
+        self.assertIn("Another role's criteria are not yours", text)
+        self.assertIn("the owner prefers small commits", text)
+        self.assertIn(f"dispatch {did}", (r / "ledger.md").read_text(encoding="utf-8"))
+        code, out = run("run.py", "dispatch", str(r), "--wp", "WP-01", "--role", "implementer",
+                        "--note", "also implement the Tester criteria")
+        self.assertEqual(code, 2)
+        self.assertIn("never moves one role's work to another", out)
+        code, out = run("run.py", "dispatch", str(r), "--wp", "WP-01", "--role", "validator", "--target", "tester")
+        self.assertEqual(code, 0, out)
+        self.assertIn("WP-01.validator.tester.md", (r / "dispatch" / (re.search(r"dispatch=(\S+)", out).group(1) + ".md")).read_text(encoding="utf-8"))
+        self.assertEqual(run("run.py", "dispatch", str(r), "--wp", "WP-01", "--role", "tester", "--target", "x")[0], 2)
 
     def test_packages_gives_readable_review_name_and_position(self):
         r = self.new_run()
@@ -128,13 +185,16 @@ class RunTests(TempRepo):
         self.assertEqual(impl.read_text(encoding="utf-8").count("tier:"), 1)
         val = r / "reports" / "WP-01.validator.implementer.md"
         val.write_text("---\nagent: validator\nresult: pass\n---\n", encoding="utf-8")
-        run("run.py", "stamp", str(val), "--agent", "validator", "--model", "fable")
+        self.assertEqual(run("run.py", "stamp", str(val), "--agent", "validator", "--model", "fable")[0], 2)
+        run("run.py", "stamp", str(val), "--agent", "validator", "--model", "fable", "--lenient")
         self.assertIn("model: claude:fable (owner override)", val.read_text(encoding="utf-8"))
         self.assertIn("model_reported: unknown", val.read_text(encoding="utf-8"))
         silent = r / "reports" / "WP-02.tester.md"
         silent.write_text("---\nagent: tester\nresult: done\n---\n", encoding="utf-8")
-        self.assertIn("does not say which model did the work",
-                      run("run.py", "stamp", str(silent), "--agent", "implementer")[1])
+        code, out = run("run.py", "stamp", str(silent), "--agent", "implementer")
+        self.assertEqual(code, 2)  # refused: back to the agent
+        self.assertIn("does not say which model did the work", out)
+        self.assertNotIn("model:", silent.read_text(encoding="utf-8"))
         bad = r / "reports" / "WP-02.implementer.md"
         bad.write_text("---\nagent: implementer\nmodel_reported: m\n---\n| Criterion | Status | Evidence |\n|---|---|---|\n"
                        "| WP-02.1 | met | x |\n| **WP-02.2** the mapper | met | y |\n\nSee src/Nope.cs:4.\n",
