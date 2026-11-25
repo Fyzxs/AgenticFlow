@@ -207,14 +207,13 @@ design; see [Start a new project](#start-a-new-project)) and **`fyzxsflow-compac
 |---|---|---|
 | **Claude Code** (CLI, VS Code or JetBrains extension, desktop app) | `/fyzxsflow-init` | `/flow <request>` |
 | **VS Code, GitHub Copilot Chat** | `/fyzxsflow-init` in the Chat view | `/flow <request>`, or pick **orchestrator** in the agents dropdown and type the request |
-| **GitHub Copilot CLI** | `copilot --agent=repo-cartographer --prompt "Bootstrap FyzxsFlow in this repo (bootstrap mode)"` | `copilot --agent=orchestrator --prompt "<request>"`, or `/agent` → **orchestrator** in an interactive session |
-| **GitHub Copilot app** (desktop) | start a local session on the repo: `Act as the FyzxsFlow repo-cartographer in bootstrap mode (.fyzxsflow/package/agents/repo-cartographer.agent.md).` | `Act as the FyzxsFlow orchestrator (.fyzxsflow/package/agents/orchestrator.agent.md) and run the flow on: <request>` |
+| **GitHub Copilot CLI** | `copilot --agent orchestrator`, then `/fyzxsflow-init` | `copilot --agent orchestrator`, then `/flow <request>` (or `/agent` → **orchestrator** in a session) |
+| **GitHub Copilot app** (desktop) | start a local session on the repo: `Act as the FyzxsFlow orchestrator (.fyzxsflow/package/agents/orchestrator.agent.md) and dispatch the repo-cartographer in bootstrap mode.` | `Act as the FyzxsFlow orchestrator (.fyzxsflow/package/agents/orchestrator.agent.md) and run the flow on: <request>` |
 
 - **Claude Code** reads the commands from `.claude/commands/` and dispatches each agent as a subagent.
 - **VS Code** runs the commands as agent skills, `.github/skills/<command>/SKILL.md`, typed as `/flow`,
-  `/fyzxsflow-init` and so on. They run only when you type them (never picked by the model on its own). Each one
-  tells the session which FyzxsFlow agent to act as and reads that agent's file (`.github/agents/`); the
-  Orchestrator dispatches the others as subagents (the `agent` tool). Installs before 0.4.1 wrote prompt files to
+  `/fyzxsflow-init` and so on. They run only when you type them (never picked by the model on its own). Every one
+  runs in the Orchestrator, which dispatches the agent that does the work as a subagent (the `agent` tool). Installs before 0.4.1 wrote prompt files to
   `.github/prompts/`, which VS Code offers to migrate: don't. Reinstall instead, which replaces them with the
   skills (prompt files of your own there are left alone).
 - **Package skills** (`correction-mining`) go to `.claude/skills/<skill>/SKILL.md` and `.github/skills/<skill>/SKILL.md`,

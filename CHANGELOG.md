@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.11 (2026-11-25)
+- **Every command runs in the Orchestrator, which dispatches the agent that does the work,** on both hosts.
+  `/fyzxsflow-init` used to need the Repo Cartographer selected as the session's agent, and
+  `/fyzxsflow-parallelize` the Build Coordinator: on Copilot, typing `/fyzxsflow-init` in the orchestrator was
+  refused. Now both run in the orchestrator, which dispatches the cartographer (bootstrap mode) or the build
+  coordinator (Parallelize mode) as a subagent and relays the cartographer's questions to the owner. On Copilot,
+  start once with `copilot --agent orchestrator` (Copilot has no default agent); every command then works there.
+
 ## 0.6.10 (2026-11-25)
 - **`model_reported` is a should, not a must.** With no model configured for an agent the host picks one, and the
   agent may not know which. `stamp` now records a missing `model_reported` as `unknown` with a note instead of

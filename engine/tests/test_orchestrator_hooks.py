@@ -206,9 +206,12 @@ class CopilotSessionTests(unittest.TestCase):
         self.assertEqual(self.call("prompt", {"sessionId": "s1", "prompt": "explain this repo"}).stdout, "")
         self.select("s2", "orchestrator")
         self.assertEqual(self.call("prompt", {"sessionId": "s2", "prompt": "/flow add x"}).stdout, "")
-        self.select("s3", "orchestrator")
-        p = self.call("prompt", {"sessionId": "s3", "prompt": "/fyzxsflow-init"})
-        self.assertIn("repo-cartographer", json.loads(p.stdout)["reason"])
+        self.select("s3", "orchestrator")  # every command runs in the orchestrator, which dispatches the rest
+        for cmd in ("/fyzxsflow-init a C# project", "/fyzxsflow-parallelize", "/fyzxsflow-compact"):
+            self.assertEqual(self.call("prompt", {"sessionId": "s3", "prompt": cmd}).stdout, "", cmd)
+        self.select("s7", "repo-cartographer")
+        p = self.call("prompt", {"sessionId": "s7", "prompt": "/fyzxsflow-init"})
+        self.assertIn("`copilot --agent orchestrator`", json.loads(p.stdout)["reason"])
 
     def test_before_the_agent_is_known_the_first_tool_call_decides(self):
         bash = {"toolName": "bash", "toolArgs": {"command": "ls"}}

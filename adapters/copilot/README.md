@@ -9,9 +9,8 @@ onto Copilot and what the PoC must confirm. Nothing here has been verified again
   (`disable-model-invocation: true`, so only when typed). Since 0.4.1; before, they were prompt files in
   `.github/prompts/`, which Copilot sessions on the Agent Host harness don't load and which only the Local harness
   (deprecated, removed February 2027) runs. A skill can't pin a custom agent as a prompt's `agent:` did, so each
-  body says which agent to act as and reads its file (`flow` → `orchestrator`, `fyzxsflow-init` →
-  `repo-cartographer`, `fyzxsflow-greenfield` → `orchestrator`, `fyzxsflow-compact` → `orchestrator`,
-  `fyzxsflow-parallelize` → `build-coordinator`). Custom agents in `.github/agents/` can be dispatched as subagents by
+  body says which agent to act as: every command runs in the `orchestrator`, which dispatches the agent that does
+  the work as a subagent (`fyzxsflow-init` → `repo-cartographer`, `fyzxsflow-parallelize` → `build-coordinator`). Custom agents in `.github/agents/` can be dispatched as subagents by
   an agent with the `agent` tool set (`runSubagent`); subagents can't dispatch further subagents unless
   `chat.subagents.allowInvocationsFromSubagents` is on. With it on, Build runs as on Claude Code (a dispatched
   Build Coordinator); with it off, the Build Coordinator returns `no-dispatch` and the Orchestrator runs Execute
