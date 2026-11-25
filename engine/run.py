@@ -15,7 +15,9 @@
   python -I engine/run.py status <run-dir> [--lines 8]                        -> prints the latest ledger lines
   python -I engine/run.py checkpoint <run-dir> <stage>                        -> commits the run folder (only it)
   python -I engine/run.py edits <run-dir> [--record]                          -> lists files changed since the last checkpoint
-  python -I engine/run.py close <run-dir> --outcome completed|abandoned [--note "PR #12"]
+  python -I engine/run.py close <run-dir> --outcome completed|abandoned [--note "PR #12"] [--override "<owner's words>"]
+      -> `completed` is refused (exit 3, naming them) while a review in reviews.jsonl still waits for the owner;
+         --override records the owner's words in the ledger and closes anyway. `abandoned` always closes.
   python -I engine/run.py list [--root .]          -> active runs in every worktree of the repo, with their last ledger line
   python -I engine/run.py packages <run-dir> [--current WP-04 [--agent implementer]]
       -> the plan with each package's status; with --current, "Package n of N: <title>", done packages, the next
@@ -553,6 +555,18 @@ def cmd_close(args) -> int:
         print(f"{dest} already exists", file=sys.stderr)
         return 2
     note = f"{args.outcome}: {args.note}" if args.note else args.outcome
+    if args.outcome == "completed":
+        import review as reviewmod
+        pauses = reviewmod.open_pauses(run)
+        if pauses and not args.override:
+            print(f"refused: {len(pauses)} review(s) still wait for the owner: "
+                  + "; ".join(f"{p.get('agent')} on {p.get('target') or p.get('stage') or '?'}" for p in pauses)
+                  + ". Ask the owner about each and record the reply (review.py decide), then close again; or, when "
+                  "the owner says to close anyway: --override \"<their words>\"", file=sys.stderr)
+            return 3
+        if pauses:
+            append(run, "run", "decided", f"closed with {len(pauses)} open review(s) by the owner's word "
+                                          f"(\"{args.override}\")")
     if runs_mode(root) == "local" or git(root, "rev-parse", "--git-dir").returncode != 0:
         append(run, "run", "done" if args.outcome == "completed" else "failed", note)
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -913,6 +927,7 @@ def main(argv=None) -> int:
     cl = sub.add_parser("close")
     cl.add_argument("run"); cl.add_argument("--outcome", required=True, choices=["completed", "abandoned"])
     cl.add_argument("--note", default="", help="e.g. the PR link, or why the run was abandoned")
+    cl.add_argument("--override", help="the owner's words closing a completed run while reviews are still open")
     ls = sub.add_parser("list")
     ls.add_argument("--root", default=".")
     c = sub.add_parser("checkpoint")

@@ -348,6 +348,29 @@ class CheckpointTests(TempRepo):
         self.assertIn("completed: 1", out)
         self.assertEqual(run("run.py", "close", str(dest), "--outcome", "completed")[0], 2)
 
+    def test_close_completed_refuses_while_a_review_waits_for_the_owner(self):
+        # live (Copilot fizzbuzz run): one "approve" closed the pr-reviewer pause, two more stayed open, run closed
+        r = self.new_run()
+        rows = [{"agent": "pr-reviewer", "target": "deliver", "decision": "pending"},
+                {"agent": "docs-gardener", "target": "deliver", "decision": "pending"},
+                {"agent": "pr-reviewer", "target": "deliver", "decision": "approve"}]
+        (r / "reviews.jsonl").write_text("".join(json.dumps(x) + "\n" for x in rows), encoding="utf-8")
+        code, out = run("run.py", "close", str(r), "--outcome", "completed")
+        self.assertEqual(code, 3, out)
+        self.assertIn("1 review(s) still wait for the owner: docs-gardener on deliver", out)
+        self.assertNotIn("pr-reviewer on", out)
+        self.assertTrue(r.exists())
+        code, out = run("run.py", "close", str(r), "--outcome", "completed", "--override", "close it, I read them")
+        self.assertEqual(code, 0, out)
+        dest = self.root / ".fyzxsflow" / "runs" / "completed" / r.name
+        self.assertIn('owner\'s word ("close it, I read them")', (dest / "ledger.md").read_text(encoding="utf-8"))
+
+    def test_close_abandoned_ignores_open_reviews(self):
+        r = self.new_run()
+        (r / "reviews.jsonl").write_text(json.dumps({"agent": "a", "target": "x", "decision": "pending"}) + "\n",
+                                         encoding="utf-8")
+        self.assertEqual(run("run.py", "close", str(r), "--outcome", "abandoned")[0], 0)
+
     def test_close_abandoned_before_any_checkpoint(self):
         r = self.new_run()
         code, out = run("run.py", "close", str(r), "--outcome", "abandoned", "--note", "owner stopped it")

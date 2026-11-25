@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.9 (2026-11-25)
+- **A run can't complete with a review still open.** The live FizzBuzz run closed with two Deliver reviews
+  (docs-gardener, gate-analyst) unanswered: the owner's one `approve` answered only the pr-reviewer's.
+  `run.py close --outcome completed` now refuses (exit 3) while `reviews.jsonl` has an open pause, naming each;
+  `--override "<owner's words>"` closes anyway and logs them. Abandoning a run is never refused.
+
 ## 0.6.8 (2026-11-25)
 - **Doctor warns when Copilot doesn't trust the folder.** The live FizzBuzz run's resumed sessions (each owner
   reply) ran with no FyzxsFlow hook: `copilot --resume` can't take `--trust-folder`, and an untrusted folder skips

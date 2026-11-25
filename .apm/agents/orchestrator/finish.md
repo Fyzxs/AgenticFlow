@@ -10,7 +10,9 @@ ready and why; never call it ready.
 
 Close the run: `python -I .fyzxsflow/package/engine/run.py close <run> --outcome completed --note "<PR link>"`
 (or `--outcome abandoned --note "<why>"` when the owner stops it). Only `close` moves a run out of `active/`.
-Close only when no `owner-decision` is open; a decision the owner answers after closing is a new run.
+Close only when no `owner-decision` is open; a decision the owner answers after closing is a new run. `close
+--outcome completed` refuses while a review still waits for the owner: ask about each one it names (one `approve`
+answers one review) and record the reply with `review.py decide`; `--override` only on the owner's words.
 
 End with one line: `Run <id>: PR <link | "ready" | "off: branch <name> ready">. Ship-check: <ready=yes | the failing checks>. End to end: <modes passed | "not proven: <status>" | "off">. Skipped: <steps that were off, or none>. Flags: <names, default off | not-required: revert by <path>>. Findings: <n> (<n> applied
 by the Curator). Deploy: <components in order>.`
