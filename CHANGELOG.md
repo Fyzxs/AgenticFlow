@@ -1,6 +1,11 @@
 # Changelog
 
 ## 0.6.8 (2026-11-25)
+- **Doctor warns when Copilot doesn't trust the folder.** The live FizzBuzz run's resumed sessions (each owner
+  reply) ran with no FyzxsFlow hook: `copilot --resume` can't take `--trust-folder`, and an untrusted folder skips
+  repo hooks. The pauses and review checks held anyway, from the orchestrator's own file, but nothing enforced
+  them. `doctor.py` now checks `trustedFolders` in `~/.copilot/config.json`; HOW-TO and the Copilot adapter say
+  to trust the folder for good.
 - **A package's status no longer conflicts a lane merge.** Execute mode sets a package to `building` in the run
   checkout and to `done` in its lane, so `lanes.py merge` met a conflict on the `status:` line and the live Copilot
   run (FizzBuzz) had to rebuild the lane by hand. Work-package files now merge with their own driver

@@ -42,6 +42,9 @@ Repository hooks in `.github/hooks/*.json` run for every session in a trusted fo
 1.0.116): `.github/hooks/fyzxsflow.json` carries kill-by-name and the FyzxsFlow hooks (HOW-TO.md, "The orchestrator
 does no work"). Copilot also runs the hooks in `.claude/settings.json`. Agent-scoped frontmatter `hooks:` never
 fired on the CLI. The main session's agent is read from `~/.copilot/session-state/<session>/events.jsonl`.
+Trust the folder permanently ("remember this folder", stored as `trustedFolders` in `~/.copilot/config.json`):
+`--trust-folder` can't be combined with `--resume`, so a resumed session in an untrusted folder skips every repo
+hook ("Skipped repository hooks ... not trusted"). `COPILOT_ALLOW_ALL=true` also trusts it, but approves every tool.
 
 ## Transcripts
 For correction mining, find where Copilot (VS Code agent mode, Copilot CLI, the coding agent) stores

@@ -39,7 +39,7 @@ class DoctorTests(unittest.TestCase):
         self.git("commit", "-qm", "c", "--allow-empty")
 
     def doctor(self):
-        env = {**os.environ, "PATH": f"{self.bin}{os.pathsep}{os.environ['PATH']}"}
+        env = {**os.environ, "PATH": f"{self.bin}{os.pathsep}{os.environ['PATH']}", "COPILOT_HOME": str(self.bin)}
         p = subprocess.run([sys.executable, "-I", "-B", str(ENGINE / "doctor.py"), "--root", str(self.root)],
                            capture_output=True, text=True, env=env)
         return p.returncode, p.stdout + p.stderr
@@ -83,6 +83,20 @@ class DoctorTests(unittest.TestCase):
                      "a.agent.md: `tier`", "a.agent.md: unquoted description", "over the 12 KB budget",
                      "fyzxsflow.json is missing"):
             self.assertIn(text, out)
+
+    def test_an_untrusted_folder_warns_that_resumed_sessions_run_without_hooks(self):
+        (self.root / ".github" / "agents").mkdir(parents=True)
+        (self.root / ".github" / "hooks").mkdir(parents=True)
+        (self.root / ".github" / "hooks" / "fyzxsflow.json").write_text('{"version": 1, "hooks": {}}', encoding="utf-8")
+        self.commit()
+        code, out = self.doctor()
+        self.assertEqual(code, 0, out)  # a warning, not a failure
+        self.assertIn("isn't in Copilot's trustedFolders", out)
+        (self.bin / "config.json").write_text("// managed\n" + json.dumps({"trustedFolders": [str(self.root.parent)]}),
+                                              encoding="utf-8")
+        code, out = self.doctor()
+        self.assertIn("folder trusted", out)
+        self.assertNotIn("trustedFolders", out)
 
 
 if __name__ == "__main__":

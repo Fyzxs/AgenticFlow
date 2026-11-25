@@ -112,7 +112,9 @@ The hook is one rules file, `engine/hooks/orchestrator_rules.py`, with an entry 
   orchestrator yourself**: `copilot --agent orchestrator`, `/agent orchestrator`, or VS Code's agent picker. Then
   its file is the system prompt, in full. `/flow` (and every FyzxsFlow command) is **blocked in any other agent**:
   at the prompt when the session's agent is known, else at its first tool call, with how to switch.
-  Repository hooks need the folder trusted, and an organisation can restrict hooks.
+  Repository hooks need the folder trusted, and an organisation can restrict hooks. **Trust it for good** (answer
+  "Yes, and remember this folder" once): `copilot --resume`, which every reply after an owner pause uses, can't
+  take `--trust-folder`, so an untrusted folder runs those sessions with no FyzxsFlow hook. `doctor.py` warns.
 
 **Never allowed, for any agent, on both hosts** (blocked, not reminded): completing, merging or auto-completing a PR
 (`az repos pr create|update|complete`, `gh pr create|edit|merge|ready`), raw `git worktree add|remove|move`, `git

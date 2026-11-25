@@ -14,7 +14,9 @@ Checks (from a Copilot run that met each of these only mid-run):
              "- Audit exceptions: NU1902, ..." line (--skip-restore skips it)
   agents     .github/agents/*.agent.md: frontmatter Copilot can parse (a description with ": " quoted, no `tier`),
              each file within the size budget (layout.AGENT_BUDGET_KB)
-  copilot    .github/hooks/fyzxsflow.json present and its scripts installed
+  copilot    .github/hooks/fyzxsflow.json present and its scripts installed; the repo in Copilot's trustedFolders
+             (warn: an untrusted folder skips repo hooks, and `copilot --resume` can't take --trust-folder, so every
+             resumed session, the one after each owner pause, would run with no FyzxsFlow hook)
 """
 
 import argparse
@@ -193,7 +195,26 @@ def check_copilot(root):
                if not (root / s).exists()]
     if missing:
         return [("FAIL", "copilot", f"hook scripts missing: {', '.join(sorted(set(missing)))}: reinstall")]
-    return [("ok", "copilot", "repo hooks installed (trust the folder when Copilot asks, or hooks don't run)")]
+    return [("ok", "copilot", "repo hooks installed")] + check_trusted(root)
+
+
+def trusted_folders() -> list:
+    home = pathlib.Path(os.environ.get("COPILOT_HOME") or pathlib.Path.home() / ".copilot")
+    try:  # config.json starts with // comment lines
+        text = "\n".join(l for l in (home / "config.json").read_text(encoding="utf-8").splitlines()
+                         if not l.lstrip().startswith("//"))
+        folders = json.loads(text).get("trustedFolders") or []
+    except (OSError, ValueError, AttributeError):
+        return []
+    return [pathlib.Path(f).expanduser().resolve() for f in folders if isinstance(f, str)]
+
+
+def check_trusted(root):
+    if any(root == f or f in root.parents for f in trusted_folders()):
+        return [("ok", "copilot", "folder trusted: repo hooks run in resumed sessions too")]
+    return [("warn", "copilot", f"{root} isn't in Copilot's trustedFolders: an untrusted folder skips the repo hooks, "
+             "and `copilot --resume` (each reply after an owner pause) can't take --trust-folder, so those sessions run "
+             "with no FyzxsFlow hook. Start copilot here once and answer \"Yes, and remember this folder\"")]
 
 
 def main(argv=None) -> int:
