@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.3 (2026-11-25)
+- **`engine/doctor.py`, a preflight before the first stage** (and on resume): dry-runs the repo's own hooks against
+  the flow's git add / commit / push, checks for a clean checkout, a signed-in PR CLI, Docker when a mode uses it,
+  the NuGet audit, and Copilot agent files (parseable frontmatter, within 12 KB) and hooks. The orchestrator stops
+  on a `FAIL` and hands the owner each problem. (The Copilot run met a repo guard denying `git commit`, a dirty
+  checkout, Docker down and an NU1902 audit failure only mid-run.)
+
 ## 0.6.2 (2026-11-25)
 - **A lane knows what it may change.** `lanes.py open` records each lane (run, group, packages, `owns` = its
   packages' Scope paths, branch, into) in the lane's own git directory, never in the tree. `engine/lane_resolve.py`

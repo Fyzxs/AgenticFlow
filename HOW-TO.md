@@ -142,6 +142,14 @@ python -I .fyzxsflow/package/engine/install.py --sync --target . --host copilot 
 
 `--probe-hooks` works the same way for `--host claude`.
 
+## Before a run: doctor
+
+The orchestrator runs `python -I .fyzxsflow/package/engine/doctor.py` before a run starts or resumes, and stops on
+any `FAIL`: a repo hook (yours, not FyzxsFlow's) that would deny the flow's `git add`, `git commit` or `git push`
+of the run branch, uncommitted changes, a PR CLI that isn't signed in, Docker not running when a Runner mode uses
+it, a NuGet audit warning (`NU190x`) not listed under the profile's `- Audit exceptions:`, and Copilot agent files
+it can't load or that are over the size budget. Run it yourself any time; `--skip-restore` skips the restore.
+
 ## Set up your repo
 
 Run `/fyzxsflow-init` (see [Run the flow](#run-the-flow) for your tool). The Repo Cartographer drafts

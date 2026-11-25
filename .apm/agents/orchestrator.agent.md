@@ -51,6 +51,10 @@ yourself (the owner asked, or no agent can), log why: `run.py log <run> <stage> 
    Read the `Policy` in `.fyzxsflow/feature-flags.md` (and, after Intake, the brief's `flags:`). Flags are
    required unless one of them says `not-required`. Only when flags are required does a missing provider
    stop the run at Locate, and only then do the flag reviewer and both-state test runs apply.
+   Then `python -I .fyzxsflow/package/engine/doctor.py` (before a new run and on resume). On `FAIL`, stop and
+   give the owner each problem as it printed it: a repo hook that denies the flow's commit or push, a dirty
+   checkout, a signed-out PR CLI, Docker down, a NuGet audit warning, an agent file Copilot can't load. Never
+   change a repo hook or work around a check yourself.
 2. Resuming? `python -I .fyzxsflow/package/engine/run.py list` shows active runs; continue the one the owner means
    from its ledger. Otherwise create the run: `python -I .fyzxsflow/package/engine/run.py new --source <prompt|ado>
    --ref "<text or id>"`. It lands in `runs/active/` and switches to the run's own branch,
