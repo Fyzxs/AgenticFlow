@@ -64,7 +64,7 @@ class InstallTests(unittest.TestCase):
             self.assertTrue((pkg / rel).exists(), rel)
         self.assertFalse((pkg / "engine" / "tests").exists())
         self.assertEqual(list(pkg.rglob("__pycache__")), [])  # the install imports the installed engine: no bytecode
-        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.6.4")
+        self.assertEqual(json.loads((pkg / "INSTALLED.json").read_text(encoding="utf-8"))["fyzxsflow"], "0.6.5")
         self.assertTrue((self.root / ".claude/agents/implementer.md").exists())
         flow_cmd = (self.root / ".claude/commands/flow.md").read_text(encoding="utf-8")
         self.assertIn("Request: $ARGUMENTS", flow_cmd)
@@ -250,6 +250,7 @@ class InstallTests(unittest.TestCase):
         self.install("--host", "claude")
         text = (self.root / ".gitignore").read_text(encoding="utf-8")
         self.assertEqual(text.count(".fyzxsflow/runs/_adhoc/"), 1)
+        self.assertEqual(text.count(".fyzxsflow/package/**/__pycache__/"), 1)  # engine imports leave bytecode
         self.assertTrue(text.startswith("bin/\n"))
 
     def test_hook_uses_python3_where_python_is_missing_and_reinstall_keeps_one_hook(self):

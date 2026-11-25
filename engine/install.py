@@ -50,7 +50,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from layout import AGENT_BUDGET_KB, HOME, LEARNED, LEGACY_HOMES, NAME, PACKAGE  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
-VERSION = "0.6.4"
+VERSION = "0.6.5"
 HOOK_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/block_kill_by_name.py"'
 GUARD_SCRIPT = f'"$CLAUDE_PROJECT_DIR/{HOME}/{PACKAGE}/engine/hooks/orchestrator_guard_claude.py"'
 OLD_GUARD_MARKERS = ("/engine/hooks/orchestrator_guard.py",)  # 0.4.4-0.4.9: one script for both hosts
@@ -78,6 +78,8 @@ LEARNED_HEADING = re.compile(r"^## Learned\s*$", re.M)
 PACKAGE_PARTS = ("engine", "agents", "context", "templates", "skills", "instructions", "prompts", "INSTALLED.json")
 ADHOC_COMMENT = f"# {HOME[1:]}: ad-hoc runner/gate output outside a run"
 ADHOC_LINE = f"{HOME}/runs/_adhoc/"
+CACHE_COMMENT = f"# {HOME[1:]}: bytecode the engine scripts leave when they import each other"
+CACHE_LINE = f"{HOME}/{PACKAGE}/**/__pycache__/"
 
 
 def split_frontmatter(text: str):
@@ -158,6 +160,12 @@ def ensure_gitignore(target: pathlib.Path, written: list):
         text = text.rstrip("\n") + ("\n\n" if text else "") + f"{ADHOC_COMMENT}\n{ADHOC_LINE}\n"
         gi.write_text(text, encoding="utf-8", newline="\n")
         written.append(gi)
+    if CACHE_LINE not in lines:
+        text = gi.read_text(encoding="utf-8")
+        text = text.rstrip("\n") + "\n\n" + f"{CACHE_COMMENT}\n{CACHE_LINE}\n"
+        gi.write_text(text, encoding="utf-8", newline="\n")
+        if gi not in written:
+            written.append(gi)
     if any(l in (f"{HOME}/runs/", f"{HOME}/runs", f"{HOME}/runs/*") for l in lines):
         print(f"warning: .gitignore ignores {HOME}/runs/, so runs are not kept; remove that line unless the "
               "profile says Runs: local")

@@ -199,7 +199,7 @@ def save(root, run, data: dict):
 def dirty(cwd: pathlib.Path) -> list:
     """Uncommitted changes, ignoring the run folders (their ledger and reports are committed by run.py)."""
     out = git(cwd, "status", "--porcelain", "--untracked-files=all").stdout.splitlines()
-    return [l[3:] for l in out if l.strip() and not l[3:].startswith(f"{HOME}/runs/")]
+    return [l[3:] for l in out if l.strip() and not l[3:].startswith(f"{HOME}/runs/") and "__pycache__/" not in l]
 
 
 def run_branch(root: pathlib.Path) -> str:

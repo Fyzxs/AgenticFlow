@@ -97,7 +97,7 @@ def check_hooks(root):
 
 def check_checkout(root):
     out = sh(["git", "status", "--porcelain", "--untracked-files=all"], root).stdout.splitlines()
-    dirty = [l[3:] for l in out if l.strip() and not l[3:].startswith(f"{HOME}/runs/")]
+    dirty = [l[3:] for l in out if l.strip() and not l[3:].startswith(f"{HOME}/runs/") and "__pycache__/" not in l]
     if dirty:
         return [("FAIL", "checkout", "uncommitted changes (lanes.py open refuses them): " + ", ".join(dirty[:8])
                  + (f" and {len(dirty) - 8} more" if len(dirty) > 8 else ""))]

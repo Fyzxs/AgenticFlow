@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.5 (2026-11-25)
+- **Engine bytecode no longer blocks lanes.** An engine script that imports another (lanes.py, doctor.py) left
+  `__pycache__/` under `.fyzxsflow/package/engine/`, untracked, so `lanes.py open` refused a "dirty" checkout. The
+  install adds `.fyzxsflow/package/**/__pycache__/` to `.gitignore`, and the dirty checks ignore bytecode. (Found by
+  the live Copilot acceptance check, which then confirmed a `task`-dispatched implementer is held to its lane.)
+
 ## 0.6.4 (2026-11-25)
 - **Agent files load in full.** Copilot read 20 KB of the 46 KB orchestrator file and never reached its PR rules.
   Every agent file is now within 12 KB (`layout.AGENT_BUDGET_KB`; install refuses more, doctor fails an installed
