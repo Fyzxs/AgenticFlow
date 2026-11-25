@@ -238,6 +238,9 @@ def reminder(payload: dict, scoped: bool):
     """None when the call is the orchestrator's own bookkeeping (or not its call at all), else the reminder."""
     if not is_orchestrators_call(payload, scoped):
         return None  # a subagent, a plain session, or another agent's session
+    note = report_note(payload, scoped)
+    if note:
+        return note
     tool, args, _, _ = fields(payload)
     if tool in EDIT_TOOLS:
         paths = edited_paths(args)
@@ -652,7 +655,7 @@ def maker_scope(payload: dict):
     return None
 
 
-# ---------------------------------------------------------------- an agent's report is the agent's (orchestrator: blocks)
+# ---------------------------------------------------------------- an agent's report is the agent's (orchestrator: reminds)
 
 REPORT_PATH = re.compile(rf"(?:^|/){re.escape(HOME)}/runs/(?:[^/]+/)+reports/")
 
@@ -668,9 +671,10 @@ def in_place_targets(command: str) -> list:
     return out
 
 
-def report_guard(payload: dict, scoped: bool):
-    """None, or why the orchestrator may not write an agent's report: a report records what that agent did; a
-    missing or wrong line goes back to the agent (or is the owner's call), never the orchestrator's edit."""
+def report_note(payload: dict, scoped: bool):
+    """None, or the reminder for the orchestrator writing an agent's report: a report records what that agent did,
+    so a missing or wrong line should go back to the agent. A reminder, never a block: fixing up after the owner's
+    feedback sometimes needs the orchestrator's own hand."""
     if not is_orchestrators_call(payload, scoped):
         return None
     tool, args, _, _ = fields(payload)
@@ -684,9 +688,10 @@ def report_guard(payload: dict, scoped: bool):
     hit = next((t for t in targets if REPORT_PATH.search(t.replace("\\", "/"))), None)
     if not hit:
         return None
-    return (f"Blocked by FyzxsFlow: {hit} is an agent's report, and only that agent writes it. Stamping "
-            f"(run.py stamp) adds the model lines, and a missing model_reported is stamped unknown. Anything else "
-            f"wrong in it: send it back to the agent with what to fix, or ask the owner.")
+    return (f"FyzxsFlow reminder: {hit} is an agent's report, a record of what that agent did. You should send "
+            f"what's wrong back to the agent rather than change it yourself (stamping adds the model lines; a missing "
+            f"model_reported is stamped unknown). If you do change it, say what and why in the ledger "
+            f"(`run.py log <run> <stage> decided \"edited <report>: <why>\"`).")
 
 
 # ---------------------------------------------------------------- after an edit: encoding damage (reports, never fixes)

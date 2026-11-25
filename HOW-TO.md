@@ -121,9 +121,11 @@ The hook is one rules file, `engine/hooks/orchestrator_rules.py`, with an entry 
 merge` while on the default branch or a `fyzxsflow/*` branch, and `git push` to the default branch. `lanes.py` and
 `pr.py` run the PR and worktree commands themselves, as subprocesses hooks never see; the owner completes PRs.
 
-**The orchestrator never writes an agent's report** (blocked on both hosts): an edit, a shell write or a `sed -i`
-under a run's `reports/` is refused for it. A report records what its agent did; what's wrong in one goes back to
-that agent, or to the owner. Stamping (`run.py stamp`) still adds the model lines.
+**The orchestrator should delegate, and is reminded, never blocked, when it doesn't.** It sometimes has to fix things
+up itself, often after the owner's feedback. Its own edit, shell write or `sed -i` under a run's `reports/` draws
+a sharper reminder: a report records what its agent did, so what's wrong should go back to that agent, and an
+edit made anyway is logged with why. The blocks are only the never-list above and the review gates (an open pause
+or an unchecked hand-off holds the next dispatch).
 
 What the hosts were checked to do (Claude Code 2.1.330, 2026-11-23):
 - A main session started with `--agent` carries `agent_type` and no `agent_id` on its own calls.

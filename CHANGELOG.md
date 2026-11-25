@@ -5,10 +5,11 @@
   agent may not know which. `stamp` now records a missing `model_reported` as `unknown` with a note instead of
   refusing (0.6.1); the rerun's orchestrator had worked round the refusal by editing a validator's report itself.
   `--lenient` is accepted and does nothing.
-- **The orchestrator can't write an agent's report.** Its edits, shell writes and `sed -i` under a run's
-  `reports/` are blocked on both hosts (the rerun's orchestrator edited a validator's report and logged the call
-  as its own decision). What's wrong in a report goes back to its agent or to the owner; `run.py stamp` still
-  writes the model lines, as a subprocess the hooks never see.
+- **The orchestrator should delegate; it's reminded, never blocked.** Its edits, shell writes and `sed -i`
+  under a run's `reports/` draw a sharper reminder (send what's wrong back to the agent; log why if you edit it
+  anyway): the rerun's orchestrator edited a validator's report itself. Not a block, because fixing up after the
+  owner's feedback sometimes needs the orchestrator's own hand. The blocks stay the never-list and the review
+  gates.
 
 ## 0.6.9 (2026-11-25)
 - **A run can't complete with a review still open.** The live FizzBuzz run closed with two Deliver reviews
