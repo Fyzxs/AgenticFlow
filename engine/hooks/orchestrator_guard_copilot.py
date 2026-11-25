@@ -34,11 +34,13 @@ import orchestrator_rules as rules  # noqa: E402
 
 
 def deny(reason: str) -> int:
+    """Copilot CLI: exit 0 with the decision on stdout (`copilot help hooks`). A non-zero exit is a failed hook:
+    the call is still denied, but the model sees only "hook exited with code 2", never the reason (live, 1.0.116)."""
     print(json.dumps({"permissionDecision": "deny", "permissionDecisionReason": reason,
                       "hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                              "permissionDecisionReason": reason}}))
     sys.stderr.write(reason + "\n")
-    return 2
+    return 0
 
 
 def main(argv=None) -> int:

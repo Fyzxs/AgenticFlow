@@ -289,6 +289,22 @@ def cmd_decide(args) -> int:
         print(f"reply not understood: {e}. Examples: 'approve', 'approve -less-review', 'redo: tests miss nulls -more-review'",
               file=sys.stderr)
         return 2
+    # The reply answers an open pause: match it, or the pause stays open and the hook holds every dispatch (live:
+    # a greenfield orchestrator decided `--target design-reader` for the pause on `g1`).
+    pauses = open_pauses(run)
+    mine = [p for p in pauses if p.get("agent") == args.agent]
+    if mine and not any(same_target(p.get("target"), args.target) for p in mine):
+        if len(mine) > 1:
+            print(f"refused: {args.agent} has {len(mine)} open pauses, none on target {args.target}: "
+                  + ", ".join(str(p.get("target")) for p in mine) + ". Decide with --target <one of them>",
+                  file=sys.stderr)
+            return 2
+        print(f"note: {args.agent}'s open pause is on target {mine[0].get('target')}, not {args.target}; "
+              f"recorded there")
+        args.target = mine[0].get("target")
+    elif not mine and pauses:
+        print("note: no open pause for " + args.agent + "; still open: "
+              + ", ".join(f"{p.get('agent')} on {p.get('target')}" for p in pauses))
     _, _, review = load_config(root)
     before = level_of(review, args.agent)
     after = step(before, adjust)

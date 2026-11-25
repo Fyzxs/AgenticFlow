@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.12 (2026-11-25)
+From a live greenfield run on Copilot: the owner's `approve` at G1 was recorded, yet the next dispatch was denied
+and the orchestrator told the owner the host was blocking it.
+- **Copilot now shows the model why a call was denied.** The hook exited 2, which Copilot treats as a failed hook:
+  it still denies, but the model sees only "hook exited with code 2". A deny now exits 0 with the decision and
+  reason on stdout (`copilot help hooks`); checked live, the model quotes the reason and the command to run.
+- **A reply lands on the pause it answers.** The orchestrator recorded the approval with `--target design-reader`
+  for the pause on `g1`, so the pause stayed open. `review.py decide` now records it on the agent's one open pause
+  when the target doesn't match (and says so), and refuses with the targets when the agent has several.
+
 ## 0.6.11 (2026-11-25)
 - **Every command runs in the Orchestrator, which dispatches the agent that does the work,** on both hosts.
   `/fyzxsflow-init` used to need the Repo Cartographer selected as the session's agent, and

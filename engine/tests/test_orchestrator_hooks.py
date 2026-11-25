@@ -16,14 +16,28 @@ CLAUDE, COPILOT, PROBE = (HOOKS / "orchestrator_guard_claude.py", HOOKS / "orche
 ENGINE = HOOKS.parent
 
 
+def copilot_denied(p):
+    """A Copilot deny exits 0 with the decision on stdout (else the model never sees the reason); read it back as
+    exit 2, the code these tests use for every deny."""
+    try:
+        out = json.loads(p.stdout or "{}")
+    except ValueError:
+        return p
+    if isinstance(out, dict) and out.get("permissionDecision") == "deny":
+        assert p.returncode == 0, "a Copilot deny must exit 0 so the reason reaches the model"
+        p.returncode = 2
+    return p
+
+
 def hook(payload, *args, cwd=None):
     """Run a host script: "--scoped" means the Copilot script ("pre" or "post", default post), else Claude's."""
     if "--scoped" in args:
         argv = [str(COPILOT), *(args if {"pre", "post", "prompt"} & set(args) else ["post", *args])]
     else:
         argv = [str(CLAUDE), *args]
-    return subprocess.run([sys.executable, "-I", "-B", *argv], input=json.dumps(payload) if payload is not None else "",
-                          capture_output=True, text=True, cwd=cwd)
+    p = subprocess.run([sys.executable, "-I", "-B", *argv], input=json.dumps(payload) if payload is not None else "",
+                       capture_output=True, text=True, cwd=cwd)
+    return copilot_denied(p) if argv[0] == str(COPILOT) else p
 ENG = ".fyzxsflow/package/engine"
 
 
@@ -194,9 +208,9 @@ class CopilotSessionTests(unittest.TestCase):
 
     def call(self, mode, payload):
         env = {**os.environ, "COPILOT_HOME": str(self.home)}
-        return subprocess.run([sys.executable, "-I", "-B", str(COPILOT), mode],
-                              input=json.dumps({"cwd": str(self.root), **payload}), capture_output=True, text=True,
-                              cwd=self.root, env=env)
+        return copilot_denied(subprocess.run([sys.executable, "-I", "-B", str(COPILOT), mode],
+                                             input=json.dumps({"cwd": str(self.root), **payload}),
+                                             capture_output=True, text=True, cwd=self.root, env=env))
 
     def test_flow_outside_the_orchestrator_is_blocked_at_the_prompt(self):
         self.select("s1", "")
@@ -345,6 +359,25 @@ class ReviewGateTests(unittest.TestCase):
                                      "locate", "--reply", "keep going to the end").returncode, 0)
         self.assertEqual(self.review("open", "--run", str(self.run_dir)).returncode, 0)
         self.assertEqual(self.call(dispatch).returncode, 0)
+
+    def test_a_reply_with_the_wrong_target_closes_the_agents_one_open_pause(self):
+        # live (Copilot greenfield): `decide --target design-reader` for the pause on g1 left it open
+        self.pause()
+        out = self.review("decide", "--run", str(self.run_dir), "--agent", "code-indicator", "--target",
+                          "code-indicator", "--reply", "approve")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("open pause is on target locate, not code-indicator; recorded there", out.stdout)
+        self.assertEqual(self.review("open", "--run", str(self.run_dir)).returncode, 0)
+
+    def test_copilot_denies_with_exit_0_so_the_model_sees_why(self):
+        self.pause()
+        dispatch = {"toolName": "task", "toolArgs": json.dumps({"agent_type": "validator"}), "cwd": str(self.root)}
+        p = subprocess.run([sys.executable, "-I", "-B", str(COPILOT), "pre", "--scoped"], input=json.dumps(dispatch),
+                           capture_output=True, text=True, cwd=self.root)
+        self.assertEqual(p.returncode, 0)
+        out = json.loads(p.stdout)
+        self.assertEqual(out["permissionDecision"], "deny")
+        self.assertIn("waiting for the owner's review of code-indicator on locate", out["permissionDecisionReason"])
 
     def test_copilot_gates_before_the_call_and_reminds_after(self):
         self.pause()
